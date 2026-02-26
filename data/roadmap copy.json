@@ -1,0 +1,116 @@
+{
+  "releaseName": "Roadmap Ver1",
+  "startDate": "2026-01-24",
+  "endDate": "2026-03-04",
+  "milestones": [
+    {
+      "id": "m1",
+      "label": "Deadline Phase 1",
+      "startDate": "2026-02-23",
+      "endDate": "2026-02-27",
+      "color": "#ef4444"
+    },
+    {
+      "id": "m2",
+      "label": "Sprint Review",
+      "startDate": "2026-02-10",
+      "endDate": "2026-02-13",
+      "color": "#3b82f6"
+    }
+  ],
+  "items": [
+    {
+      "id": "category_1772073543985_1",
+      "name": "UNIVERSAL REG",
+      "type": "category",
+      "status": "Not Started",
+      "progress": 0,
+      "children": []
+    },
+    {
+      "id": "category_1772073543985_2",
+      "name": "ONEID",
+      "type": "category",
+      "status": "Not Started",
+      "progress": 0,
+      "children": []
+    },
+    {
+      "id": "category_1772073543985_3",
+      "name": "VAULT",
+      "type": "category",
+      "status": "Not Started",
+      "progress": 0,
+      "children": []
+    },
+    {
+      "id": "category_1772073543985_4",
+      "name": "ON/OFF RAMP",
+      "type": "category",
+      "status": "Not Started",
+      "progress": 0,
+      "children": []
+    },
+    {
+      "id": "category_1772073543985_5",
+      "name": "FUSION CARD",
+      "type": "category",
+      "status": "Not Started",
+      "progress": 0,
+      "children": []
+    },
+    {
+      "id": "2",
+      "name": "SWAPX",
+      "type": "category",
+      "status": "Not Started",
+      "progress": 0,
+      "children": [
+        {
+          "id": "21",
+          "name": "SWAPX - App",
+          "type": "subcategory",
+          "status": "Not Started",
+          "progress": 0,
+          "startDate": "2026-02-04",
+          "endDate": "2026-02-15",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "1",
+      "name": "FUTURES",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 60,
+      "children": [
+        {
+          "id": "11",
+          "name": "FUTURES - App",
+          "type": "subcategory",
+          "status": "In Progress",
+          "progress": 60,
+          "children": []
+        },
+        {
+          "id": "12",
+          "name": "FUTURES - Web",
+          "type": "subcategory",
+          "status": "In Progress",
+          "progress": 70,
+          "startDate": "2026-02-25",
+          "endDate": "2026-02-28",
+          "depth": 1,
+          "parentIds": [
+            "1"
+          ]
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "beforeWeeks": 2,
+    "afterMonths": 2
+  }
+}

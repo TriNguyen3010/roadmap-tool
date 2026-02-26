@@ -1,0 +1,148 @@
+{
+  "releaseName": "Roadmap Ver1",
+  "startDate": "2026-01-24",
+  "endDate": "2026-04-10",
+  "milestones": [
+    {
+      "id": "m1",
+      "label": "Deadline Phase 1",
+      "startDate": "2026-03-16",
+      "endDate": "2026-03-31",
+      "color": "#ef4444"
+    },
+    {
+      "id": "m2",
+      "label": "Sprint Review",
+      "startDate": "2026-02-23",
+      "endDate": "2026-02-27",
+      "color": "#3b82f6"
+    }
+  ],
+  "items": [
+    {
+      "id": "category_1772073543985_1",
+      "name": "UNIVERSAL REG",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 55,
+      "startDate": "2026-02-24",
+      "endDate": "2026-02-26",
+      "children": [],
+      "depth": 0,
+      "parentIds": []
+    },
+    {
+      "id": "category_1772073543985_2",
+      "name": "ONEID",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 85,
+      "startDate": "2026-02-15",
+      "endDate": "2026-03-10",
+      "children": [],
+      "depth": 0,
+      "parentIds": []
+    },
+    {
+      "id": "category_1772073543985_3",
+      "name": "VAULT",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 70,
+      "startDate": "2026-02-20",
+      "endDate": "2026-03-25",
+      "children": [],
+      "depth": 0,
+      "parentIds": []
+    },
+    {
+      "id": "category_1772073543985_4",
+      "name": "ON/OFF RAMP",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 25,
+      "startDate": "2026-03-01",
+      "endDate": "2026-03-20",
+      "children": [],
+      "depth": 0,
+      "parentIds": []
+    },
+    {
+      "id": "category_1772073543985_5",
+      "name": "FUSION CARD",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 60,
+      "startDate": "2026-03-15",
+      "endDate": "2026-03-28",
+      "children": [],
+      "depth": 0,
+      "parentIds": []
+    },
+    {
+      "id": "2",
+      "name": "SWAPX",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 65,
+      "startDate": "2026-02-15",
+      "endDate": "2026-03-30",
+      "children": [
+        {
+          "id": "21",
+          "name": "SWAPX - App",
+          "type": "subcategory",
+          "status": "In Progress",
+          "progress": 60,
+          "startDate": "2026-02-15",
+          "endDate": "2026-03-15",
+          "children": [],
+          "depth": 1,
+          "parentIds": [
+            "2"
+          ]
+        }
+      ],
+      "depth": 0,
+      "parentIds": []
+    },
+    {
+      "id": "1",
+      "name": "FUTURES",
+      "type": "category",
+      "status": "In Progress",
+      "progress": 60,
+      "startDate": "2026-02-20",
+      "endDate": "2026-03-31",
+      "children": [
+        {
+          "id": "11",
+          "name": "FUTURES - App",
+          "type": "subcategory",
+          "status": "In Progress",
+          "progress": 60,
+          "startDate": "2026-02-20",
+          "endDate": "2026-03-15",
+          "children": []
+        },
+        {
+          "id": "12",
+          "name": "FUTURES - Web",
+          "type": "subcategory",
+          "status": "In Progress",
+          "progress": 70,
+          "startDate": "2026-03-10",
+          "endDate": "2026-03-31",
+          "depth": 1,
+          "parentIds": [
+            "1"
+          ]
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "beforeWeeks": 2,
+    "afterMonths": 2
+  }
+}

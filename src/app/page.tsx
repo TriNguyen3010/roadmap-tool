@@ -1,65 +1,200 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { startOfDay, subWeeks, addMonths, endOfMonth, format } from 'date-fns';
+import Toolbar from '@/components/Toolbar';
+import SpreadsheetGrid from '@/components/SpreadsheetGrid';
+import { Toast } from '@/components/Toast';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import MilestoneEditor from '@/components/MilestoneEditor';
+import { useToast } from '@/hooks/useToast';
+import { RoadmapDocument, RoadmapItem, Milestone } from '@/types/roadmap';
+import { exportRoadmapToExcel } from '@/utils/exportToExcel';
 
 export default function Home() {
+  const [data, setData] = useState<RoadmapDocument | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showMilestones, setShowMilestones] = useState(false);
+
+  // Timeline window: how many weeks before & months after today
+  const [beforeWeeks, setBeforeWeeks] = useState(2);
+  const [afterMonths, setAfterMonths] = useState(2);
+
+  const { toasts, addToast, removeToast } = useToast();
+
+  const [confirmState, setConfirmState] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const showConfirm = useCallback((message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      setConfirmState({
+        message,
+        onConfirm: () => { setConfirmState(null); resolve(true); },
+      });
+    });
+  }, []);
+
+  // viewStart: today minus beforeWeeks
+  // viewEnd:   today plus afterMonths (end of that month)
+  const today = useMemo(() => startOfDay(new Date()), []);
+
+  const viewStart = useMemo(() => {
+    const s = subWeeks(today, beforeWeeks);
+    return format(s, 'yyyy-MM-dd');
+  }, [today, beforeWeeks]);
+
+  const viewEnd = useMemo(() => {
+    const e = endOfMonth(addMonths(today, afterMonths));
+    return format(e, 'yyyy-MM-dd');
+  }, [today, afterMonths]);
+
+  useEffect(() => {
+    fetch('/api/roadmap')
+      .then(res => res.json())
+      .then(json => {
+        setData(json);
+        if (json.settings) {
+          if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
+          if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
+        }
+        setLoading(false);
+      })
+      .catch(() => addToast('Không thể tải dữ liệu roadmap.json', 'error'));
+  }, []);
+
+  const handleSave = async (currentData: RoadmapDocument) => {
+    setSaving(true);
+    try {
+      const dataToSave = {
+        ...currentData,
+        settings: { beforeWeeks, afterMonths }
+      };
+
+      const res = await fetch('/api/roadmap/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataToSave),
+      });
+      if (!res.ok) throw new Error();
+      addToast('Đã lưu thành công vào roadmap.json!', 'success');
+    } catch {
+      addToast('Lỗi khi lưu dữ liệu. Vui lòng thử lại.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleGitPush = async () => {
+    addToast('Đang chạy git commit & push...', 'info');
+    try {
+      const res = await fetch('/api/roadmap/git-push', { method: 'POST' });
+      const result = await res.json();
+      if (res.ok) addToast(result.message || 'Đã push lên Git thành công!', 'success');
+      else addToast(result.error || 'Git push thất bại.', 'error');
+    } catch {
+      addToast('Lỗi kết nối khi push lên Git.', 'error');
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (!data) return;
+    try {
+      exportRoadmapToExcel(data);
+      addToast('Đã xuất Excel thành công!', 'success');
+    } catch (err) {
+      console.error(err);
+      addToast('Lỗi khi xuất Excel.', 'error');
+    }
+  };
+
+  const handleNameChange = (name: string) => {
+    if (!data) return;
+    setData({ ...data, releaseName: name });
+  };
+
+  const handleMilestonesSave = (milestones: Milestone[]) => {
+    if (!data) return;
+    setData({ ...data, milestones });
+  };
+
+  const handleDataChange = (newData: RoadmapDocument) => setData(newData);
+
+  const handleRootAdd = (newItem: RoadmapItem) => {
+    if (!data) return;
+    setData({ ...data, items: [...data.items, newItem] });
+  };
+
+  const handleLoadJson = async (jsonData: any) => {
+    if (!jsonData || !jsonData.items) {
+      addToast('File JSON không hợp lệ, thiếu `items`', 'error');
+      return;
+    }
+    const yes = await showConfirm('Bạn có chắc chắn muốn ĐÈ BẢN LƯU bằng file JSON vừa tải lên không?');
+    if (!yes) return;
+
+    setData(jsonData);
+    if (jsonData.settings) {
+      if (typeof jsonData.settings.beforeWeeks === 'number') setBeforeWeeks(jsonData.settings.beforeWeeks);
+      if (typeof jsonData.settings.afterMonths === 'number') setAfterMonths(jsonData.settings.afterMonths);
+    }
+    await handleSave(jsonData);
+  };
+
+  if (loading || !data) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
+        Đang tải Roadmap...
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="flex flex-col h-screen max-w-full overflow-hidden bg-white text-gray-900">
+      <Toast toasts={toasts} onRemove={removeToast} />
+
+      {confirmState && (
+        <ConfirmDialog
+          message={confirmState.message}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      )}
+
+      {showMilestones && (
+        <MilestoneEditor
+          milestones={data.milestones || []}
+          onSave={handleMilestonesSave}
+          onClose={() => setShowMilestones(false)}
+        />
+      )}
+
+      <Toolbar
+        documentName={data.releaseName}
+        onNameChange={handleNameChange}
+        onSave={() => handleSave(data)}
+        onGitPush={handleGitPush}
+        onExportExcel={handleExportExcel}
+        onOpenMilestones={() => setShowMilestones(true)}
+        beforeWeeks={beforeWeeks}
+        afterMonths={afterMonths}
+        onBeforeWeeksChange={setBeforeWeeks}
+        onAfterMonthsChange={setAfterMonths}
+        onLoadJson={handleLoadJson}
+        isSaving={saving}
+      />
+      <div className="flex-1 overflow-hidden">
+        <SpreadsheetGrid
+          data={data}
+          onDataChange={handleDataChange}
+          onRootAdd={handleRootAdd}
+          showConfirm={showConfirm}
+          viewStart={viewStart}
+          viewEnd={viewEnd}
+        />
+      </div>
+    </main>
   );
 }
