@@ -557,7 +557,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     </div>
 
                     {/* ── DATA ROWS ── */}
-                    <div className="relative">
+                    <div className="relative group/gantt">
                         {/* Today line */}
                         {today && todayIndex >= 0 && (
                             <div className="absolute top-0 bottom-0 z-10 pointer-events-none"
@@ -630,13 +630,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}>
                                     {barLeft >= 0 && (
                                         <div
-                                            className="absolute top-[4px] bottom-[4px] rounded shadow-sm z-[5] cursor-pointer transition-all flex items-center justify-center group/bar hover:z-20"
+                                            className="absolute top-[4px] bottom-[4px] rounded shadow-sm z-[5] cursor-pointer transition-all flex items-center justify-center hover:z-20 group-hover/gantt:z-10"
                                             style={barStyle}
                                             title={`${row.name}: ${row.startDate} → ${row.endDate} | ${sprintStr} sprint | ${workdays} ngày làm việc | ${row.status} ${row.progress}%`}
                                             onClick={() => setEditingItem(row)}
                                         >
                                             {isGrowthCamp && <span className="absolute left-1 text-[10px]">🚀</span>}
-                                            <span className="absolute z-10 opacity-0 group-hover/bar:opacity-100 transition-opacity bg-gray-900/90 text-white text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap select-none flex items-center pointer-events-none shadow-md">
+                                            <span className="absolute z-10 opacity-0 group-hover/gantt:opacity-100 transition-opacity bg-gray-900/90 text-white text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap select-none flex items-center pointer-events-none shadow-md">
                                                 {workdays}d ({sprintStr} sprints)
                                             </span>
                                         </div>
