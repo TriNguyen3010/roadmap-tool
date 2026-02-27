@@ -132,6 +132,19 @@ export default function Home() {
     await handleSave(jsonData);
   };
 
+  const handleDownloadJson = () => {
+    if (!data) return;
+    const fileName = `${data.releaseName.replace(/\s+/g, '_')}_backup_${new Date().toISOString().slice(0, 10)}.json`;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast(`Đã tải xuống ${fileName}`, 'success');
+  };
+
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
@@ -165,6 +178,7 @@ export default function Home() {
         onNameChange={handleNameChange}
         onSave={() => handleSave(data)}
         onExportExcel={handleExportExcel}
+        onDownloadJson={handleDownloadJson}
         onOpenMilestones={() => setShowMilestones(true)}
         beforeWeeks={beforeWeeks}
         afterMonths={afterMonths}

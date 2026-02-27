@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-    Save, Download, Loader2, Flag, Check,
+    Save, Download, FileJson, Loader2, Flag, Check,
     Pencil, Clock, Settings, X, ChevronRight, Upload,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -37,13 +37,14 @@ interface ToolbarProps {
     onBeforeWeeksChange: (w: number) => void;
     onAfterMonthsChange: (m: number) => void;
     onLoadJson?: (jsonData: any) => void;
+    onDownloadJson?: () => void;
     isSaving?: boolean;
 }
 
 export default function Toolbar({
     documentName, onNameChange, onSave, onExportExcel,
     onOpenMilestones, beforeWeeks, afterMonths,
-    onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, isSaving,
+    onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -249,6 +250,14 @@ export default function Toolbar({
                                 >
                                     <Download size={13} />
                                     <span>Xuất Excel</span>
+                                </button>
+
+                                <button
+                                    onClick={() => { onDownloadJson?.(); setSettingsOpen(false); }}
+                                    className="flex items-center gap-2 w-full px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors"
+                                >
+                                    <FileJson size={13} />
+                                    <span>Tải xuống JSON</span>
                                 </button>
 
                                 <button
