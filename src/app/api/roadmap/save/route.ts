@@ -1,14 +1,30 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import { supabase } from '@/lib/supabase';
+
+const ROW_ID = 'main';
 
 export async function POST(request: Request) {
     try {
         const data = await request.json();
-        const filePath = path.join(process.cwd(), 'data', 'roadmap.json');
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+
+        const { error } = await supabase
+            .from('roadmap_data')
+            .upsert(
+                { id: ROW_ID, content: data, updated_at: new Date().toISOString() },
+                { onConflict: 'id' }
+            );
+
+        if (error) {
+            console.error('Supabase upsert error:', JSON.stringify(error));
+            return NextResponse.json(
+                { error: 'Supabase error', message: error.message, code: error.code, details: error.details },
+                { status: 500 }
+            );
+        }
+
         return NextResponse.json({ success: true });
-    } catch (error) {
-        return NextResponse.json({ error: 'Failed to write roadmap data' }, { status: 500 });
+    } catch (err: any) {
+        console.error('Failed to save roadmap:', err);
+        return NextResponse.json({ error: 'Failed to write roadmap data', message: String(err) }, { status: 500 });
     }
 }

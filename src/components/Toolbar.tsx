@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-    Save, GitBranch, Download, Loader2, Flag, Check,
+    Save, Download, Loader2, Flag, Check,
     Pencil, Clock, Settings, X, ChevronRight, Upload,
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -30,7 +30,6 @@ interface ToolbarProps {
     documentName: string;
     onNameChange: (name: string) => void;
     onSave: () => void;
-    onGitPush: () => void;
     onExportExcel?: () => void;
     onOpenMilestones: () => void;
     beforeWeeks: number;
@@ -42,7 +41,7 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({
-    documentName, onNameChange, onSave, onGitPush, onExportExcel,
+    documentName, onNameChange, onSave, onExportExcel,
     onOpenMilestones, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, isSaving,
 }: ToolbarProps) {
@@ -243,14 +242,6 @@ export default function Toolbar({
                             {/* ── Actions section ── */}
                             <div className="px-4 py-3 flex flex-col gap-2">
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hành động</p>
-
-                                <button
-                                    onClick={() => { onGitPush(); setSettingsOpen(false); }}
-                                    className="flex items-center gap-2 w-full px-3 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-xs font-semibold transition-colors"
-                                >
-                                    <GitBranch size={13} />
-                                    <span>Git Push</span>
-                                </button>
 
                                 <button
                                     onClick={() => { onExportExcel?.(); setSettingsOpen(false); }}

@@ -87,17 +87,6 @@ export default function Home() {
     }
   };
 
-  const handleGitPush = async () => {
-    addToast('Đang chạy git commit & push...', 'info');
-    try {
-      const res = await fetch('/api/roadmap/git-push', { method: 'POST' });
-      const result = await res.json();
-      if (res.ok) addToast(result.message || 'Đã push lên Git thành công!', 'success');
-      else addToast(result.error || 'Git push thất bại.', 'error');
-    } catch {
-      addToast('Lỗi kết nối khi push lên Git.', 'error');
-    }
-  };
 
   const handleExportExcel = () => {
     if (!data) return;
@@ -175,7 +164,6 @@ export default function Home() {
         documentName={data.releaseName}
         onNameChange={handleNameChange}
         onSave={() => handleSave(data)}
-        onGitPush={handleGitPush}
         onExportExcel={handleExportExcel}
         onOpenMilestones={() => setShowMilestones(true)}
         beforeWeeks={beforeWeeks}
