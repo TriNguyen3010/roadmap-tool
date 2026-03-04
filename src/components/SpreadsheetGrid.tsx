@@ -1,10 +1,10 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, ItemPriority, PRIORITY_LEVELS } from '@/types/roadmap';
 import {
     flattenRoadmap, calculateProgress, FlattenedItem,
-    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode
+    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
 import { format, isSameDay, differenceInDays, startOfDay, isWithinInterval, parseISO } from 'date-fns';
 import { ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle } from 'lucide-react';
@@ -13,11 +13,21 @@ import AddNodePopup from './AddNodePopup';
 
 interface GridProps {
     data: RoadmapDocument;
-    onDataChange: (newData: RoadmapDocument) => void;
+    onDataChange: (newData: RoadmapDocument, shouldSave?: boolean) => void;
     onRootAdd: (newItem: RoadmapItem) => void;
     showConfirm: (message: string) => Promise<boolean>;
     viewStart: string;
     viewEnd: string;
+    today: Date;
+    // Column visibility (lifted to parent for persistence)
+    showPct: boolean;
+    setShowPct: (v: boolean) => void;
+    showPriority: boolean;
+    setShowPriority: (v: boolean) => void;
+    showStartDate: boolean;
+    setShowStartDate: (v: boolean) => void;
+    showEndDate: boolean;
+    setShowEndDate: (v: boolean) => void;
 }
 
 const ROW_HEIGHT = 28;
@@ -62,6 +72,18 @@ const STATUS_TAG_TEXT: Record<string, string> = {
     'Not Started': '#374151',
 };
 
+const PRIORITY_TAG_BG: Record<string, string> = {
+    'High': '#fee2e2',
+    'Medium': '#fef9c3',
+    'Low': '#dcfce7',
+};
+const PRIORITY_TAG_TEXT: Record<string, string> = {
+    'High': '#b91c1c',
+    'Medium': '#854d0e',
+    'Low': '#166534',
+};
+const COL_PRIORITY_W = 70;
+
 const CHILD_TYPE_MAP: Record<ItemType, ItemType | null> = {
     category: 'subcategory',
     subcategory: 'group',
@@ -95,25 +117,28 @@ function countWorkdays(start: Date, end: Date): number {
     return count;
 }
 
-export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd }: GridProps) {
+export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
+    showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate
+}: GridProps) {
     const leftPaneRef = useRef<HTMLDivElement>(null);
     const rightPaneRef = useRef<HTMLDivElement>(null);
-    const [today, setToday] = useState<Date | null>(null);
 
     // ── Column widths (resizable) ──
     const [nameW, setNameW] = useState(260);
     const [statusW, setStatusW] = useState(COL_STATUS_DEFAULT);
     const [startDateW, setStartDateW] = useState(COL_DATE_DEFAULT);
     const [endDateW, setEndDateW] = useState(COL_DATE_DEFAULT);
-    const [showPct, setShowPct] = useState(true);
-    const [showStartDate, setShowStartDate] = useState(false);
-    const [showEndDate, setShowEndDate] = useState(false);
+
+    // ── Priority dropdown open state ──
+    const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
 
     // ── CRUD states ──
     const [editingItem, setEditingItem] = useState<RoadmapItem | null>(null);
     const [addingToParent, setAddingToParent] = useState<{ id: string; name: string; childType: ItemType } | null>(null);
 
-    useEffect(() => { setToday(startOfDay(new Date())); }, []);
+    // ── Drag & Drop States ──
+    const [draggedId, setDraggedId] = useState<string | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
 
     // ── Expand all by default ──
     const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
@@ -237,6 +262,35 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         onDataChange({ ...data, items: newItems });
     };
 
+    // ── Drag & Drop Handlers ──
+    const handleDragStart = (e: React.DragEvent, id: string) => {
+        setDraggedId(id);
+        e.dataTransfer.effectAllowed = 'move';
+        // Setting transparent image helps styling custom drag ghost if needed
+    };
+    const handleDragOver = (e: React.DragEvent, id: string) => {
+        e.preventDefault(); // enable drop
+        if (draggedId && draggedId !== id) {
+            setDragOverId(id);
+        }
+    };
+    const handleDragLeave = () => {
+        setDragOverId(null);
+    };
+    const handleDrop = (e: React.DragEvent, targetId: string) => {
+        e.preventDefault();
+        if (draggedId && draggedId !== targetId) {
+            const newItems = reorderItems(data.items, draggedId, targetId);
+            onDataChange({ ...data, items: newItems }, true); // Pass true to trigger auto-save if supported
+        }
+        setDraggedId(null);
+        setDragOverId(null);
+    };
+    const handleDragEnd = () => {
+        setDraggedId(null);
+        setDragOverId(null);
+    };
+
     // ── Column resize via mouse drag ──
     const startResize = useCallback((
         e: React.MouseEvent,
@@ -261,7 +315,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, []);
 
     // ── Computed total left pane width ──
-    const totalLeftW = COL_ID_W + nameW + statusW
+    const totalLeftW = COL_ID_W + nameW
+        + (showPriority ? COL_PRIORITY_W : 0)
+        + statusW
         + (showStartDate ? startDateW : 0)
         + (showEndDate ? endDateW : 0)
         + (showPct ? COL_PCT_W : 0)
@@ -269,7 +325,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const TOTAL_HEADER_H = MILESTONE_HEADER_H + ROW_HEIGHT + ROW_HEIGHT;
 
     // Grid template for left pane rows/header
-    const gridTemplate = `${COL_ID_W}px ${nameW}px ${statusW}px`
+    const gridTemplate = `${COL_ID_W}px ${nameW}px`
+        + (showPriority ? ` ${COL_PRIORITY_W}px` : '')
+        + ` ${statusW}px`
         + (showStartDate ? ` ${startDateW}px` : '')
         + (showEndDate ? ` ${endDateW}px` : '')
         + (showPct ? ` ${COL_PCT_W}px` : '')
@@ -305,6 +363,17 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             title="Kéo để thay đổi cột"
                         />
                     </div>
+
+                    {/* PRIORITY header – click to hide */}
+                    {showPriority && (
+                        <div className="flex items-center justify-center border-r border-gray-400 cursor-pointer hover:bg-indigo-100 transition-colors select-none"
+                            title="Click để ẩn cột Priority"
+                            onClick={() => setShowPriority(false)}
+                            style={{ minWidth: COL_PRIORITY_W, width: COL_PRIORITY_W }}
+                        >
+                            <span className="text-indigo-700">PRIORITY</span>
+                        </div>
+                    )}
 
                     {/* STATUS – resize handle on right */}
                     <div className="flex items-center justify-center border-r border-gray-400 relative group/col">
@@ -357,6 +426,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                     {/* Actions column header – shows restore buttons when hidden */}
                     <div className="flex items-center flex-wrap justify-center gap-0.5 px-0.5">
+                        {!showPriority && (
+                            <button title="Hiện cột Priority" onClick={() => setShowPriority(true)}
+                                className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
+                                P
+                            </button>
+                        )}
                         {!showStartDate && (
                             <button title="Hiện cột Bắt đầu" onClick={() => setShowStartDate(true)}
                                 className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
@@ -411,9 +486,21 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const isExpanded = expandedIds.has(row.id);
                         const childType = CHILD_TYPE_MAP[row.type];
 
+                        const isCategory = row.type === 'category';
+                        const isDragged = isCategory && draggedId === row.id;
+                        const isDragOver = isCategory && dragOverId === row.id;
+
                         return (
-                            <div key={row.id} className="grid border-b border-gray-300 group hover:brightness-95"
-                                style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: style.bg }}>
+                            <div key={row.id}
+                                className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOver ? 'border-t-4 border-t-blue-500' : ''}`}
+                                style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: style.bg }}
+                                draggable={isCategory}
+                                onDragStart={(e) => isCategory && handleDragStart(e, row.id)}
+                                onDragOver={(e) => isCategory && handleDragOver(e, row.id)}
+                                onDragLeave={isCategory ? handleDragLeave : undefined}
+                                onDrop={(e) => isCategory && handleDrop(e, row.id)}
+                                onDragEnd={isCategory ? handleDragEnd : undefined}
+                            >
 
                                 {/* ID cell */}
                                 <div
@@ -463,6 +550,46 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         </span>
                                     )}
                                 </div>
+
+                                {/* Priority — only for group/feature, hidden when showPriority=false */}
+                                {showPriority && (
+                                    (row.type === 'group' || row.type === 'feature') ? (
+                                        <div
+                                            className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors relative"
+                                            style={{ width: COL_PRIORITY_W }}
+                                            title="Click để đổi priority"
+                                            onClick={e => { e.stopPropagation(); setOpenPriorityId(openPriorityId === row.id ? null : row.id); }}
+                                        >
+                                            <span
+                                                className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
+                                                style={{
+                                                    backgroundColor: row.priority ? PRIORITY_TAG_BG[row.priority] : '#f3f4f6',
+                                                    color: row.priority ? PRIORITY_TAG_TEXT[row.priority] : '#9ca3af'
+                                                }}
+                                            >
+                                                {row.priority ?? '—'}
+                                            </span>
+                                            {openPriorityId === row.id && (
+                                                <div className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]">
+                                                    {PRIORITY_LEVELS.map(p => {
+                                                        const dropdownColor: Record<string, string> = { High: '#dc2626', Medium: '#d97706', Low: '#16a34a' };
+                                                        return (
+                                                            <button key={p} className="text-left text-[11px] px-3 py-1.5 font-bold hover:bg-gray-50 transition-colors"
+                                                                style={{ color: dropdownColor[p] }}
+                                                                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onDataChange({ ...data, items: updateNodeById(data.items, row.id, { ...row, priority: p }) }); setOpenPriorityId(null); }}
+                                                            >{p}</button>
+                                                        );
+                                                    })}
+                                                    <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                                        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); const { priority: _, ...rest } = row; onDataChange({ ...data, items: updateNodeById(data.items, row.id, rest as RoadmapItem) }); setOpenPriorityId(null); }}
+                                                    >Clear</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="border-r border-gray-300" style={{ width: COL_PRIORITY_W }} />
+                                    )
+                                )}
 
                                 {/* Status */}
                                 <div className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors"

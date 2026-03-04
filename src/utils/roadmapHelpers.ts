@@ -72,3 +72,71 @@ export const generateTimelineDays = (startDateStr: string, endDateStr: string, p
     const weekEnd = endOfWeek(end, { weekStartsOn: 1 });
     return eachDayOfInterval({ start: weekStart, end: weekEnd });
 };
+
+// Reorder items (top-level only)
+export const reorderItems = (items: RoadmapItem[], fromId: string, toId: string): RoadmapItem[] => {
+    if (fromId === toId) return items;
+
+    const fromIndex = items.findIndex(i => i.id === fromId);
+    const toIndex = items.findIndex(i => i.id === toId);
+
+    if (fromIndex === -1 || toIndex === -1) return items;
+
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(fromIndex, 1);
+
+    // Recalculate toIndex after removal
+    const newToIndex = newItems.findIndex(i => i.id === toId);
+    newItems.splice(newToIndex, 0, movedItem);
+
+    return newItems;
+};
+
+export const filterRoadmapTree = (
+    items: RoadmapItem[],
+    filters: { status?: string[]; team?: string[]; priority?: string[] }
+): RoadmapItem[] => {
+    const hasStatusFilter = filters.status && filters.status.length > 0;
+    const hasTeamFilter = filters.team && filters.team.length > 0;
+    const hasPriorityFilter = filters.priority && filters.priority.length > 0;
+
+    if (!hasStatusFilter && !hasTeamFilter && !hasPriorityFilter) return items;
+
+    return items
+        .map(item => {
+            const filteredChildren = item.children ? filterRoadmapTree(item.children, filters) : [];
+
+            let matchesStatus = true;
+            let matchesTeam = true;
+            let matchesPriority = true;
+
+            if (hasStatusFilter) {
+                matchesStatus = filters.status!.includes(item.status);
+            }
+
+            if (hasTeamFilter) {
+                if (item.type === 'team' && item.teamRole) {
+                    matchesTeam = filters.team!.includes(item.teamRole);
+                } else {
+                    matchesTeam = false;
+                }
+            }
+
+            if (hasPriorityFilter) {
+                if ((item.type === 'group' || item.type === 'feature') && item.priority) {
+                    matchesPriority = filters.priority!.includes(item.priority);
+                } else {
+                    matchesPriority = false;
+                }
+            }
+
+            const isMatch = matchesStatus && matchesTeam && matchesPriority;
+
+            if (isMatch || filteredChildren.length > 0) {
+                return { ...item, children: filteredChildren };
+            }
+
+            return null;
+        })
+        .filter(Boolean) as RoadmapItem[];
+};

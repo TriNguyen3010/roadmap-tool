@@ -8,8 +8,9 @@ import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import MilestoneEditor from '@/components/MilestoneEditor';
 import { useToast } from '@/hooks/useToast';
-import { RoadmapDocument, RoadmapItem, Milestone } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, Milestone, TeamRole } from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
+import { filterRoadmapTree } from '@/utils/roadmapHelpers';
 
 export default function Home() {
   const [data, setData] = useState<RoadmapDocument | null>(null);
@@ -20,6 +21,17 @@ export default function Home() {
   // Timeline window: how many weeks before & months after today
   const [beforeWeeks, setBeforeWeeks] = useState(2);
   const [afterMonths, setAfterMonths] = useState(2);
+
+  // View settings
+  const [filterStatus, setFilterStatus] = useState<string[]>([]);
+  const [filterTeam, setFilterTeam] = useState<string[]>([]);
+  const [filterPriority, setFilterPriority] = useState<string[]>([]);
+
+  // Column visibility
+  const [showPct, setShowPct] = useState(true);
+  const [showPriority, setShowPriority] = useState(true);
+  const [showStartDate, setShowStartDate] = useState(false);
+  const [showEndDate, setShowEndDate] = useState(false);
 
   const { toasts, addToast, removeToast } = useToast();
 
@@ -59,6 +71,13 @@ export default function Home() {
         if (json.settings) {
           if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
           if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
+          if (json.settings.filterStatus) setFilterStatus(json.settings.filterStatus);
+          if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
+          if (json.settings.filterPriority) setFilterPriority(json.settings.filterPriority);
+          if (typeof json.settings.colPct === 'boolean') setShowPct(json.settings.colPct);
+          if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
+          if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
+          if (typeof json.settings.colEndDate === 'boolean') setShowEndDate(json.settings.colEndDate);
         }
         setLoading(false);
       })
@@ -70,7 +89,12 @@ export default function Home() {
     try {
       const dataToSave = {
         ...currentData,
-        settings: { beforeWeeks, afterMonths }
+        settings: {
+          beforeWeeks, afterMonths,
+          filterStatus, filterTeam, filterPriority,
+          colPct: showPct, colPriority: showPriority,
+          colStartDate: showStartDate, colEndDate: showEndDate,
+        }
       };
 
       const res = await fetch('/api/roadmap/save', {
@@ -109,7 +133,12 @@ export default function Home() {
     setData({ ...data, milestones });
   };
 
-  const handleDataChange = (newData: RoadmapDocument) => setData(newData);
+  const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
+    setData(newData);
+    if (shouldSave) {
+      handleSave(newData);
+    }
+  };
 
   const handleRootAdd = (newItem: RoadmapItem) => {
     if (!data) return;
@@ -128,6 +157,8 @@ export default function Home() {
     if (jsonData.settings) {
       if (typeof jsonData.settings.beforeWeeks === 'number') setBeforeWeeks(jsonData.settings.beforeWeeks);
       if (typeof jsonData.settings.afterMonths === 'number') setAfterMonths(jsonData.settings.afterMonths);
+      if (jsonData.settings.filterStatus) setFilterStatus(jsonData.settings.filterStatus);
+      if (jsonData.settings.filterTeam) setFilterTeam(jsonData.settings.filterTeam);
     }
     await handleSave(jsonData);
   };
@@ -145,7 +176,30 @@ export default function Home() {
     addToast(`Đã tải xuống ${fileName}`, 'success');
   };
 
-  if (loading || !data) {
+  // ── Teams extraction ──
+  const availableTeams = useMemo(() => {
+    if (!data) return [];
+    const teams = new Set<string>();
+    const findTeams = (items: RoadmapItem[]) => {
+      items.forEach(item => {
+        if (item.type === 'team' && item.teamRole) teams.add(item.teamRole);
+        if (item.children) findTeams(item.children);
+      });
+    };
+    findTeams(data.items);
+    return Array.from(teams).sort();
+  }, [data]);
+
+  // ── Filtered Tree ──
+  const filteredData = useMemo(() => {
+    if (!data) return null;
+    return {
+      ...data,
+      items: filterRoadmapTree(data.items, { status: filterStatus, team: filterTeam, priority: filterPriority })
+    };
+  }, [data, filterStatus, filterTeam, filterPriority]);
+
+  if (loading || !data || !filteredData) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
         Đang tải Roadmap...
@@ -186,15 +240,30 @@ export default function Home() {
         onAfterMonthsChange={setAfterMonths}
         onLoadJson={handleLoadJson}
         isSaving={saving}
+        availableTeams={availableTeams}
+        filterStatus={filterStatus}
+        filterTeam={filterTeam}
+        filterPriority={filterPriority}
+        onFilterChange={(type, values) => {
+          if (type === 'status') setFilterStatus(values);
+          else if (type === 'team') setFilterTeam(values);
+          else if (type === 'priority') setFilterPriority(values);
+        }}
+        onSaveView={() => handleSave({ ...data, settings: { beforeWeeks, afterMonths, filterStatus, filterTeam, filterPriority } })}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
-          data={data}
+          data={filteredData}
           onDataChange={handleDataChange}
           onRootAdd={handleRootAdd}
           showConfirm={showConfirm}
           viewStart={viewStart}
           viewEnd={viewEnd}
+          showPct={showPct} setShowPct={setShowPct}
+          showPriority={showPriority} setShowPriority={setShowPriority}
+          showStartDate={showStartDate} setShowStartDate={setShowStartDate}
+          showEndDate={showEndDate} setShowEndDate={setShowEndDate}
+          today={today}
         />
       </div>
     </main>

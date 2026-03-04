@@ -16,6 +16,15 @@ interface AddNodePopupProps {
 export default function AddNodePopup({ parentId, parentName, childType, onAdd, onClose }: AddNodePopupProps) {
     const [name, setName] = useState('');
     const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(new Set());
+    const DEFAULT_SUBCATEGORIES = ['App', 'Web', 'Extension', 'Core'] as const;
+    const [selectedSubcategories, setSelectedSubcategories] = useState<Set<string>>(new Set(DEFAULT_SUBCATEGORIES));
+
+    const toggleSubcategory = (sub: string) => {
+        const next = new Set(selectedSubcategories);
+        if (next.has(sub)) next.delete(sub);
+        else next.add(sub);
+        setSelectedSubcategories(next);
+    };
 
     const toggleTeam = (role: TeamRole) => {
         const next = new Set(selectedTeams);
@@ -37,13 +46,24 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
 
         let children: RoadmapItem[] | undefined = undefined;
 
-        if (childType === 'feature' && selectedTeams.size > 0) {
+        if (childType === 'category') {
+            children = DEFAULT_SUBCATEGORIES
+                .filter(sub => selectedSubcategories.has(sub))
+                .map(sub => ({
+                    id: uuidv4().slice(0, 8),
+                    name: sub,
+                    type: 'subcategory' as const,
+                    status: 'Not Started' as const,
+                    progress: 0,
+                    children: []
+                }));
+        } else if (childType === 'feature' && selectedTeams.size > 0) {
             children = Array.from(selectedTeams).map(role => ({
                 id: uuidv4().slice(0, 8),
                 name: role,
-                type: 'team',
+                type: 'team' as const,
                 teamRole: role,
-                status: 'Not Started',
+                status: 'Not Started' as const,
                 progress: 0
             }));
         } else if (childType !== 'feature' && childType !== 'team') {
@@ -84,6 +104,29 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                         placeholder={`Enter ${childType} name...`}
                     />
                 </div>
+
+                {childType === 'category' && (
+                    <div className="flex flex-col gap-1.5 mt-2">
+                        <label className="text-xs font-semibold text-gray-600">Subcategories (mặc định tạo kèm)</label>
+                        <div className="flex flex-wrap gap-2">
+                            {DEFAULT_SUBCATEGORIES.map(sub => {
+                                const isSelected = selectedSubcategories.has(sub);
+                                return (
+                                    <label key={sub} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleSubcategory(sub)}
+                                            className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <span className={isSelected ? 'font-medium text-gray-900' : 'text-gray-600'}>{sub}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[11px] text-gray-400">Bỏ tick nếu không muốn tạo subcategory đó.</p>
+                    </div>
+                )}
 
                 {childType === 'feature' && (
                     <div className="flex flex-col gap-1.5 mt-2">
