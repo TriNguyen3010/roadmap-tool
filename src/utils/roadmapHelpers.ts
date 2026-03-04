@@ -34,6 +34,21 @@ export const calculateProgress = (items: RoadmapItem[]): RoadmapItem[] => {
     });
 };
 
+// Auto derive status from children:
+// - All Not Started → Not Started
+// - All Done → Done
+// - Anything else (any mix, or any In Progress) → In Progress
+export const calculateStatus = (items: RoadmapItem[]): RoadmapItem[] => {
+    return items.map((item) => {
+        if (!item.children || item.children.length === 0) return item;
+        const updatedChildren = calculateStatus(item.children);
+        const allNotStarted = updatedChildren.every(c => c.status === 'Not Started');
+        const allDone = updatedChildren.every(c => c.status === 'Done');
+        const derivedStatus = allDone ? 'Done' : allNotStarted ? 'Not Started' : 'In Progress';
+        return { ...item, children: updatedChildren, status: derivedStatus };
+    });
+};
+
 // Update a specific node by id recursively
 export const updateNodeById = (items: RoadmapItem[], id: string, updated: RoadmapItem): RoadmapItem[] => {
     return items.map((item) => {
