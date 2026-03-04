@@ -23,6 +23,7 @@ interface GridProps {
     filterTeam: string[];
     filterPriority: string[];
     filterSubcategory: string[];
+    canEdit: boolean;
     // Column visibility (lifted to parent for persistence)
     showPct: boolean;
     setShowPct: (v: boolean) => void;
@@ -127,7 +128,7 @@ function countWorkdays(start: Date, end: Date): number {
 }
 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
-    filterStatus, filterTeam, filterPriority, filterSubcategory,
+    filterStatus, filterTeam, filterPriority, filterSubcategory, canEdit,
     showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds
 }: GridProps) {
@@ -194,7 +195,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setNameW(maxW);
     }, [flattened]);
 
-
     // Build render list: group consecutive hidden leaf rows into gap entries
     const renderList: RenderEntry[] = useMemo(() => {
         const result: RenderEntry[] = [];
@@ -245,16 +245,19 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // ── CRUD handlers ──
     const handleEditSave = (updated: RoadmapItem) => {
+        if (!canEdit) return;
         onDataChange({ ...data, items: updateNodeById(data.items, updated.id, updated) });
         if (updated.children && updated.children.length > 0) {
             setExpandedIds(prev => new Set([...prev, updated.id]));
         }
     };
     const handleDelete = async (id: string) => {
+        if (!canEdit) return;
         if (!(await showConfirm('Bạn có chắc muốn xoá mục này và toàn bộ nội dung con của nó không?'))) return;
         onDataChange({ ...data, items: deleteNodeById(data.items, id) });
     };
     const handleAddChild = (parentId: string, newItem: RoadmapItem) => {
+        if (!canEdit) return;
         if (parentId === '__ROOT__') { onRootAdd(newItem); return; }
         const newItems = addChildToNode(data.items, parentId, newItem);
 
@@ -269,11 +272,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // ── Drag & Drop Handlers ──
     const handleDragStart = (e: React.DragEvent, id: string) => {
+        if (!canEdit) return;
         setDraggedId(id);
         e.dataTransfer.effectAllowed = 'move';
         // Setting transparent image helps styling custom drag ghost if needed
     };
     const handleDragOver = (e: React.DragEvent, id: string) => {
+        if (!canEdit) return;
         e.preventDefault(); // enable drop
         if (draggedId && draggedId !== id) {
             setDragOverId(id);
@@ -283,6 +288,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setDragOverId(null);
     };
     const handleDrop = (e: React.DragEvent, targetId: string) => {
+        if (!canEdit) return;
         e.preventDefault();
         if (draggedId && draggedId !== targetId) {
             const newItems = reorderItems(data.items, draggedId, targetId);
@@ -297,11 +303,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     };
 
     const openEditor = (id: string) => {
+        if (!canEdit) return;
         const node = findNodeById(data.items, id);
         if (node) setEditingItem(node);
     };
 
     const updateFromSource = (id: string, mapper: (source: RoadmapItem) => RoadmapItem) => {
+        if (!canEdit) return;
         const source = findNodeById(data.items, id);
         if (!source) return;
         onDataChange({ ...data, items: updateNodeById(data.items, id, mapper(source)) });
@@ -351,8 +359,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     return (
         <div className="flex h-full w-full bg-white overflow-hidden text-[12px] text-gray-900 font-sans">
-            {editingItem && <EditPopup item={editingItem} onSave={handleEditSave} onClose={() => setEditingItem(null)} />}
-            {addingToParent && (
+            {canEdit && editingItem && <EditPopup item={editingItem} onSave={handleEditSave} onClose={() => setEditingItem(null)} />}
+            {canEdit && addingToParent && (
                 <AddNodePopup parentId={addingToParent.id} parentName={addingToParent.name} childType={addingToParent.childType}
                     onAdd={handleAddChild} onClose={() => setAddingToParent(null)} />
             )}
@@ -510,12 +518,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             <div key={row.id}
                                 className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOver ? 'border-t-4 border-t-blue-500' : ''}`}
                                 style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: style.bg }}
-                                draggable={isCategory}
-                                onDragStart={(e) => isCategory && handleDragStart(e, row.id)}
-                                onDragOver={(e) => isCategory && handleDragOver(e, row.id)}
-                                onDragLeave={isCategory ? handleDragLeave : undefined}
-                                onDrop={(e) => isCategory && handleDrop(e, row.id)}
-                                onDragEnd={isCategory ? handleDragEnd : undefined}
+                                draggable={canEdit && isCategory}
+                                onDragStart={(e) => canEdit && isCategory && handleDragStart(e, row.id)}
+                                onDragOver={(e) => canEdit && isCategory && handleDragOver(e, row.id)}
+                                onDragLeave={canEdit && isCategory ? handleDragLeave : undefined}
+                                onDrop={(e) => canEdit && isCategory && handleDrop(e, row.id)}
+                                onDragEnd={canEdit && isCategory ? handleDragEnd : undefined}
                             >
 
                                 {/* ID cell */}
@@ -574,7 +582,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors relative"
                                             style={{ width: COL_PRIORITY_W }}
                                             title="Click để đổi priority"
-                                            onClick={e => { e.stopPropagation(); setOpenPriorityId(openPriorityId === row.id ? null : row.id); }}
+                                            onClick={e => { if (!canEdit) return; e.stopPropagation(); setOpenPriorityId(openPriorityId === row.id ? null : row.id); }}
                                         >
                                             <span
                                                 className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
@@ -585,7 +593,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             >
                                                 {row.priority ?? '—'}
                                             </span>
-                                            {openPriorityId === row.id && (
+                                            {canEdit && openPriorityId === row.id && (
                                                 <div className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]">
                                                     {PRIORITY_LEVELS.map(p => {
                                                         const dropdownColor: Record<string, string> = { High: '#dc2626', Medium: '#d97706', Low: '#16a34a' };
@@ -622,7 +630,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                                 {/* Status */}
                                 <div className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors"
-                                    onClick={() => openEditor(row.id)}
+                                    onClick={() => canEdit && openEditor(row.id)}
                                     title="Click để sửa"
                                 >
                                     <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
@@ -649,7 +657,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {showPct && (
                                     <div className="flex items-center justify-center font-bold text-[11px] border-r border-gray-300 cursor-pointer hover:brightness-95 transition-all"
                                         style={{ backgroundColor: row.progress === 100 ? '#bbf7d0' : row.progress > 0 ? '#fef08a' : 'transparent' }}
-                                        onClick={() => openEditor(row.id)}
+                                        onClick={() => canEdit && openEditor(row.id)}
                                         title="Click để sửa"
                                     >
                                         {row.progress}%
@@ -657,25 +665,29 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 )}
 
                                 {/* Actions */}
-                                <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button title="Sửa" className="text-blue-500 hover:text-blue-700" onClick={() => openEditor(row.id)}><Pencil size={12} /></button>
-                                    {childType && (
-                                        <button title={`Thêm ${childType}`} className="text-green-600 hover:text-green-800"
-                                            onClick={() => setAddingToParent({ id: row.id, name: row.name, childType })}>
-                                            <PlusCircle size={12} />
-                                        </button>
-                                    )}
-                                    <button title="Xoá" className="text-red-400 hover:text-red-600" onClick={() => handleDelete(row.id)}><Trash2 size={12} /></button>
-                                </div>
+                                {canEdit && (
+                                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button title="Sửa" className="text-blue-500 hover:text-blue-700" onClick={() => openEditor(row.id)}><Pencil size={12} /></button>
+                                        {childType && (
+                                            <button title={`Thêm ${childType}`} className="text-green-600 hover:text-green-800"
+                                                onClick={() => setAddingToParent({ id: row.id, name: row.name, childType })}>
+                                                <PlusCircle size={12} />
+                                            </button>
+                                        )}
+                                        <button title="Xoá" className="text-red-400 hover:text-red-600" onClick={() => handleDelete(row.id)}><Trash2 size={12} /></button>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
-                    <div className="p-2">
-                        <button className="text-xs text-green-700 hover:text-green-900 flex items-center gap-1 font-semibold"
-                            onClick={() => setAddingToParent({ id: '__ROOT__', name: 'Roadmap', childType: 'category' })}>
-                            <PlusCircle size={13} /> Thêm Category
-                        </button>
-                    </div>
+                    {canEdit && (
+                        <div className="p-2">
+                            <button className="text-xs text-green-700 hover:text-green-900 flex items-center gap-1 font-semibold"
+                                onClick={() => setAddingToParent({ id: '__ROOT__', name: 'Roadmap', childType: 'category' })}>
+                                <PlusCircle size={13} /> Thêm Category
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -813,7 +825,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             className="absolute top-[4px] bottom-[4px] rounded shadow-sm z-[5] cursor-pointer transition-all flex items-center justify-center hover:z-20 group-hover/gantt:z-10"
                                             style={barStyle}
                                             title={`${row.name}: ${row.startDate} → ${row.endDate} | ${sprintStr} sprint | ${workdays} ngày làm việc | ${row.status} ${row.progress}%`}
-                                            onClick={() => openEditor(row.id)}
+                                            onClick={() => canEdit && openEditor(row.id)}
                                         >
                                             {isGrowthCamp && <span className="absolute left-1 text-[10px]">🚀</span>}
                                             <span className="absolute z-10 opacity-0 group-hover/gantt:opacity-100 transition-opacity bg-gray-900/90 text-white text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap select-none flex items-center pointer-events-none shadow-md">

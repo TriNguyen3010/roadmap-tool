@@ -17,6 +17,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showMilestones, setShowMilestones] = useState(false);
+  const [isEditor, setIsEditor] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Timeline window: how many weeks before & months after today
   const [beforeWeeks, setBeforeWeeks] = useState(2);
@@ -41,6 +43,12 @@ export default function Home() {
   const hasInitializedExpansion = useRef(false);
 
   const { toasts, addToast, removeToast } = useToast();
+
+  const ensureEditor = useCallback(() => {
+    if (isEditor) return true;
+    addToast('Bạn đang ở chế độ Viewer. Hãy unlock Editor để chỉnh sửa.', 'error');
+    return false;
+  }, [isEditor, addToast]);
 
   const normalizeDocument = useCallback((doc: RoadmapDocument): RoadmapDocument => ({
     ...doc,
@@ -117,7 +125,45 @@ export default function Home() {
       .catch(() => addToast('Không thể tải dữ liệu roadmap.json', 'error'));
   }, [addToast, normalizeDocument]);
 
+  useEffect(() => {
+    fetch('/api/auth/editor/session')
+      .then(res => res.json())
+      .then(json => setIsEditor(!!json?.isEditor))
+      .catch(() => setIsEditor(false))
+      .finally(() => setAuthLoading(false));
+  }, []);
+
+  const handleUnlockEditor = useCallback(async (password: string): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const res = await fetch('/api/auth/editor/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { success: false, message: payload?.error || 'Mật khẩu không đúng' };
+      }
+      setIsEditor(true);
+      addToast('Đã mở khóa chế độ Editor.', 'success');
+      return { success: true };
+    } catch {
+      return { success: false, message: 'Không thể xác thực. Vui lòng thử lại.' };
+    }
+  }, [addToast]);
+
+  const handleLockEditor = useCallback(async () => {
+    try {
+      await fetch('/api/auth/editor/logout', { method: 'POST' });
+    } finally {
+      setIsEditor(false);
+      setShowMilestones(false);
+      addToast('Đã chuyển về chế độ Viewer.', 'success');
+    }
+  }, [addToast]);
+
   const handleSave = async (currentData: RoadmapDocument) => {
+    if (!ensureEditor()) return;
     setSaving(true);
     try {
       const dataToSave = {
@@ -138,6 +184,11 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataToSave),
       });
+      if (res.status === 401) {
+        setIsEditor(false);
+        addToast('Phiên Editor đã hết hạn. Vui lòng unlock lại.', 'error');
+        return;
+      }
       if (!res.ok) throw new Error();
       addToast('Đã lưu thành công vào roadmap.json!', 'success');
     } catch {
@@ -160,11 +211,13 @@ export default function Home() {
   };
 
   const handleNameChange = (name: string) => {
+    if (!ensureEditor()) return;
     if (!data) return;
     setData({ ...data, releaseName: name });
   };
 
   const handleMilestonesSave = (milestones: Milestone[]) => {
+    if (!ensureEditor()) return;
     if (!data) return;
     const newData = normalizeDocument({ ...data, milestones });
     setData(newData);
@@ -172,6 +225,7 @@ export default function Home() {
   };
 
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
+    if (!isEditor) return;
     const normalized = normalizeDocument(newData);
     setData(normalized);
     if (shouldSave) {
@@ -180,11 +234,13 @@ export default function Home() {
   };
 
   const handleRootAdd = (newItem: RoadmapItem) => {
+    if (!ensureEditor()) return;
     if (!data) return;
     setData(normalizeDocument({ ...data, items: [...data.items, newItem] }));
   };
 
   const handleLoadJson = async (jsonData: unknown) => {
+    if (!ensureEditor()) return;
     const parsed = jsonData as Partial<RoadmapDocument> | null;
     if (!parsed || !Array.isArray(parsed.items)) {
       addToast('File JSON không hợp lệ, thiếu `items`', 'error');
@@ -287,6 +343,10 @@ export default function Home() {
         onAfterMonthsChange={setAfterMonths}
         onLoadJson={handleLoadJson}
         isSaving={saving}
+        canEdit={isEditor}
+        authLoading={authLoading}
+        onUnlockEditor={handleUnlockEditor}
+        onLockEditor={handleLockEditor}
         availableTeams={availableTeams}
         availableSubcategories={availableSubcategories}
         filterStatus={filterStatus}
@@ -309,6 +369,7 @@ export default function Home() {
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
+          key={isEditor ? 'editor-grid' : 'viewer-grid'}
           data={data}
           onDataChange={handleDataChange}
           onRootAdd={handleRootAdd}
@@ -319,6 +380,7 @@ export default function Home() {
           filterTeam={filterTeam}
           filterPriority={filterPriority}
           filterSubcategory={filterSubcategory}
+          canEdit={isEditor}
           showPct={showPct} setShowPct={setShowPct}
           showPriority={showPriority} setShowPriority={setShowPriority}
           showStartDate={showStartDate} setShowStartDate={setShowStartDate}

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
     Save, Download, FileJson, Loader2, Flag, Check,
-    Pencil, Clock, Settings, X, ChevronRight, Upload, Filter
+    Pencil, Clock, Settings, X, ChevronRight, Upload, Filter, Lock, Unlock
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -39,6 +39,10 @@ interface ToolbarProps {
     onLoadJson?: (jsonData: unknown) => void;
     onDownloadJson?: () => void;
     isSaving?: boolean;
+    canEdit: boolean;
+    authLoading?: boolean;
+    onUnlockEditor: (password: string) => Promise<{ success: boolean; message?: string }>;
+    onLockEditor: () => Promise<void> | void;
     // View Filter props
     availableTeams: string[];
     availableSubcategories: string[];
@@ -54,6 +58,7 @@ export default function Toolbar({
     documentName, onNameChange, onSave, onExportExcel,
     onOpenMilestones, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
+    canEdit, authLoading, onUnlockEditor, onLockEditor,
     availableTeams, availableSubcategories, filterStatus, filterTeam, filterPriority, filterSubcategory, onFilterChange, onSaveView
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
@@ -61,7 +66,12 @@ export default function Toolbar({
     const [now, setNow] = useState<Date>(new Date());
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [viewOpen, setViewOpen] = useState(false);
+    const [authOpen, setAuthOpen] = useState(false);
+    const [password, setPassword] = useState('');
+    const [authError, setAuthError] = useState('');
+    const [authSubmitting, setAuthSubmitting] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const passwordRef = useRef<HTMLInputElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -85,6 +95,12 @@ export default function Toolbar({
         return () => document.removeEventListener('mousedown', handler);
     }, [settingsOpen, viewOpen]);
 
+    useEffect(() => {
+        if (!authOpen) return;
+        const timer = setTimeout(() => passwordRef.current?.focus(), 20);
+        return () => clearTimeout(timer);
+    }, [authOpen]);
+
     const toggleStatus = (st: string) => {
         if (filterStatus.includes(st)) onFilterChange('status', filterStatus.filter(s => s !== st));
         else onFilterChange('status', [...filterStatus, st]);
@@ -106,17 +122,37 @@ export default function Toolbar({
     };
 
     const startEdit = () => {
+        if (!canEdit) return;
         setDraft(documentName);
         setEditing(true);
         setTimeout(() => inputRef.current?.select(), 50);
     };
 
     const commitEdit = () => {
+        if (!canEdit) {
+            setEditing(false);
+            return;
+        }
         if (draft.trim()) onNameChange(draft.trim());
         setEditing(false);
     };
 
+    const handleUnlockSubmit = async () => {
+        if (!password || authSubmitting) return;
+        setAuthSubmitting(true);
+        setAuthError('');
+        const result = await onUnlockEditor(password);
+        setAuthSubmitting(false);
+        if (!result.success) {
+            setAuthError(result.message || 'Mật khẩu không đúng');
+            return;
+        }
+        setPassword('');
+        setAuthOpen(false);
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!canEdit) return;
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
@@ -134,14 +170,50 @@ export default function Toolbar({
         e.target.value = '';
     };
 
+    const isEditingName = canEdit && editing;
+
     return (
-        <div className="flex flex-row items-center justify-between border-b-2 border-gray-400 px-3 py-1 bg-gray-100 shrink-0 gap-2">
+        <div className="relative flex flex-row items-center justify-between border-b-2 border-gray-400 px-3 py-1 bg-gray-100 shrink-0 gap-2">
             <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
+
+            {authOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setAuthOpen(false)}>
+                    <div className="w-[360px] rounded-xl border border-gray-200 bg-white p-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <p className="text-sm font-bold text-gray-800">Unlock Editor</p>
+                        <p className="mt-1 text-xs text-gray-500">Nhập mật khẩu để bật chế độ chỉnh sửa.</p>
+                        <input
+                            ref={passwordRef}
+                            type="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && void handleUnlockSubmit()}
+                            className="mt-3 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            placeholder="Editor password"
+                        />
+                        {authError && <p className="mt-2 text-xs text-red-600">{authError}</p>}
+                        <div className="mt-3 flex justify-end gap-2">
+                            <button
+                                onClick={() => setAuthOpen(false)}
+                                className="rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => void handleUnlockSubmit()}
+                                disabled={authSubmitting || !password}
+                                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300"
+                            >
+                                {authSubmitting ? 'Checking...' : 'Unlock'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* LEFT: logo + doc name */}
             <div className="flex items-center gap-2 min-w-0" style={{ flex: '0 0 auto', maxWidth: 280 }}>
                 <span className="text-base shrink-0">📋</span>
-                {editing ? (
+                {isEditingName ? (
                     <div className="flex items-center gap-1 flex-1">
                         <input
                             ref={inputRef}
@@ -157,9 +229,9 @@ export default function Toolbar({
                         </button>
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1 group cursor-pointer min-w-0" onClick={startEdit}>
+                    <div className={`flex items-center gap-1 min-w-0 ${canEdit ? 'group cursor-pointer' : 'cursor-default'}`} onClick={startEdit}>
                         <span className="font-bold text-gray-800 text-sm truncate">{documentName}</span>
-                        <Pencil size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        {canEdit && <Pencil size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />}
                     </div>
                 )}
             </div>
@@ -180,12 +252,33 @@ export default function Toolbar({
 
             {/* RIGHT: action buttons */}
             <div className="flex flex-row items-center gap-1.5 shrink-0 ml-auto">
+                {canEdit ? (
+                    <button
+                        onClick={() => void onLockEditor()}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold transition-colors"
+                        title="Đang ở chế độ Editor. Click để khóa."
+                    >
+                        <Lock size={13} />
+                        <span>Editor</span>
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => { setAuthOpen(true); setSettingsOpen(false); setViewOpen(false); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-700 hover:bg-gray-800 text-white rounded text-xs font-semibold transition-colors"
+                        title="Viewer mode. Unlock để chỉnh sửa."
+                        disabled={!!authLoading}
+                    >
+                        {authLoading ? <Loader2 size={13} className="animate-spin" /> : <Unlock size={13} />}
+                        <span>Viewer</span>
+                    </button>
+                )}
 
                 {/* Milestones */}
                 <button
-                    onClick={onOpenMilestones}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold transition-colors"
-                    title="Milestones"
+                    onClick={() => canEdit && onOpenMilestones()}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white rounded text-xs font-semibold transition-colors"
+                    title={canEdit ? 'Milestones' : 'Viewer mode: không thể chỉnh milestone'}
+                    disabled={!canEdit}
                 >
                     <Flag size={13} />
                     <span>Milestones</span>
@@ -193,9 +286,9 @@ export default function Toolbar({
 
                 {/* Save — icon only */}
                 <button
-                    onClick={onSave}
-                    disabled={isSaving}
-                    title={isSaving ? 'Đang lưu...' : 'Lưu JSON'}
+                    onClick={() => canEdit && onSave()}
+                    disabled={isSaving || !canEdit}
+                    title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu' : isSaving ? 'Đang lưu...' : 'Lưu JSON'}
                     className="flex items-center justify-center w-8 h-8 rounded bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white transition-colors shadow-sm"
                 >
                     {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
@@ -311,6 +404,8 @@ export default function Toolbar({
                                 </button>
                                 <button
                                     onClick={() => { onSaveView(); setViewOpen(false); }}
+                                    disabled={!canEdit}
+                                    title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu view' : 'Lưu View'}
                                     className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded transition-colors text-white bg-blue-600 hover:bg-blue-700 shadow-sm"
                                 >
                                     <Save size={12} />
@@ -416,6 +511,8 @@ export default function Toolbar({
 
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
+                                    disabled={!canEdit}
+                                    title={!canEdit ? 'Viewer mode: cần Unlock Editor để tải lên JSON' : 'Tải lên JSON'}
                                     className="flex items-center gap-2 w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-colors"
                                 >
                                     <Upload size={13} />
