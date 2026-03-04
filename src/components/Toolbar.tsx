@@ -31,7 +31,10 @@ interface ToolbarProps {
     onNameChange: (name: string) => void;
     onSave: () => void;
     onExportExcel?: () => void;
-    onOpenMilestones: () => void;
+    onOpenMilestonesPanel: () => void;
+    onOpenFilterPanel: () => void;
+    isSidePanelOpen: boolean;
+    activeSidePanel: 'filter' | 'milestones';
     beforeWeeks: number;
     afterMonths: number;
     onBeforeWeeksChange: (w: number) => void;
@@ -43,31 +46,24 @@ interface ToolbarProps {
     authLoading?: boolean;
     onUnlockEditor: (password: string) => Promise<{ success: boolean; message?: string }>;
     onLockEditor: () => Promise<void> | void;
-    // View Filter props
-    availableCategories: string[];
-    availableTeams: string[];
-    availableSubcategories: string[];
     filterCategory: string[];
     filterStatus: string[];
     filterTeam: string[];
     filterPriority: string[];
     filterSubcategory: string[];
-    onFilterChange: (type: 'category' | 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => void;
-    onSaveView: () => void;
 }
 
 export default function Toolbar({
     documentName, onNameChange, onSave, onExportExcel,
-    onOpenMilestones, beforeWeeks, afterMonths,
+    onOpenMilestonesPanel, onOpenFilterPanel, isSidePanelOpen, activeSidePanel, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
-    availableCategories, availableTeams, availableSubcategories, filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory, onFilterChange, onSaveView
+    filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
     const [now, setNow] = useState<Date>(new Date());
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [viewOpen, setViewOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
     const [password, setPassword] = useState('');
     const [authError, setAuthError] = useState('');
@@ -75,7 +71,6 @@ export default function Toolbar({
     const inputRef = useRef<HTMLInputElement>(null);
     const passwordRef = useRef<HTMLInputElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
-    const viewRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -89,13 +84,10 @@ export default function Toolbar({
             if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
                 setSettingsOpen(false);
             }
-            if (viewRef.current && !viewRef.current.contains(e.target as Node)) {
-                setViewOpen(false);
-            }
         };
-        if (settingsOpen || viewOpen) document.addEventListener('mousedown', handler);
+        if (settingsOpen) document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
-    }, [settingsOpen, viewOpen]);
+    }, [settingsOpen]);
 
     useEffect(() => {
         if (!authOpen) return;
@@ -103,30 +95,7 @@ export default function Toolbar({
         return () => clearTimeout(timer);
     }, [authOpen]);
 
-    const toggleStatus = (st: string) => {
-        if (filterStatus.includes(st)) onFilterChange('status', filterStatus.filter(s => s !== st));
-        else onFilterChange('status', [...filterStatus, st]);
-    };
-
-    const toggleCategory = (cat: string) => {
-        if (filterCategory.includes(cat)) onFilterChange('category', filterCategory.filter(x => x !== cat));
-        else onFilterChange('category', [...filterCategory, cat]);
-    };
-
-    const toggleTeam = (tm: string) => {
-        if (filterTeam.includes(tm)) onFilterChange('team', filterTeam.filter(t => t !== tm));
-        else onFilterChange('team', [...filterTeam, tm]);
-    };
-
-    const togglePriority = (p: string) => {
-        if (filterPriority.includes(p)) onFilterChange('priority', filterPriority.filter(x => x !== p));
-        else onFilterChange('priority', [...filterPriority, p]);
-    };
-
-    const toggleSubcategory = (subcategory: string) => {
-        if (filterSubcategory.includes(subcategory)) onFilterChange('subcategory', filterSubcategory.filter(x => x !== subcategory));
-        else onFilterChange('subcategory', [...filterSubcategory, subcategory]);
-    };
+    const activeFilterCount = filterCategory.length + filterStatus.length + filterTeam.length + filterPriority.length + filterSubcategory.length;
 
     const startEdit = () => {
         if (!canEdit) return;
@@ -270,7 +239,7 @@ export default function Toolbar({
                     </button>
                 ) : (
                     <button
-                        onClick={() => { setAuthOpen(true); setSettingsOpen(false); setViewOpen(false); }}
+                        onClick={() => { setAuthOpen(true); setSettingsOpen(false); }}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-700 hover:bg-gray-800 text-white rounded text-xs font-semibold transition-colors"
                         title="Viewer mode. Unlock để chỉnh sửa."
                         disabled={!!authLoading}
@@ -282,10 +251,9 @@ export default function Toolbar({
 
                 {/* Milestones */}
                 <button
-                    onClick={() => canEdit && onOpenMilestones()}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white rounded text-xs font-semibold transition-colors"
-                    title={canEdit ? 'Milestones' : 'Viewer mode: không thể chỉnh milestone'}
-                    disabled={!canEdit}
+                    onClick={onOpenMilestonesPanel}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-white rounded text-xs font-semibold transition-colors ${isSidePanelOpen && activeSidePanel === 'milestones' ? 'bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'}`}
+                    title={canEdit ? 'Mở Side Panel Milestones' : 'Mở Side Panel Milestones (chỉ xem)'}
                 >
                     <Flag size={13} />
                     <span>Milestones</span>
@@ -301,158 +269,19 @@ export default function Toolbar({
                     {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                 </button>
 
-                {/* 👁 View Mode Dropdown */}
-                <div className="relative" ref={viewRef}>
-                    <button
-                        onClick={() => { setViewOpen(p => !p); setSettingsOpen(false); }}
-                        title="Chế độ xem (Filters)"
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white ${viewOpen || filterCategory.length > 0 || filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0 ? 'bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'} text-xs`}
-                    >
-                        <Filter size={13} />
-                        <span>Filter{(filterCategory.length > 0 || filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0) ? ` (${filterCategory.length + filterStatus.length + filterTeam.length + filterPriority.length + filterSubcategory.length})` : ''}</span>
-                    </button>
-
-                    {viewOpen && (
-                        <div className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col">
-                            {/* Header */}
-                            <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-600 text-white shadow-sm z-10">
-                                <span className="text-sm font-bold truncate">Bộ lọc hiển thị</span>
-                                <button onClick={() => setViewOpen(false)} className="hover:bg-white/20 rounded p-0.5 transition-colors">
-                                    <X size={14} />
-                                </button>
-                            </div>
-
-                            <div className="p-4 flex flex-col gap-4 overflow-y-auto max-h-[60vh]">
-                                {/* Category filters */}
-                                {availableCategories.length > 0 && (
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Category</p>
-                                        <div className="flex flex-col gap-2">
-                                            {availableCategories.map(cat => (
-                                                <label key={cat} className="flex items-center gap-2 cursor-pointer group">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={filterCategory.includes(cat)}
-                                                        onChange={() => toggleCategory(cat)}
-                                                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                    />
-                                                    <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{cat}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Status filters */}
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Trạng thái (Status)</p>
-                                    <div className="flex flex-col gap-2">
-                                        {['Done', 'In Progress', 'Not Started'].map(st => (
-                                            <label key={st} className="flex items-center gap-2 cursor-pointer group">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={filterStatus.includes(st)}
-                                                    onChange={() => toggleStatus(st)}
-                                                    className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                                <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{st}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Priority filters */}
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Mức ưu tiên (Priority)</p>
-                                    <div className="flex flex-col gap-2">
-                                        {['High', 'Medium', 'Low'].map(p => (
-                                            <label key={p} className="flex items-center gap-2 cursor-pointer group">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={filterPriority.includes(p)}
-                                                    onChange={() => togglePriority(p)}
-                                                    className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                />
-                                                <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{p}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Team filters */}
-                                {availableTeams.length > 0 && (
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mt-2 border-t border-gray-100 pt-3">Đội ngũ (Teams)</p>
-                                        <div className="flex flex-col gap-2">
-                                            {availableTeams.map(tm => (
-                                                <label key={tm} className="flex items-center gap-2 cursor-pointer group">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={filterTeam.includes(tm)}
-                                                        onChange={() => toggleTeam(tm)}
-                                                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                    />
-                                                    <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{tm}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Subcategory filters */}
-                                {availableSubcategories.length > 0 && (
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mt-2 border-t border-gray-100 pt-3">Subcategory</p>
-                                        <div className="flex flex-col gap-2">
-                                            {availableSubcategories.map(sub => (
-                                                <label key={sub} className="flex items-center gap-2 cursor-pointer group">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={filterSubcategory.includes(sub)}
-                                                        onChange={() => toggleSubcategory(sub)}
-                                                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                    />
-                                                    <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{sub}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Footer Actions */}
-                            <div className="p-3 bg-gray-50 border-t border-gray-200 flex flex-col gap-2">
-                                <button
-                                    onClick={() => {
-                                        onFilterChange('category', []);
-                                        onFilterChange('status', []);
-                                        onFilterChange('team', []);
-                                        onFilterChange('priority', []);
-                                        onFilterChange('subcategory', []);
-                                    }}
-                                    disabled={filterCategory.length === 0 && filterStatus.length === 0 && filterTeam.length === 0 && filterPriority.length === 0 && filterSubcategory.length === 0}
-                                    className="w-full text-xs font-semibold px-3 py-1.5 rounded transition-colors disabled:opacity-50 text-gray-600 border border-gray-300 hover:bg-gray-100"
-                                >
-                                    Xóa bộ lọc (Show All)
-                                </button>
-                                <button
-                                    onClick={() => { onSaveView(); setViewOpen(false); }}
-                                    disabled={!canEdit}
-                                    title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu view' : 'Lưu View'}
-                                    className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded transition-colors text-white bg-blue-600 hover:bg-blue-700 shadow-sm"
-                                >
-                                    <Save size={12} />
-                                    <span>Lưu View (Mặc định)</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <button
+                    onClick={() => { onOpenFilterPanel(); setSettingsOpen(false); }}
+                    title="Mở Side Panel Filter"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white text-xs ${isSidePanelOpen && activeSidePanel === 'filter' ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
+                >
+                    <Filter size={13} />
+                    <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
+                </button>
 
                 {/* ⚙ Settings — icon only, opens dropdown */}
                 <div className="relative" ref={settingsRef}>
                     <button
-                        onClick={() => { setSettingsOpen(p => !p); setViewOpen(false); }}
+                        onClick={() => setSettingsOpen(p => !p)}
                         title="Cài đặt"
                         className={`flex items-center justify-center w-8 h-8 rounded transition-colors shadow-sm text-white ${settingsOpen ? 'bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`}
                     >

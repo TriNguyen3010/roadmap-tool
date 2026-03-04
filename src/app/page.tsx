@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { startOfDay, subWeeks, addMonths, endOfMonth, format } from 'date-fns';
 import Toolbar from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
+import SidePanel from '@/components/SidePanel';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import MilestoneEditor from '@/components/MilestoneEditor';
 import { useToast } from '@/hooks/useToast';
 import { RoadmapDocument, RoadmapItem, Milestone } from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
@@ -16,7 +16,8 @@ export default function Home() {
   const [data, setData] = useState<RoadmapDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showMilestones, setShowMilestones] = useState(false);
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+  const [activeSidePanel, setActiveSidePanel] = useState<'filter' | 'milestones'>('filter');
   const [isEditor, setIsEditor] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -159,7 +160,6 @@ export default function Home() {
       await fetch('/api/auth/editor/logout', { method: 'POST' });
     } finally {
       setIsEditor(false);
-      setShowMilestones(false);
       addToast('Đã chuyển về chế độ Viewer.', 'success');
     }
   }, [addToast]);
@@ -247,6 +247,24 @@ export default function Home() {
     setData(newData);
     handleSave(newData);
   };
+
+  const openFilterPanel = useCallback(() => {
+    setActiveSidePanel('filter');
+    setIsSidePanelOpen(true);
+  }, []);
+
+  const openMilestonesPanel = useCallback(() => {
+    setActiveSidePanel('milestones');
+    setIsSidePanelOpen(true);
+  }, []);
+
+  const handleFilterChange = useCallback((type: 'category' | 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => {
+    if (type === 'category') setFilterCategory(values);
+    else if (type === 'status') setFilterStatus(values);
+    else if (type === 'team') setFilterTeam(values);
+    else if (type === 'priority') setFilterPriority(values);
+    else if (type === 'subcategory') setFilterSubcategory(values);
+  }, []);
 
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
     if (!isEditor) return;
@@ -341,6 +359,11 @@ export default function Home() {
     return Array.from(categories).sort((a, b) => a.localeCompare(b));
   }, [data]);
 
+  const milestonesVersion = useMemo(
+    () => (data?.milestones || []).map(m => `${m.id}:${m.label}:${m.startDate}:${m.endDate}:${m.color}`).join('|'),
+    [data?.milestones]
+  );
+
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
@@ -361,21 +384,16 @@ export default function Home() {
         />
       )}
 
-      {showMilestones && (
-        <MilestoneEditor
-          milestones={data.milestones || []}
-          onSave={handleMilestonesSave}
-          onClose={() => setShowMilestones(false)}
-        />
-      )}
-
       <Toolbar
         documentName={data.releaseName}
         onNameChange={handleNameChange}
         onSave={() => handleSave(data)}
         onExportExcel={handleExportExcel}
         onDownloadJson={handleDownloadJson}
-        onOpenMilestones={() => setShowMilestones(true)}
+        onOpenFilterPanel={openFilterPanel}
+        onOpenMilestonesPanel={openMilestonesPanel}
+        isSidePanelOpen={isSidePanelOpen}
+        activeSidePanel={activeSidePanel}
         beforeWeeks={beforeWeeks}
         afterMonths={afterMonths}
         onBeforeWeeksChange={setBeforeWeeks}
@@ -386,45 +404,56 @@ export default function Home() {
         authLoading={authLoading}
         onUnlockEditor={handleUnlockEditor}
         onLockEditor={handleLockEditor}
-        availableCategories={availableCategories}
-        availableTeams={availableTeams}
-        availableSubcategories={availableSubcategories}
         filterCategory={filterCategory}
         filterStatus={filterStatus}
         filterTeam={filterTeam}
         filterPriority={filterPriority}
         filterSubcategory={filterSubcategory}
-        onFilterChange={(type, values) => {
-          if (type === 'category') setFilterCategory(values);
-          else if (type === 'status') setFilterStatus(values);
-          else if (type === 'team') setFilterTeam(values);
-          else if (type === 'priority') setFilterPriority(values);
-          else if (type === 'subcategory') setFilterSubcategory(values);
-        }}
-        onSaveView={() => handleSave(data)}
       />
-      <div className="flex-1 overflow-hidden">
-        <SpreadsheetGrid
-          key={isEditor ? 'editor-grid' : 'viewer-grid'}
-          data={data}
-          onDataChange={handleDataChange}
-          onRootAdd={handleRootAdd}
-          showConfirm={showConfirm}
-          viewStart={viewStart}
-          viewEnd={viewEnd}
+      <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden">
+          <SpreadsheetGrid
+            key={isEditor ? 'editor-grid' : 'viewer-grid'}
+            data={data}
+            onDataChange={handleDataChange}
+            onRootAdd={handleRootAdd}
+            showConfirm={showConfirm}
+            viewStart={viewStart}
+            viewEnd={viewEnd}
+            filterCategory={filterCategory}
+            filterStatus={filterStatus}
+            filterTeam={filterTeam}
+            filterPriority={filterPriority}
+            filterSubcategory={filterSubcategory}
+            canEdit={isEditor}
+            showPct={showPct} setShowPct={setShowPct}
+            showPriority={showPriority} setShowPriority={setShowPriority}
+            showStartDate={showStartDate} setShowStartDate={setShowStartDate}
+            showEndDate={showEndDate} setShowEndDate={setShowEndDate}
+            today={today}
+            expandedIds={expandedIds} setExpandedIds={setExpandedIds}
+            hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
+          />
+        </div>
+        <SidePanel
+          key={milestonesVersion}
+          isOpen={isSidePanelOpen}
+          activeTab={activeSidePanel}
+          onTabChange={setActiveSidePanel}
+          onClose={() => setIsSidePanelOpen(false)}
+          canEdit={isEditor}
+          availableCategories={availableCategories}
+          availableTeams={availableTeams}
+          availableSubcategories={availableSubcategories}
           filterCategory={filterCategory}
           filterStatus={filterStatus}
           filterTeam={filterTeam}
           filterPriority={filterPriority}
           filterSubcategory={filterSubcategory}
-          canEdit={isEditor}
-          showPct={showPct} setShowPct={setShowPct}
-          showPriority={showPriority} setShowPriority={setShowPriority}
-          showStartDate={showStartDate} setShowStartDate={setShowStartDate}
-          showEndDate={showEndDate} setShowEndDate={setShowEndDate}
-          today={today}
-          expandedIds={expandedIds} setExpandedIds={setExpandedIds}
-          hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
+          onFilterChange={handleFilterChange}
+          onSaveView={() => handleSave(data)}
+          milestones={data.milestones || []}
+          onSaveMilestones={handleMilestonesSave}
         />
       </div>
     </main>

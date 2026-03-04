@@ -49,7 +49,7 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
                 {/* List */}
                 <div className="overflow-y-auto flex-1 px-6 py-4 flex flex-col gap-3">
                     {list.length === 0 && (
-                        <p className="text-sm text-gray-400 text-center py-4">Chưa có mốc nào. Nhấn "+ Thêm" để tạo mới.</p>
+                        <p className="text-sm text-gray-400 text-center py-4">Chưa có mốc nào. Nhấn &quot;+ Thêm&quot; để tạo mới.</p>
                     )}
                     {list.map((m) => (
                         <div key={m.id} className="flex gap-2 items-center bg-gray-50 rounded-lg p-3 border border-gray-200">
