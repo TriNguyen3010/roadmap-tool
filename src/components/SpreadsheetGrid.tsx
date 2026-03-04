@@ -19,6 +19,7 @@ interface GridProps {
     viewStart: string;
     viewEnd: string;
     today: Date;
+    filterCategory: string[];
     filterStatus: string[];
     filterTeam: string[];
     filterPriority: string[];
@@ -128,7 +129,7 @@ function countWorkdays(start: Date, end: Date): number {
 }
 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
-    filterStatus, filterTeam, filterPriority, filterSubcategory, canEdit,
+    filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory, canEdit,
     showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds
 }: GridProps) {
@@ -166,11 +167,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     };
 
     const visibleItems = useMemo(() => filterRoadmapTree(data.items, {
+        category: filterCategory,
         status: filterStatus,
         team: filterTeam,
         priority: filterPriority,
         subcategory: filterSubcategory,
-    }), [data.items, filterStatus, filterTeam, filterPriority, filterSubcategory]);
+    }), [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory]);
 
     const flattened: FlattenedItem[] = useMemo(() => {
         const raw = flattenRoadmap(visibleItems);
@@ -271,18 +273,34 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         onDataChange({ ...data, items: newItems });
     };
 
+    const isValidSameLayerDrop = useCallback((sourceId: string, targetId: string): boolean => {
+        if (sourceId === targetId) return false;
+        const source = flattened.find(item => item.id === sourceId);
+        const target = flattened.find(item => item.id === targetId);
+        if (!source || !target) return false;
+        if (source.type !== target.type) return false;
+        const sourceParent = source.parentIds[source.parentIds.length - 1] || null;
+        const targetParent = target.parentIds[target.parentIds.length - 1] || null;
+        return sourceParent === targetParent;
+    }, [flattened]);
+
     // ── Drag & Drop Handlers ──
     const handleDragStart = (e: React.DragEvent, id: string) => {
         if (!canEdit) return;
         setDraggedId(id);
+        setDragOverId(null);
         e.dataTransfer.effectAllowed = 'move';
         // Setting transparent image helps styling custom drag ghost if needed
     };
     const handleDragOver = (e: React.DragEvent, id: string) => {
         if (!canEdit) return;
         e.preventDefault(); // enable drop
-        if (draggedId && draggedId !== id) {
+        if (draggedId && isValidSameLayerDrop(draggedId, id)) {
+            e.dataTransfer.dropEffect = 'move';
             setDragOverId(id);
+        } else {
+            e.dataTransfer.dropEffect = 'none';
+            setDragOverId(null);
         }
     };
     const handleDragLeave = () => {
@@ -291,9 +309,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const handleDrop = (e: React.DragEvent, targetId: string) => {
         if (!canEdit) return;
         e.preventDefault();
-        if (draggedId && draggedId !== targetId) {
+        if (draggedId && isValidSameLayerDrop(draggedId, targetId)) {
             const newItems = reorderItems(data.items, draggedId, targetId);
-            onDataChange({ ...data, items: newItems }, true); // Pass true to trigger auto-save if supported
+            if (newItems !== data.items) {
+                onDataChange({ ...data, items: newItems }, true); // Pass true to trigger auto-save if supported
+            }
         }
         setDraggedId(null);
         setDragOverId(null);
@@ -511,20 +531,20 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const isExpanded = expandedIds.has(row.id);
                         const childType = CHILD_TYPE_MAP[row.type];
 
-                        const isCategory = row.type === 'category';
-                        const isDragged = isCategory && draggedId === row.id;
-                        const isDragOver = isCategory && dragOverId === row.id;
+                        const canDragRow = canEdit;
+                        const isDragged = draggedId === row.id;
+                        const isDragOver = dragOverId === row.id;
 
                         return (
                             <div key={row.id}
                                 className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOver ? 'border-t-4 border-t-blue-500' : ''}`}
                                 style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: style.bg }}
-                                draggable={canEdit && isCategory}
-                                onDragStart={(e) => canEdit && isCategory && handleDragStart(e, row.id)}
-                                onDragOver={(e) => canEdit && isCategory && handleDragOver(e, row.id)}
-                                onDragLeave={canEdit && isCategory ? handleDragLeave : undefined}
-                                onDrop={(e) => canEdit && isCategory && handleDrop(e, row.id)}
-                                onDragEnd={canEdit && isCategory ? handleDragEnd : undefined}
+                                draggable={canDragRow}
+                                onDragStart={canDragRow ? (e) => handleDragStart(e, row.id) : undefined}
+                                onDragOver={canDragRow ? (e) => handleDragOver(e, row.id) : undefined}
+                                onDragLeave={canDragRow ? handleDragLeave : undefined}
+                                onDrop={canDragRow ? (e) => handleDrop(e, row.id) : undefined}
+                                onDragEnd={canDragRow ? handleDragEnd : undefined}
                             >
 
                                 {/* ID cell */}

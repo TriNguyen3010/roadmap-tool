@@ -44,13 +44,15 @@ interface ToolbarProps {
     onUnlockEditor: (password: string) => Promise<{ success: boolean; message?: string }>;
     onLockEditor: () => Promise<void> | void;
     // View Filter props
+    availableCategories: string[];
     availableTeams: string[];
     availableSubcategories: string[];
+    filterCategory: string[];
     filterStatus: string[];
     filterTeam: string[];
     filterPriority: string[];
     filterSubcategory: string[];
-    onFilterChange: (type: 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => void;
+    onFilterChange: (type: 'category' | 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => void;
     onSaveView: () => void;
 }
 
@@ -59,7 +61,7 @@ export default function Toolbar({
     onOpenMilestones, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
-    availableTeams, availableSubcategories, filterStatus, filterTeam, filterPriority, filterSubcategory, onFilterChange, onSaveView
+    availableCategories, availableTeams, availableSubcategories, filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory, onFilterChange, onSaveView
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -104,6 +106,11 @@ export default function Toolbar({
     const toggleStatus = (st: string) => {
         if (filterStatus.includes(st)) onFilterChange('status', filterStatus.filter(s => s !== st));
         else onFilterChange('status', [...filterStatus, st]);
+    };
+
+    const toggleCategory = (cat: string) => {
+        if (filterCategory.includes(cat)) onFilterChange('category', filterCategory.filter(x => x !== cat));
+        else onFilterChange('category', [...filterCategory, cat]);
     };
 
     const toggleTeam = (tm: string) => {
@@ -299,10 +306,10 @@ export default function Toolbar({
                     <button
                         onClick={() => { setViewOpen(p => !p); setSettingsOpen(false); }}
                         title="Chế độ xem (Filters)"
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white ${viewOpen || filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0 ? 'bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'} text-xs`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white ${viewOpen || filterCategory.length > 0 || filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0 ? 'bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'} text-xs`}
                     >
                         <Filter size={13} />
-                        <span>Filter{(filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0) ? ` (${filterStatus.length + filterTeam.length + filterPriority.length + filterSubcategory.length})` : ''}</span>
+                        <span>Filter{(filterCategory.length > 0 || filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0) ? ` (${filterCategory.length + filterStatus.length + filterTeam.length + filterPriority.length + filterSubcategory.length})` : ''}</span>
                     </button>
 
                     {viewOpen && (
@@ -316,9 +323,29 @@ export default function Toolbar({
                             </div>
 
                             <div className="p-4 flex flex-col gap-4 overflow-y-auto max-h-[60vh]">
+                                {/* Category filters */}
+                                {availableCategories.length > 0 && (
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Category</p>
+                                        <div className="flex flex-col gap-2">
+                                            {availableCategories.map(cat => (
+                                                <label key={cat} className="flex items-center gap-2 cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={filterCategory.includes(cat)}
+                                                        onChange={() => toggleCategory(cat)}
+                                                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{cat}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Status filters */}
                                 <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Trạng thái (Status)</p>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Trạng thái (Status)</p>
                                     <div className="flex flex-col gap-2">
                                         {['Done', 'In Progress', 'Not Started'].map(st => (
                                             <label key={st} className="flex items-center gap-2 cursor-pointer group">
@@ -396,8 +423,14 @@ export default function Toolbar({
                             {/* Footer Actions */}
                             <div className="p-3 bg-gray-50 border-t border-gray-200 flex flex-col gap-2">
                                 <button
-                                    onClick={() => { onFilterChange('status', []); onFilterChange('team', []); onFilterChange('priority', []); onFilterChange('subcategory', []); }}
-                                    disabled={filterStatus.length === 0 && filterTeam.length === 0 && filterPriority.length === 0 && filterSubcategory.length === 0}
+                                    onClick={() => {
+                                        onFilterChange('category', []);
+                                        onFilterChange('status', []);
+                                        onFilterChange('team', []);
+                                        onFilterChange('priority', []);
+                                        onFilterChange('subcategory', []);
+                                    }}
+                                    disabled={filterCategory.length === 0 && filterStatus.length === 0 && filterTeam.length === 0 && filterPriority.length === 0 && filterSubcategory.length === 0}
                                     className="w-full text-xs font-semibold px-3 py-1.5 rounded transition-colors disabled:opacity-50 text-gray-600 border border-gray-300 hover:bg-gray-100"
                                 >
                                     Xóa bộ lọc (Show All)

@@ -150,80 +150,129 @@ export const generateTimelineDays = (startDateStr: string, endDateStr: string, p
     return eachDayOfInterval({ start: weekStart, end: weekEnd });
 };
 
-// Reorder items (top-level only)
+// Reorder items within the same sibling layer (same direct parent)
 export const reorderItems = (items: RoadmapItem[], fromId: string, toId: string): RoadmapItem[] => {
     if (fromId === toId) return items;
 
-    const fromIndex = items.findIndex(i => i.id === fromId);
-    const toIndex = items.findIndex(i => i.id === toId);
+    const reorderInLayer = (layer: RoadmapItem[]): { next: RoadmapItem[]; changed: boolean } => {
+        const fromIndex = layer.findIndex(i => i.id === fromId);
+        const toIndex = layer.findIndex(i => i.id === toId);
 
-    if (fromIndex === -1 || toIndex === -1) return items;
+        // Both nodes are in this exact sibling array -> reorder here
+        if (fromIndex !== -1 && toIndex !== -1) {
+            const next = [...layer];
+            const [movedItem] = next.splice(fromIndex, 1);
+            const newToIndex = next.findIndex(i => i.id === toId);
+            next.splice(newToIndex, 0, movedItem);
+            return { next, changed: true };
+        }
 
-    const newItems = [...items];
-    const [movedItem] = newItems.splice(fromIndex, 1);
+        // Exactly one node found in this layer means different parents -> invalid move
+        if (fromIndex !== -1 || toIndex !== -1) {
+            return { next: layer, changed: false };
+        }
 
-    // Recalculate toIndex after removal
-    const newToIndex = newItems.findIndex(i => i.id === toId);
-    newItems.splice(newToIndex, 0, movedItem);
+        let changed = false;
+        const next = layer.map(item => {
+            if (!item.children || item.children.length === 0) return item;
+            const childResult = reorderInLayer(item.children);
+            if (!childResult.changed) return item;
+            changed = true;
+            return { ...item, children: childResult.next };
+        });
 
-    return newItems;
+        return changed ? { next, changed: true } : { next: layer, changed: false };
+    };
+
+    const result = reorderInLayer(items);
+    return result.changed ? result.next : items;
 };
 
 export const filterRoadmapTree = (
     items: RoadmapItem[],
-    filters: { status?: string[]; team?: string[]; priority?: string[]; subcategory?: string[] }
+    filters: { category?: string[]; status?: string[]; team?: string[]; priority?: string[]; subcategory?: string[] }
 ): RoadmapItem[] => {
+    const hasCategoryFilter = filters.category && filters.category.length > 0;
     const hasStatusFilter = filters.status && filters.status.length > 0;
     const hasTeamFilter = filters.team && filters.team.length > 0;
     const hasPriorityFilter = filters.priority && filters.priority.length > 0;
     const hasSubcategoryFilter = filters.subcategory && filters.subcategory.length > 0;
 
-    if (!hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasSubcategoryFilter) return items;
+    if (!hasCategoryFilter && !hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasSubcategoryFilter) return items;
 
-    return items
-        .map(item => {
-            const filteredChildren = item.children ? filterRoadmapTree(item.children, filters) : [];
+    const selectedCategories = new Set(filters.category || []);
+    const selectedStatuses = new Set(filters.status || []);
+    const selectedTeams = new Set(filters.team || []);
+    const selectedPriorities = new Set(filters.priority || []);
+    const selectedSubcategories = new Set(filters.subcategory || []);
 
-            let matchesStatus = true;
-            let matchesTeam = true;
-            let matchesPriority = true;
-            let matchesSubcategory = true;
+    const applyFilter = (
+        nodes: RoadmapItem[],
+        insideSelectedCategory: boolean,
+        insideSelectedSubcategory: boolean
+    ): RoadmapItem[] => {
+        return nodes
+            .map(item => {
+                const isSelectedCategory = item.type === 'category' && selectedCategories.has(item.name);
+                const isSelectedSubcategory = item.type === 'subcategory' && selectedSubcategories.has(item.name);
+                const nextInsideSelectedCategory = insideSelectedCategory || isSelectedCategory;
+                const nextInsideSelectedSubcategory = insideSelectedSubcategory || isSelectedSubcategory;
+                const filteredChildren = item.children
+                    ? applyFilter(item.children, nextInsideSelectedCategory, nextInsideSelectedSubcategory)
+                    : [];
 
-            if (hasStatusFilter) {
-                matchesStatus = filters.status!.includes(item.status);
-            }
+                let matchesCategory = true;
+                let matchesStatus = true;
+                let matchesTeam = true;
+                let matchesPriority = true;
+                let matchesSubcategory = true;
 
-            if (hasTeamFilter) {
-                if (item.type === 'team' && item.teamRole) {
-                    matchesTeam = filters.team!.includes(item.teamRole);
-                } else {
-                    matchesTeam = false;
+                if (hasCategoryFilter) {
+                    if (item.type === 'category') {
+                        matchesCategory = isSelectedCategory;
+                    } else {
+                        matchesCategory = nextInsideSelectedCategory;
+                    }
                 }
-            }
 
-            if (hasPriorityFilter) {
-                if ((item.type === 'group' || item.type === 'feature') && item.priority) {
-                    matchesPriority = filters.priority!.includes(item.priority);
-                } else {
-                    matchesPriority = false;
+                if (hasStatusFilter) {
+                    matchesStatus = selectedStatuses.has(item.status);
                 }
-            }
 
-            if (hasSubcategoryFilter) {
-                if (item.type === 'subcategory') {
-                    matchesSubcategory = filters.subcategory!.includes(item.name);
-                } else {
-                    matchesSubcategory = false;
+                if (hasTeamFilter) {
+                    if (item.type === 'team' && item.teamRole) {
+                        matchesTeam = selectedTeams.has(item.teamRole);
+                    } else {
+                        matchesTeam = false;
+                    }
                 }
-            }
 
-            const isMatch = matchesStatus && matchesTeam && matchesPriority && matchesSubcategory;
+                if (hasPriorityFilter) {
+                    if ((item.type === 'group' || item.type === 'feature') && item.priority) {
+                        matchesPriority = selectedPriorities.has(item.priority);
+                    } else {
+                        matchesPriority = false;
+                    }
+                }
 
-            if (isMatch || filteredChildren.length > 0) {
-                return { ...item, children: filteredChildren };
-            }
+                if (hasSubcategoryFilter) {
+                    if (item.type === 'subcategory') {
+                        matchesSubcategory = isSelectedSubcategory;
+                    } else {
+                        matchesSubcategory = nextInsideSelectedSubcategory;
+                    }
+                }
 
-            return null;
-        })
-        .filter(Boolean) as RoadmapItem[];
+                const isMatch = matchesCategory && matchesStatus && matchesTeam && matchesPriority && matchesSubcategory;
+
+                if (isMatch || filteredChildren.length > 0) {
+                    return { ...item, children: filteredChildren };
+                }
+
+                return null;
+            })
+            .filter(Boolean) as RoadmapItem[];
+    };
+
+    return applyFilter(items, false, false);
 };

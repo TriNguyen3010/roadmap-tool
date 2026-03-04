@@ -25,6 +25,7 @@ export default function Home() {
   const [afterMonths, setAfterMonths] = useState(2);
 
   // View settings
+  const [filterCategory, setFilterCategory] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [filterTeam, setFilterTeam] = useState<string[]>([]);
   const [filterPriority, setFilterPriority] = useState<string[]>([]);
@@ -92,6 +93,7 @@ export default function Home() {
         if (json.settings) {
           if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
           if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
+          if (json.settings.filterCategory) setFilterCategory(json.settings.filterCategory);
           if (json.settings.filterStatus) setFilterStatus(json.settings.filterStatus);
           if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
           if (json.settings.filterPriority) setFilterPriority(json.settings.filterPriority);
@@ -162,22 +164,44 @@ export default function Home() {
     }
   }, [addToast]);
 
-  const handleSave = async (currentData: RoadmapDocument) => {
+  const buildDocumentSnapshot = useCallback((baseData: RoadmapDocument): RoadmapDocument => ({
+    ...baseData,
+    settings: {
+      beforeWeeks,
+      afterMonths,
+      filterCategory,
+      filterStatus,
+      filterTeam,
+      filterPriority,
+      filterSubcategory,
+      colPct: showPct,
+      colPriority: showPriority,
+      colStartDate: showStartDate,
+      colEndDate: showEndDate,
+      expandedIds: Array.from(expandedIds),
+      hiddenRowIds: Array.from(hiddenRowIds),
+    }
+  }), [
+    beforeWeeks,
+    afterMonths,
+    filterCategory,
+    filterStatus,
+    filterTeam,
+    filterPriority,
+    filterSubcategory,
+    showPct,
+    showPriority,
+    showStartDate,
+    showEndDate,
+    expandedIds,
+    hiddenRowIds,
+  ]);
+
+  const handleSave = useCallback(async (currentData: RoadmapDocument) => {
     if (!ensureEditor()) return;
     setSaving(true);
     try {
-      const dataToSave = {
-        ...currentData,
-        settings: {
-          beforeWeeks, afterMonths,
-          filterStatus, filterTeam, filterPriority,
-          filterSubcategory,
-          colPct: showPct, colPriority: showPriority,
-          colStartDate: showStartDate, colEndDate: showEndDate,
-          expandedIds: Array.from(expandedIds),
-          hiddenRowIds: Array.from(hiddenRowIds),
-        }
-      };
+      const dataToSave = buildDocumentSnapshot(currentData);
 
       const res = await fetch('/api/roadmap/save', {
         method: 'POST',
@@ -196,7 +220,7 @@ export default function Home() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [addToast, buildDocumentSnapshot, ensureEditor]);
 
 
   const handleExportExcel = () => {
@@ -254,6 +278,7 @@ export default function Home() {
     if (parsed.settings) {
       if (typeof parsed.settings.beforeWeeks === 'number') setBeforeWeeks(parsed.settings.beforeWeeks);
       if (typeof parsed.settings.afterMonths === 'number') setAfterMonths(parsed.settings.afterMonths);
+      if (parsed.settings.filterCategory) setFilterCategory(parsed.settings.filterCategory);
       if (parsed.settings.filterStatus) setFilterStatus(parsed.settings.filterStatus);
       if (parsed.settings.filterTeam) setFilterTeam(parsed.settings.filterTeam);
       if (parsed.settings.filterPriority) setFilterPriority(parsed.settings.filterPriority);
@@ -264,8 +289,9 @@ export default function Home() {
 
   const handleDownloadJson = () => {
     if (!data) return;
-    const fileName = `${data.releaseName.replace(/\s+/g, '_')}_backup_${new Date().toISOString().slice(0, 10)}.json`;
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const snapshot = buildDocumentSnapshot(data);
+    const fileName = `${snapshot.releaseName.replace(/\s+/g, '_')}_backup_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -300,6 +326,19 @@ export default function Home() {
     };
     findSubcategories(data.items);
     return Array.from(subcategories).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const availableCategories = useMemo(() => {
+    if (!data) return [];
+    const categories = new Set<string>();
+    const findCategories = (items: RoadmapItem[]) => {
+      items.forEach(item => {
+        if (item.type === 'category') categories.add(item.name);
+        if (item.children) findCategories(item.children);
+      });
+    };
+    findCategories(data.items);
+    return Array.from(categories).sort((a, b) => a.localeCompare(b));
   }, [data]);
 
   if (loading || !data) {
@@ -347,25 +386,22 @@ export default function Home() {
         authLoading={authLoading}
         onUnlockEditor={handleUnlockEditor}
         onLockEditor={handleLockEditor}
+        availableCategories={availableCategories}
         availableTeams={availableTeams}
         availableSubcategories={availableSubcategories}
+        filterCategory={filterCategory}
         filterStatus={filterStatus}
         filterTeam={filterTeam}
         filterPriority={filterPriority}
         filterSubcategory={filterSubcategory}
         onFilterChange={(type, values) => {
-          if (type === 'status') setFilterStatus(values);
+          if (type === 'category') setFilterCategory(values);
+          else if (type === 'status') setFilterStatus(values);
           else if (type === 'team') setFilterTeam(values);
           else if (type === 'priority') setFilterPriority(values);
           else if (type === 'subcategory') setFilterSubcategory(values);
         }}
-        onSaveView={() => handleSave({
-          ...data, settings: {
-            beforeWeeks, afterMonths, filterStatus, filterTeam, filterPriority, filterSubcategory,
-            colPct: showPct, colPriority: showPriority, colStartDate: showStartDate, colEndDate: showEndDate,
-            expandedIds: Array.from(expandedIds), hiddenRowIds: Array.from(hiddenRowIds)
-          }
-        })}
+        onSaveView={() => handleSave(data)}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
@@ -376,6 +412,7 @@ export default function Home() {
           showConfirm={showConfirm}
           viewStart={viewStart}
           viewEnd={viewEnd}
+          filterCategory={filterCategory}
           filterStatus={filterStatus}
           filterTeam={filterTeam}
           filterPriority={filterPriority}

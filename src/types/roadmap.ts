@@ -42,6 +42,7 @@ export interface RoadmapDocument {
   settings?: {
     beforeWeeks: number;
     afterMonths: number;
+    filterCategory?: string[];
     filterStatus?: string[];
     filterTeam?: string[];
     filterPriority?: string[];
