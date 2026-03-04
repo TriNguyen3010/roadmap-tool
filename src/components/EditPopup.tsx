@@ -34,6 +34,8 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     // Dates/progress are locked when item has children that are NOT all teams
     const hasNonTeamChildren = !!(item.children && item.children.some(c => c.type !== 'team'));
     const isRolledUp = hasNonTeamChildren;
+    const isCategoryManual = item.type === 'category' && statusMode === 'manual';
+    const isDateLocked = isRolledUp && !isCategoryManual;
 
     // Initialize selectedTeams based on existing children that are of type 'team'
     const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(() => {
@@ -215,9 +217,14 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                 )}
 
                 {/* Auto rollup notice */}
-                {isRolledUp && (
+                {isDateLocked && (
                     <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
                         Thời gian và tiến độ được tự động tính toán từ các mục con.
+                    </div>
+                )}
+                {isCategoryManual && (
+                    <div className="text-xs text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-200">
+                        Category đang ở chế độ manual: bạn có thể chỉnh ngày bắt đầu/kết thúc.
                     </div>
                 )}
 
@@ -230,7 +237,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                             className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            disabled={isRolledUp}
+                            disabled={isDateLocked}
                         />
                     </div>
                     <div className="flex flex-col gap-1 flex-1">
@@ -240,7 +247,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                             className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
-                            disabled={isRolledUp}
+                            disabled={isDateLocked}
                         />
                     </div>
                 </div>
