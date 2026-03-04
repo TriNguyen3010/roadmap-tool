@@ -143,6 +143,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // ── Priority dropdown open state ──
     const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
+    const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
 
     // ── CRUD states ──
     const [editingItem, setEditingItem] = useState<RoadmapItem | null>(null);
@@ -559,7 +560,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             return displayDepth * 14 + 6;
                                         })()}px`, fontWeight: style.font
                                     }}
-                                    onClick={() => hasChildren && toggleExpand(row.id)}
+                                    onClick={() => openEditor(row.id)}
                                 >
                                     {hasChildren
                                         ? (isExpanded ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />)
@@ -749,7 +750,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     </div>
 
                     {/* ── DATA ROWS ── */}
-                    <div className="relative group/gantt">
+                    <div className="relative group/gantt" onClick={() => setActiveBarInfoId(null)}>
                         {/* Today line */}
                         {today && todayIndex >= 0 && (
                             <div className="absolute top-0 bottom-0 z-10 pointer-events-none"
@@ -817,6 +818,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 barStyle.backgroundImage = `repeating-linear-gradient(45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 8px, transparent 8px, transparent 16px)`;
                             }
 
+                            const hasActiveInfo = activeBarInfoId === row.id;
+
                             return (
                                 <div key={row.id} className="flex relative border-b border-gray-200"
                                     style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}>
@@ -824,13 +827,19 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         <div
                                             className="absolute top-[4px] bottom-[4px] rounded shadow-sm z-[5] cursor-pointer transition-all flex items-center justify-center hover:z-20 group-hover/gantt:z-10"
                                             style={barStyle}
-                                            title={`${row.name}: ${row.startDate} → ${row.endDate} | ${sprintStr} sprint | ${workdays} ngày làm việc | ${row.status} ${row.progress}%`}
-                                            onClick={() => canEdit && openEditor(row.id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
+                                            }}
                                         >
                                             {isGrowthCamp && <span className="absolute left-1 text-[10px]">🚀</span>}
-                                            <span className="absolute z-10 opacity-0 group-hover/gantt:opacity-100 transition-opacity bg-gray-900/90 text-white text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap select-none flex items-center pointer-events-none shadow-md">
-                                                {workdays}d ({sprintStr} sprints)
-                                            </span>
+                                            {hasActiveInfo && (
+                                                <div className="absolute z-20 bottom-full mb-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
+                                                    <div>{row.name}</div>
+                                                    <div>{row.startDate} → {row.endDate}</div>
+                                                    <div>{sprintStr} sprint · {workdays} ngày · {row.status} {row.progress}%</div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
