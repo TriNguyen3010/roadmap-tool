@@ -38,10 +38,11 @@ type RenderEntry =
     | { kind: 'gap'; ids: string[]; names: string[] };
 
 const DEPTH_STYLES: { bg: string; font: string }[] = [
-    { bg: '#c6d3ea', font: 'bold' },
-    { bg: '#d4e4c8', font: 'bold' },
-    { bg: '#e8e8e8', font: 'bold' },
-    { bg: '#ffffff', font: 'normal' },
+    { bg: '#c6d3ea', font: 'bold' },     // Level 0 (category)
+    { bg: '#d4e4c8', font: 'bold' },     // Level 1 (subcategory)
+    { bg: '#e8e8e8', font: 'bold' },     // Level 2 (group)
+    { bg: '#ffffff', font: 'normal' },   // Level 3 (feature)
+    { bg: '#f9fafb', font: 'normal' },   // Level 4/5 (team styles fallback)
 ];
 
 const STATUS_BAR_COLOR: Record<string, string> = {
@@ -66,6 +67,7 @@ const CHILD_TYPE_MAP: Record<ItemType, ItemType | null> = {
     subcategory: 'group',
     group: 'feature',
     feature: null,
+    team: null,
 };
 
 // Subcategory type badge styles
@@ -148,8 +150,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     useEffect(() => {
         let maxW = 160; // Chiều rộng tối thiểu
         for (const row of flattened) {
-            // khoảng thụt vào (depth * 14) + icon (~14px) + font size chữ (~7.5px/char)
-            let w = (row.depth * 14) + 20 + (row.name.length * 7.5);
+            let displayDepth = row.depth;
+            if (row.type === 'feature') displayDepth = row.depth + 1;
+            else if (row.type === 'team' && row.depth >= 4) displayDepth = row.depth + 1;
+
+            // khoảng thụt vào (displayDepth * 14) + icon (~14px) + font size chữ (~7.5px/char)
+            let w = (displayDepth * 14) + 20 + (row.name.length * 7.5);
             if (row.type === 'subcategory' && row.subcategoryType) w += 65; // khoảng không cho cái tag loại
             if (w > maxW) maxW = w;
         }
@@ -208,7 +214,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }).filter(Boolean) as (Milestone & { left: number; width: number })[], [milestones, timelineDays]);
 
     // ── CRUD handlers ──
-    const handleEditSave = (updated: RoadmapItem) => { onDataChange({ ...data, items: updateNodeById(data.items, updated.id, updated) }); };
+    const handleEditSave = (updated: RoadmapItem) => {
+        onDataChange({ ...data, items: updateNodeById(data.items, updated.id, updated) });
+        if (updated.children && updated.children.length > 0) {
+            setExpandedIds(prev => new Set([...prev, updated.id]));
+        }
+    };
     const handleDelete = async (id: string) => {
         if (!(await showConfirm('Bạn có chắc muốn xoá mục này và toàn bộ nội dung con của nó không?'))) return;
         onDataChange({ ...data, items: deleteNodeById(data.items, id) });
@@ -216,7 +227,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const handleAddChild = (parentId: string, newItem: RoadmapItem) => {
         if (parentId === '__ROOT__') { onRootAdd(newItem); return; }
         const newItems = addChildToNode(data.items, parentId, newItem);
-        setExpandedIds(prev => new Set([...prev, parentId]));
+
+        const nextExp = new Set([...expandedIds, parentId]);
+        if (newItem.children && newItem.children.length > 0) {
+            nextExp.add(newItem.id);
+        }
+
+        setExpandedIds(nextExp);
         onDataChange({ ...data, items: newItems });
     };
 
@@ -423,7 +440,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {/* Name + subcategoryType badge */}
                                 <div
                                     className="flex items-center border-r border-gray-300 cursor-pointer select-none gap-1 overflow-hidden"
-                                    style={{ paddingLeft: `${row.depth * 14 + 6}px`, fontWeight: style.font }}
+                                    style={{
+                                        paddingLeft: `${(() => {
+                                            let displayDepth = row.depth;
+                                            if (row.type === 'feature') displayDepth = row.depth + 1;
+                                            else if (row.type === 'team' && row.depth >= 4) displayDepth = row.depth + 1;
+                                            return displayDepth * 14 + 6;
+                                        })()}px`, fontWeight: style.font
+                                    }}
                                     onClick={() => hasChildren && toggleExpand(row.id)}
                                 >
                                     {hasChildren

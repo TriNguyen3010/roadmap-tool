@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RoadmapItem, ItemStatus, SubcategoryType } from '@/types/roadmap';
+import { RoadmapItem, ItemStatus, SubcategoryType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
+import { v4 as uuidv4 } from 'uuid';
 import { X } from 'lucide-react';
 
 interface EditPopupProps {
@@ -26,6 +27,21 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const [endDate, setEndDate] = useState(item.endDate || '');
     const [subcategoryType, setSubcategoryType] = useState<SubcategoryType | undefined>(item.subcategoryType);
 
+    // Dates/progress are locked when item has children that are NOT all teams
+    const hasNonTeamChildren = !!(item.children && item.children.some(c => c.type !== 'team'));
+    const isRolledUp = hasNonTeamChildren;
+
+    // Initialize selectedTeams based on existing children that are of type 'team'
+    const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(() => {
+        const set = new Set<TeamRole>();
+        if ((item.type === 'feature' || item.type === 'group') && item.children) {
+            item.children.forEach(child => {
+                if (child.type === 'team' && child.teamRole) set.add(child.teamRole);
+            });
+        }
+        return set;
+    });
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -47,7 +63,49 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
         else setStatus('In Progress');
     };
 
+    const toggleTeam = (role: TeamRole) => {
+        const next = new Set(selectedTeams);
+        if (next.has(role)) next.delete(role);
+        else next.add(role);
+        setSelectedTeams(next);
+    };
+
     const handleSubmit = () => {
+        let updatedChildren = item.children;
+
+        if (item.type === 'feature' || item.type === 'group') {
+            const currentTeamsMap = new Map<TeamRole, RoadmapItem>();
+            if (item.children) {
+                item.children.forEach(child => {
+                    if (child.type === 'team' && child.teamRole) {
+                        currentTeamsMap.set(child.teamRole, child);
+                    }
+                });
+            }
+
+            const newChildren: RoadmapItem[] = item.children
+                ? item.children.filter(child => child.type !== 'team')
+                : [];
+
+            selectedTeams.forEach(role => {
+                if (currentTeamsMap.has(role)) {
+                    newChildren.push(currentTeamsMap.get(role)!);
+                } else {
+                    newChildren.push({
+                        id: uuidv4().slice(0, 8),
+                        name: role,
+                        type: 'team',
+                        teamRole: role,
+                        status: 'Not Started',
+                        progress: 0,
+                        startDate: startDate || undefined,
+                        endDate: endDate || undefined
+                    });
+                }
+            });
+            updatedChildren = newChildren;
+        }
+
         onSave({
             ...item,
             name,
@@ -56,14 +114,15 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
             status,
             progress,
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
+            children: updatedChildren
         });
         onClose();
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/10 transition-colors" onClick={onClose}>
             <div
-                className="bg-white rounded-xl shadow-2xl w-[440px] p-6 flex flex-col gap-4 border border-gray-200"
+                className="bg-white w-[440px] h-full shadow-2xl p-6 flex flex-col gap-4 border-l border-gray-200 animate-in slide-in-from-right overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
@@ -104,14 +163,50 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                 {/* Name */}
                 <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-gray-600">Tên</label>
-                    <input
-                        autoFocus
-                        className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                    />
+                    {item.type === 'team' ? (
+                        <div className="border border-gray-200 bg-gray-50 rounded px-2 py-1.5 text-sm text-gray-700 font-medium">
+                            {item.teamRole}
+                        </div>
+                    ) : (
+                        <input
+                            autoFocus
+                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                        />
+                    )}
                 </div>
+
+                {/* Teams */}
+                {(item.type === 'feature' || item.type === 'group') && (
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-gray-600">Teams (Optional)</label>
+                        <div className="flex flex-wrap gap-2">
+                            {TEAM_ROLES.map(role => {
+                                const isSelected = selectedTeams.has(role);
+                                return (
+                                    <label key={role} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleTeam(role)}
+                                            className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <span className={isSelected ? 'font-medium text-gray-900' : 'text-gray-600'}>{role}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Auto rollup notice */}
+                {isRolledUp && (
+                    <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                        Thời gian và tiến độ được tự động tính toán từ các mục con.
+                    </div>
+                )}
 
                 {/* Start / End Date */}
                 <div className="flex gap-3">
@@ -119,18 +214,20 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                         <label className="text-xs font-semibold text-gray-600">Ngày bắt đầu</label>
                         <input
                             type="date"
-                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
+                            disabled={isRolledUp}
                         />
                     </div>
                     <div className="flex flex-col gap-1 flex-1">
                         <label className="text-xs font-semibold text-gray-600">Ngày kết thúc</label>
                         <input
                             type="date"
-                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
+                            disabled={isRolledUp}
                         />
                     </div>
                 </div>
@@ -139,9 +236,10 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                 <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-gray-600">Trạng thái</label>
                     <select
-                        className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
                         value={status}
                         onChange={(e) => handleStatusChange(e.target.value as ItemStatus)}
+                        disabled={isRolledUp}
                     >
                         <option value="Not Started">Not Started</option>
                         <option value="In Progress">In Progress</option>
@@ -157,7 +255,8 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                     <input
                         type="range" min={0} max={100} step={5} value={progress}
                         onChange={(e) => handleProgressChange(Number(e.target.value))}
-                        className="w-full accent-blue-500"
+                        className="w-full accent-blue-500 disabled:opacity-50"
+                        disabled={isRolledUp}
                     />
                     <div className="flex justify-between text-[10px] text-gray-400">
                         <span>0%</span><span>50%</span><span>100%</span>

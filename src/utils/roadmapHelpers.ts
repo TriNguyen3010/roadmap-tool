@@ -37,7 +37,7 @@ export const calculateProgress = (items: RoadmapItem[]): RoadmapItem[] => {
 // Update a specific node by id recursively
 export const updateNodeById = (items: RoadmapItem[], id: string, updated: RoadmapItem): RoadmapItem[] => {
     return items.map((item) => {
-        if (item.id === id) return { ...updated, children: item.children };
+        if (item.id === id) return { ...updated, children: updated.children !== undefined ? updated.children : item.children };
         if (item.children) return { ...item, children: updateNodeById(item.children, id, updated) };
         return item;
     });

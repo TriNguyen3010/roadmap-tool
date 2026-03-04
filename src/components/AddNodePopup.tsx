@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RoadmapItem, ItemType, ItemStatus } from '@/types/roadmap';
+import { RoadmapItem, ItemType, ItemStatus, TeamRole, TEAM_ROLES } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
 import { X } from 'lucide-react';
 
@@ -15,6 +15,14 @@ interface AddNodePopupProps {
 
 export default function AddNodePopup({ parentId, parentName, childType, onAdd, onClose }: AddNodePopupProps) {
     const [name, setName] = useState('');
+    const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(new Set());
+
+    const toggleTeam = (role: TeamRole) => {
+        const next = new Set(selectedTeams);
+        if (next.has(role)) next.delete(role);
+        else next.add(role);
+        setSelectedTeams(next);
+    };
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -26,22 +34,38 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
 
     const handleAdd = () => {
         if (!name.trim()) return;
+
+        let children: RoadmapItem[] | undefined = undefined;
+
+        if (childType === 'feature' && selectedTeams.size > 0) {
+            children = Array.from(selectedTeams).map(role => ({
+                id: uuidv4().slice(0, 8),
+                name: role,
+                type: 'team',
+                teamRole: role,
+                status: 'Not Started',
+                progress: 0
+            }));
+        } else if (childType !== 'feature' && childType !== 'team') {
+            children = [];
+        }
+
         const newItem: RoadmapItem = {
             id: uuidv4().slice(0, 8),
             name: name.trim(),
             type: childType,
             status: 'Not Started',
             progress: 0,
-            children: childType !== 'feature' ? [] : undefined,
+            children,
         };
         onAdd(parentId, newItem);
         onClose();
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/10 transition-colors" onClick={onClose}>
             <div
-                className="bg-white rounded-xl shadow-2xl w-[380px] p-6 flex flex-col gap-4 border border-gray-200"
+                className="bg-white w-[380px] h-full shadow-2xl p-6 flex flex-col gap-4 border-l border-gray-200 animate-in slide-in-from-right overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between">
@@ -60,6 +84,28 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                         placeholder={`Enter ${childType} name...`}
                     />
                 </div>
+
+                {childType === 'feature' && (
+                    <div className="flex flex-col gap-1.5 mt-2">
+                        <label className="text-xs font-semibold text-gray-600">Teams (Optional)</label>
+                        <div className="flex flex-wrap gap-2">
+                            {TEAM_ROLES.map(role => {
+                                const isSelected = selectedTeams.has(role);
+                                return (
+                                    <label key={role} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleTeam(role)}
+                                            className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <span className={isSelected ? 'font-medium text-gray-900' : 'text-gray-600'}>{role}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex gap-2 justify-end">
                     <button onClick={onClose} className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100">Cancel</button>

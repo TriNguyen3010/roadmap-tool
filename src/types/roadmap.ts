@@ -1,12 +1,16 @@
-export type ItemType = 'category' | 'subcategory' | 'group' | 'feature';
+export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'feature';
 export type ItemStatus = 'Not Started' | 'In Progress' | 'Done';
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
+export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE';
+export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE'];
+
 
 export interface RoadmapItem {
   id: string;
   name: string;
   type: ItemType;
   subcategoryType?: SubcategoryType; // only meaningful when type === 'subcategory'
+  teamRole?: TeamRole; // only meaningful when type === 'team'
   status: ItemStatus;
   progress: number;
   startDate?: string;
