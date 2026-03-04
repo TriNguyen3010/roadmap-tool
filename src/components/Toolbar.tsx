@@ -36,15 +36,17 @@ interface ToolbarProps {
     afterMonths: number;
     onBeforeWeeksChange: (w: number) => void;
     onAfterMonthsChange: (m: number) => void;
-    onLoadJson?: (jsonData: any) => void;
+    onLoadJson?: (jsonData: unknown) => void;
     onDownloadJson?: () => void;
     isSaving?: boolean;
     // View Filter props
     availableTeams: string[];
+    availableSubcategories: string[];
     filterStatus: string[];
     filterTeam: string[];
     filterPriority: string[];
-    onFilterChange: (type: 'status' | 'team' | 'priority', values: string[]) => void;
+    filterSubcategory: string[];
+    onFilterChange: (type: 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => void;
     onSaveView: () => void;
 }
 
@@ -52,11 +54,11 @@ export default function Toolbar({
     documentName, onNameChange, onSave, onExportExcel,
     onOpenMilestones, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
-    availableTeams, filterStatus, filterTeam, filterPriority, onFilterChange, onSaveView
+    availableTeams, availableSubcategories, filterStatus, filterTeam, filterPriority, filterSubcategory, onFilterChange, onSaveView
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
-    const [now, setNow] = useState<Date | null>(null);
+    const [now, setNow] = useState<Date>(new Date());
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [viewOpen, setViewOpen] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +67,6 @@ export default function Toolbar({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        setNow(new Date());
         const timer = setInterval(() => setNow(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
@@ -99,6 +100,11 @@ export default function Toolbar({
         else onFilterChange('priority', [...filterPriority, p]);
     };
 
+    const toggleSubcategory = (subcategory: string) => {
+        if (filterSubcategory.includes(subcategory)) onFilterChange('subcategory', filterSubcategory.filter(x => x !== subcategory));
+        else onFilterChange('subcategory', [...filterSubcategory, subcategory]);
+    };
+
     const startEdit = () => {
         setDraft(documentName);
         setEditing(true);
@@ -119,7 +125,7 @@ export default function Toolbar({
                 const parsed = JSON.parse(ev.target?.result as string);
                 onLoadJson?.(parsed);
                 setSettingsOpen(false);
-            } catch (error) {
+            } catch {
                 alert("File JSON không hợp lệ!");
             }
         };
@@ -200,10 +206,10 @@ export default function Toolbar({
                     <button
                         onClick={() => { setViewOpen(p => !p); setSettingsOpen(false); }}
                         title="Chế độ xem (Filters)"
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white ${viewOpen || filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 ? 'bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'} text-xs`}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white ${viewOpen || filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0 ? 'bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'} text-xs`}
                     >
                         <Filter size={13} />
-                        <span>Filter{(filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0) ? ` (${filterStatus.length + filterTeam.length + filterPriority.length})` : ''}</span>
+                        <span>Filter{(filterStatus.length > 0 || filterTeam.length > 0 || filterPriority.length > 0 || filterSubcategory.length > 0) ? ` (${filterStatus.length + filterTeam.length + filterPriority.length + filterSubcategory.length})` : ''}</span>
                     </button>
 
                     {viewOpen && (
@@ -272,13 +278,33 @@ export default function Toolbar({
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Subcategory filters */}
+                                {availableSubcategories.length > 0 && (
+                                    <div>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 mt-2 border-t border-gray-100 pt-3">Subcategory</p>
+                                        <div className="flex flex-col gap-2">
+                                            {availableSubcategories.map(sub => (
+                                                <label key={sub} className="flex items-center gap-2 cursor-pointer group">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={filterSubcategory.includes(sub)}
+                                                        onChange={() => toggleSubcategory(sub)}
+                                                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{sub}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Footer Actions */}
                             <div className="p-3 bg-gray-50 border-t border-gray-200 flex flex-col gap-2">
                                 <button
-                                    onClick={() => { onFilterChange('status', []); onFilterChange('team', []); onFilterChange('priority', []); }}
-                                    disabled={filterStatus.length === 0 && filterTeam.length === 0 && filterPriority.length === 0}
+                                    onClick={() => { onFilterChange('status', []); onFilterChange('team', []); onFilterChange('priority', []); onFilterChange('subcategory', []); }}
+                                    disabled={filterStatus.length === 0 && filterTeam.length === 0 && filterPriority.length === 0 && filterSubcategory.length === 0}
                                     className="w-full text-xs font-semibold px-3 py-1.5 rounded transition-colors disabled:opacity-50 text-gray-600 border border-gray-300 hover:bg-gray-100"
                                 >
                                     Xóa bộ lọc (Show All)

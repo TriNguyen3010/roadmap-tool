@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RoadmapItem, ItemStatus, SubcategoryType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
+import { RoadmapItem, ItemStatus, StatusMode, SubcategoryType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
 import { X } from 'lucide-react';
 
@@ -20,8 +20,12 @@ const SUB_TYPE_STYLE: Record<SubcategoryType, { bg: string; text: string; border
 };
 
 export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
+    const hasChildren = !!(item.children && item.children.length > 0);
+    const initialStatusMode: StatusMode = hasChildren ? (item.statusMode ?? 'auto') : 'manual';
+
     const [name, setName] = useState(item.name);
-    const [status, setStatus] = useState<ItemStatus>(item.status);
+    const [statusMode, setStatusMode] = useState<StatusMode>(initialStatusMode);
+    const [status, setStatus] = useState<ItemStatus>(item.manualStatus ?? item.status);
     const [progress, setProgress] = useState(item.progress ?? 0);
     const [startDate, setStartDate] = useState(item.startDate || '');
     const [endDate, setEndDate] = useState(item.endDate || '');
@@ -58,9 +62,11 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
 
     const handleProgressChange = (v: number) => {
         setProgress(v);
-        if (v === 100) setStatus('Done');
-        else if (v === 0) setStatus('Not Started');
-        else setStatus('In Progress');
+        if (statusMode === 'manual') {
+            if (v === 100) setStatus('Done');
+            else if (v === 0) setStatus('Not Started');
+            else setStatus('In Progress');
+        }
     };
 
     const toggleTeam = (role: TeamRole) => {
@@ -97,6 +103,8 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                         type: 'team',
                         teamRole: role,
                         status: 'Not Started',
+                        statusMode: 'manual',
+                        manualStatus: 'Not Started',
                         progress: 0,
                         startDate: startDate || undefined,
                         endDate: endDate || undefined
@@ -106,12 +114,17 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
             updatedChildren = newChildren;
         }
 
+        const hasChildrenAfterUpdate = !!(updatedChildren && updatedChildren.length > 0);
+        const nextStatusMode: StatusMode = hasChildrenAfterUpdate ? statusMode : 'manual';
+
         onSave({
             ...item,
             name,
             startDate: startDate || undefined,
             endDate: endDate || undefined,
-            status,
+            status: nextStatusMode === 'manual' ? status : item.status,
+            statusMode: nextStatusMode,
+            manualStatus: nextStatusMode === 'manual' ? status : undefined,
             progress,
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
             children: updatedChildren
@@ -233,18 +246,49 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                 </div>
 
                 {/* Status */}
+                {hasChildren && (
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-semibold text-gray-600">Cách tính trạng thái</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setStatusMode('auto')}
+                                className={`rounded border px-2 py-1.5 text-sm font-semibold transition-colors ${statusMode === 'auto'
+                                    ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Auto từ task con
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStatusMode('manual')}
+                                className={`rounded border px-2 py-1.5 text-sm font-semibold transition-colors ${statusMode === 'manual'
+                                    ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                                    }`}
+                            >
+                                Manual
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-gray-600">Trạng thái</label>
                     <select
                         className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
-                        value={status}
+                        value={statusMode === 'manual' ? status : item.status}
                         onChange={(e) => handleStatusChange(e.target.value as ItemStatus)}
-                        disabled={isRolledUp}
+                        disabled={statusMode === 'auto'}
                     >
                         <option value="Not Started">Not Started</option>
                         <option value="In Progress">In Progress</option>
                         <option value="Done">Done</option>
                     </select>
+                    {statusMode === 'auto' && (
+                        <p className="text-[11px] text-gray-500">Status đang tự động theo task con.</p>
+                    )}
                 </div>
 
                 {/* Progress */}

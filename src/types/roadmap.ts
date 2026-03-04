@@ -1,5 +1,6 @@
 export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'feature';
 export type ItemStatus = 'Not Started' | 'In Progress' | 'Done';
+export type StatusMode = 'auto' | 'manual';
 export type ItemPriority = 'High' | 'Medium' | 'Low';
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
 export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE';
@@ -13,7 +14,11 @@ export interface RoadmapItem {
   type: ItemType;
   subcategoryType?: SubcategoryType; // only meaningful when type === 'subcategory'
   teamRole?: TeamRole; // only meaningful when type === 'team'
+  // status shown in UI (effective value after auto/manual resolution)
   status: ItemStatus;
+  // when mode is manual, manualStatus is the source value user sets
+  statusMode?: StatusMode;
+  manualStatus?: ItemStatus;
   progress: number;
   startDate?: string;
   endDate?: string;
@@ -40,10 +45,13 @@ export interface RoadmapDocument {
     filterStatus?: string[];
     filterTeam?: string[];
     filterPriority?: string[];
+    filterSubcategory?: string[];
     colPriority?: boolean;
     colPct?: boolean;
     colStartDate?: boolean;
     colEndDate?: boolean;
+    expandedIds?: string[];
+    hiddenRowIds?: string[];
   };
   items: RoadmapItem[];
 }

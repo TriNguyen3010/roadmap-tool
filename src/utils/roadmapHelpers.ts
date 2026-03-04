@@ -1,10 +1,15 @@
-import { RoadmapItem } from '../types/roadmap';
-import { differenceInDays, addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
+import { ItemStatus, RoadmapItem, StatusMode } from '../types/roadmap';
+import { addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
 export interface FlattenedItem extends RoadmapItem {
     depth: number;
     parentIds: string[];
 }
+
+type RoadmapItemWithTransientFields = RoadmapItem & {
+    depth?: number;
+    parentIds?: string[];
+};
 
 export const flattenRoadmap = (items: RoadmapItem[], parentIds: string[] = [], depth = 0): FlattenedItem[] => {
     let result: FlattenedItem[] = [];
@@ -18,20 +23,70 @@ export const flattenRoadmap = (items: RoadmapItem[], parentIds: string[] = [], d
     return result;
 };
 
+const stripTransientFields = (item: RoadmapItem): RoadmapItem => {
+    const { depth, parentIds, ...rest } = item as RoadmapItemWithTransientFields;
+    void depth;
+    void parentIds;
+    const cleanedChildren = rest.children?.map(stripTransientFields);
+    return {
+        ...rest,
+        ...(rest.children !== undefined ? { children: cleanedChildren } : {}),
+    };
+};
+
+const deriveStatusFromChildren = (children: RoadmapItem[]): ItemStatus => {
+    const allNotStarted = children.every(c => c.status === 'Not Started');
+    const allDone = children.every(c => c.status === 'Done');
+    return allDone ? 'Done' : allNotStarted ? 'Not Started' : 'In Progress';
+};
+
+const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
+    const item = stripTransientFields(rawItem);
+    const hasChildren = !!(item.children && item.children.length > 0);
+    const updatedChildren = item.children?.map(recalculateItem);
+
+    const fallbackMode: StatusMode = hasChildren ? 'auto' : 'manual';
+    const statusMode: StatusMode = hasChildren ? (item.statusMode ?? fallbackMode) : 'manual';
+
+    const derivedStatus: ItemStatus = hasChildren
+        ? deriveStatusFromChildren(updatedChildren || [])
+        : item.status;
+
+    const manualStatus: ItemStatus | undefined = statusMode === 'manual'
+        ? (item.manualStatus ?? item.status)
+        : undefined;
+
+    const effectiveStatus: ItemStatus = statusMode === 'manual'
+        ? (manualStatus || 'Not Started')
+        : derivedStatus;
+
+    let progress = item.progress || 0;
+    if (hasChildren && updatedChildren && updatedChildren.length > 0) {
+        const sumProgress = updatedChildren.reduce((sum, child) => sum + (child.progress || 0), 0);
+        progress = Math.round(sumProgress / updatedChildren.length);
+    } else if (effectiveStatus === 'Done') {
+        progress = 100;
+    } else if (effectiveStatus === 'Not Started') {
+        progress = 0;
+    }
+
+    return {
+        ...item,
+        ...(item.children !== undefined ? { children: updatedChildren } : {}),
+        statusMode,
+        manualStatus,
+        status: effectiveStatus,
+        progress,
+    };
+};
+
+export const recalculateRoadmap = (items: RoadmapItem[]): RoadmapItem[] => {
+    return items.map(recalculateItem);
+};
+
 // Auto calculate % progress based on children average
 export const calculateProgress = (items: RoadmapItem[]): RoadmapItem[] => {
-    return items.map((item) => {
-        if (!item.children || item.children.length === 0) {
-            let progress = item.progress || 0;
-            if (item.status === 'Done') progress = 100;
-            if (item.status === 'Not Started') progress = 0;
-            return { ...item, progress };
-        }
-        const updatedChildren = calculateProgress(item.children);
-        const sumProgress = updatedChildren.reduce((sum, child) => sum + (child.progress || 0), 0);
-        const avgProgress = Math.round(sumProgress / updatedChildren.length);
-        return { ...item, children: updatedChildren, progress: avgProgress };
-    });
+    return recalculateRoadmap(items);
 };
 
 // Auto derive status from children:
@@ -39,20 +94,16 @@ export const calculateProgress = (items: RoadmapItem[]): RoadmapItem[] => {
 // - All Done → Done
 // - Anything else (any mix, or any In Progress) → In Progress
 export const calculateStatus = (items: RoadmapItem[]): RoadmapItem[] => {
-    return items.map((item) => {
-        if (!item.children || item.children.length === 0) return item;
-        const updatedChildren = calculateStatus(item.children);
-        const allNotStarted = updatedChildren.every(c => c.status === 'Not Started');
-        const allDone = updatedChildren.every(c => c.status === 'Done');
-        const derivedStatus = allDone ? 'Done' : allNotStarted ? 'Not Started' : 'In Progress';
-        return { ...item, children: updatedChildren, status: derivedStatus };
-    });
+    return recalculateRoadmap(items);
 };
 
 // Update a specific node by id recursively
 export const updateNodeById = (items: RoadmapItem[], id: string, updated: RoadmapItem): RoadmapItem[] => {
     return items.map((item) => {
-        if (item.id === id) return { ...updated, children: updated.children !== undefined ? updated.children : item.children };
+        if (item.id === id) {
+            const cleaned = stripTransientFields(updated);
+            return { ...cleaned, children: cleaned.children !== undefined ? cleaned.children : item.children };
+        }
         if (item.children) return { ...item, children: updateNodeById(item.children, id, updated) };
         return item;
     });
@@ -72,11 +123,22 @@ export const deleteNodeById = (items: RoadmapItem[], id: string): RoadmapItem[] 
 export const addChildToNode = (items: RoadmapItem[], parentId: string, newChild: RoadmapItem): RoadmapItem[] => {
     return items.map((item) => {
         if (item.id === parentId) {
-            return { ...item, children: [...(item.children || []), newChild] };
+            return { ...item, children: [...(item.children || []), stripTransientFields(newChild)] };
         }
         if (item.children) return { ...item, children: addChildToNode(item.children, parentId, newChild) };
         return item;
     });
+};
+
+export const findNodeById = (items: RoadmapItem[], id: string): RoadmapItem | null => {
+    for (const item of items) {
+        if (item.id === id) return item;
+        if (item.children) {
+            const found = findNodeById(item.children, id);
+            if (found) return found;
+        }
+    }
+    return null;
 };
 
 // Generates an array of Date objects between start and end with a padding
@@ -109,13 +171,14 @@ export const reorderItems = (items: RoadmapItem[], fromId: string, toId: string)
 
 export const filterRoadmapTree = (
     items: RoadmapItem[],
-    filters: { status?: string[]; team?: string[]; priority?: string[] }
+    filters: { status?: string[]; team?: string[]; priority?: string[]; subcategory?: string[] }
 ): RoadmapItem[] => {
     const hasStatusFilter = filters.status && filters.status.length > 0;
     const hasTeamFilter = filters.team && filters.team.length > 0;
     const hasPriorityFilter = filters.priority && filters.priority.length > 0;
+    const hasSubcategoryFilter = filters.subcategory && filters.subcategory.length > 0;
 
-    if (!hasStatusFilter && !hasTeamFilter && !hasPriorityFilter) return items;
+    if (!hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasSubcategoryFilter) return items;
 
     return items
         .map(item => {
@@ -124,6 +187,7 @@ export const filterRoadmapTree = (
             let matchesStatus = true;
             let matchesTeam = true;
             let matchesPriority = true;
+            let matchesSubcategory = true;
 
             if (hasStatusFilter) {
                 matchesStatus = filters.status!.includes(item.status);
@@ -145,7 +209,15 @@ export const filterRoadmapTree = (
                 }
             }
 
-            const isMatch = matchesStatus && matchesTeam && matchesPriority;
+            if (hasSubcategoryFilter) {
+                if (item.type === 'subcategory') {
+                    matchesSubcategory = filters.subcategory!.includes(item.name);
+                } else {
+                    matchesSubcategory = false;
+                }
+            }
+
+            const isMatch = matchesStatus && matchesTeam && matchesPriority && matchesSubcategory;
 
             if (isMatch || filteredChildren.length > 0) {
                 return { ...item, children: filteredChildren };

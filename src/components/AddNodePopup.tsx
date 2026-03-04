@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RoadmapItem, ItemType, ItemStatus, TeamRole, TEAM_ROLES } from '@/types/roadmap';
+import { RoadmapItem, ItemType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
 import { X } from 'lucide-react';
 
@@ -41,6 +41,17 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [onClose]);
 
+    const createItem = (partial: Omit<RoadmapItem, 'status' | 'progress' | 'statusMode' | 'manualStatus'>): RoadmapItem => {
+        const hasChildren = !!(partial.children && partial.children.length > 0);
+        return {
+            ...partial,
+            status: 'Not Started',
+            progress: 0,
+            statusMode: hasChildren ? 'auto' : 'manual',
+            manualStatus: hasChildren ? undefined : 'Not Started',
+        };
+    };
+
     const handleAdd = () => {
         if (!name.trim()) return;
 
@@ -49,35 +60,29 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
         if (childType === 'category') {
             children = DEFAULT_SUBCATEGORIES
                 .filter(sub => selectedSubcategories.has(sub))
-                .map(sub => ({
+                .map(sub => createItem({
                     id: uuidv4().slice(0, 8),
                     name: sub,
                     type: 'subcategory' as const,
-                    status: 'Not Started' as const,
-                    progress: 0,
                     children: []
                 }));
         } else if (childType === 'feature' && selectedTeams.size > 0) {
-            children = Array.from(selectedTeams).map(role => ({
+            children = Array.from(selectedTeams).map(role => createItem({
                 id: uuidv4().slice(0, 8),
                 name: role,
                 type: 'team' as const,
                 teamRole: role,
-                status: 'Not Started' as const,
-                progress: 0
             }));
         } else if (childType !== 'feature' && childType !== 'team') {
             children = [];
         }
 
-        const newItem: RoadmapItem = {
+        const newItem: RoadmapItem = createItem({
             id: uuidv4().slice(0, 8),
             name: name.trim(),
             type: childType,
-            status: 'Not Started',
-            progress: 0,
             children,
-        };
+        });
         onAdd(parentId, newItem);
         onClose();
     };
@@ -89,7 +94,7 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between">
-                    <h2 className="text-base font-bold text-gray-800">Add {childType} to "{parentName}"</h2>
+                    <h2 className="text-base font-bold text-gray-800">Add {childType} to &quot;{parentName}&quot;</h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
                 </div>
 

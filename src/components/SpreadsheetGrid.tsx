@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, ItemPriority, PRIORITY_LEVELS } from '@/types/roadmap';
 import {
-    flattenRoadmap, calculateProgress, FlattenedItem,
+    flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
 import { format, isSameDay, differenceInDays, startOfDay, isWithinInterval, parseISO } from 'date-fns';
@@ -19,6 +19,10 @@ interface GridProps {
     viewStart: string;
     viewEnd: string;
     today: Date;
+    filterStatus: string[];
+    filterTeam: string[];
+    filterPriority: string[];
+    filterSubcategory: string[];
     // Column visibility (lifted to parent for persistence)
     showPct: boolean;
     setShowPct: (v: boolean) => void;
@@ -28,6 +32,11 @@ interface GridProps {
     setShowStartDate: (v: boolean) => void;
     showEndDate: boolean;
     setShowEndDate: (v: boolean) => void;
+    // Row visibility & expansion (lifted to parent)
+    expandedIds: Set<string>;
+    setExpandedIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+    hiddenRowIds: Set<string>;
+    setHiddenRowIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
 }
 
 const ROW_HEIGHT = 28;
@@ -118,7 +127,9 @@ function countWorkdays(start: Date, end: Date): number {
 }
 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
-    showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate
+    filterStatus, filterTeam, filterPriority, filterSubcategory,
+    showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
+    expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds
 }: GridProps) {
     const leftPaneRef = useRef<HTMLDivElement>(null);
     const rightPaneRef = useRef<HTMLDivElement>(null);
@@ -140,23 +151,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [draggedId, setDraggedId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
 
-    // ── Expand all by default ──
-    const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-        const ids = new Set<string>();
-        const collect = (items: RoadmapItem[]) => {
-            for (const item of items) {
-                if (item.children?.length) { ids.add(item.id); collect(item.children); }
-            }
-        };
-        collect(data.items);
-        return ids;
-    });
-
     const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => { if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop; };
     const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => { if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop; };
 
     // ── Individual row hide (leaf rows only) ──
-    const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(new Set());
     const toggleHideRow = (id: string) => {
         setHiddenRowIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
     };
@@ -165,11 +163,17 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
     };
 
-    const calculatedItems = useMemo(() => calculateProgress(data.items), [data.items]);
+    const visibleItems = useMemo(() => filterRoadmapTree(data.items, {
+        status: filterStatus,
+        team: filterTeam,
+        priority: filterPriority,
+        subcategory: filterSubcategory,
+    }), [data.items, filterStatus, filterTeam, filterPriority, filterSubcategory]);
+
     const flattened: FlattenedItem[] = useMemo(() => {
-        const raw = flattenRoadmap(calculatedItems);
+        const raw = flattenRoadmap(visibleItems);
         return raw.filter(item => !item.parentIds.some(pid => !expandedIds.has(pid)));
-    }, [calculatedItems, expandedIds]);
+    }, [visibleItems, expandedIds]);
 
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
@@ -186,6 +190,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         }
         maxW += 5; // padding
         if (maxW > 450) maxW = 450; // Cap tối đa 450px
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setNameW(maxW);
     }, [flattened]);
 
@@ -289,6 +294,17 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const handleDragEnd = () => {
         setDraggedId(null);
         setDragOverId(null);
+    };
+
+    const openEditor = (id: string) => {
+        const node = findNodeById(data.items, id);
+        if (node) setEditingItem(node);
+    };
+
+    const updateFromSource = (id: string, mapper: (source: RoadmapItem) => RoadmapItem) => {
+        const source = findNodeById(data.items, id);
+        if (!source) return;
+        onDataChange({ ...data, items: updateNodeById(data.items, id, mapper(source)) });
     };
 
     // ── Column resize via mouse drag ──
@@ -576,12 +592,25 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                         return (
                                                             <button key={p} className="text-left text-[11px] px-3 py-1.5 font-bold hover:bg-gray-50 transition-colors"
                                                                 style={{ color: dropdownColor[p] }}
-                                                                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onDataChange({ ...data, items: updateNodeById(data.items, row.id, { ...row, priority: p }) }); setOpenPriorityId(null); }}
+                                                                onMouseDown={e => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateFromSource(row.id, source => ({ ...source, priority: p }));
+                                                                    setOpenPriorityId(null);
+                                                                }}
                                                             >{p}</button>
                                                         );
                                                     })}
                                                     <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
-                                                        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); const { priority: _, ...rest } = row; onDataChange({ ...data, items: updateNodeById(data.items, row.id, rest as RoadmapItem) }); setOpenPriorityId(null); }}
+                                                        onMouseDown={e => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            updateFromSource(row.id, source => {
+                                                                const { priority: _priority, ...rest } = source;
+                                                                return rest as RoadmapItem;
+                                                            });
+                                                            setOpenPriorityId(null);
+                                                        }}
                                                     >Clear</button>
                                                 </div>
                                             )}
@@ -593,7 +622,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                                 {/* Status */}
                                 <div className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors"
-                                    onClick={() => setEditingItem(row)}
+                                    onClick={() => openEditor(row.id)}
                                     title="Click để sửa"
                                 >
                                     <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
@@ -620,7 +649,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {showPct && (
                                     <div className="flex items-center justify-center font-bold text-[11px] border-r border-gray-300 cursor-pointer hover:brightness-95 transition-all"
                                         style={{ backgroundColor: row.progress === 100 ? '#bbf7d0' : row.progress > 0 ? '#fef08a' : 'transparent' }}
-                                        onClick={() => setEditingItem(row)}
+                                        onClick={() => openEditor(row.id)}
                                         title="Click để sửa"
                                     >
                                         {row.progress}%
@@ -629,7 +658,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                                 {/* Actions */}
                                 <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button title="Sửa" className="text-blue-500 hover:text-blue-700" onClick={() => setEditingItem(row)}><Pencil size={12} /></button>
+                                    <button title="Sửa" className="text-blue-500 hover:text-blue-700" onClick={() => openEditor(row.id)}><Pencil size={12} /></button>
                                     {childType && (
                                         <button title={`Thêm ${childType}`} className="text-green-600 hover:text-green-800"
                                             onClick={() => setAddingToParent({ id: row.id, name: row.name, childType })}>
@@ -784,7 +813,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             className="absolute top-[4px] bottom-[4px] rounded shadow-sm z-[5] cursor-pointer transition-all flex items-center justify-center hover:z-20 group-hover/gantt:z-10"
                                             style={barStyle}
                                             title={`${row.name}: ${row.startDate} → ${row.endDate} | ${sprintStr} sprint | ${workdays} ngày làm việc | ${row.status} ${row.progress}%`}
-                                            onClick={() => setEditingItem(row)}
+                                            onClick={() => openEditor(row.id)}
                                         >
                                             {isGrowthCamp && <span className="absolute left-1 text-[10px]">🚀</span>}
                                             <span className="absolute z-10 opacity-0 group-hover/gantt:opacity-100 transition-opacity bg-gray-900/90 text-white text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap select-none flex items-center pointer-events-none shadow-md">

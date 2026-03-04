@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { startOfDay, subWeeks, addMonths, endOfMonth, format } from 'date-fns';
 import Toolbar from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
@@ -8,9 +8,9 @@ import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import MilestoneEditor from '@/components/MilestoneEditor';
 import { useToast } from '@/hooks/useToast';
-import { RoadmapDocument, RoadmapItem, Milestone, TeamRole } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, Milestone } from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
-import { filterRoadmapTree } from '@/utils/roadmapHelpers';
+import { recalculateRoadmap } from '@/utils/roadmapHelpers';
 
 export default function Home() {
   const [data, setData] = useState<RoadmapDocument | null>(null);
@@ -26,6 +26,7 @@ export default function Home() {
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [filterTeam, setFilterTeam] = useState<string[]>([]);
   const [filterPriority, setFilterPriority] = useState<string[]>([]);
+  const [filterSubcategory, setFilterSubcategory] = useState<string[]>([]);
 
   // Column visibility
   const [showPct, setShowPct] = useState(true);
@@ -33,7 +34,18 @@ export default function Home() {
   const [showStartDate, setShowStartDate] = useState(false);
   const [showEndDate, setShowEndDate] = useState(false);
 
+  // Row visibility & expansion
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(new Set());
+  // This ref ensures we only auto-expand once on initial load if no saved state exists
+  const hasInitializedExpansion = useRef(false);
+
   const { toasts, addToast, removeToast } = useToast();
+
+  const normalizeDocument = useCallback((doc: RoadmapDocument): RoadmapDocument => ({
+    ...doc,
+    items: recalculateRoadmap(doc.items || []),
+  }), []);
 
   const [confirmState, setConfirmState] = useState<{
     message: string;
@@ -67,22 +79,43 @@ export default function Home() {
     fetch('/api/roadmap')
       .then(res => res.json())
       .then(json => {
-        setData(json);
+        const normalized = normalizeDocument(json);
+        setData(normalized);
         if (json.settings) {
           if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
           if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
           if (json.settings.filterStatus) setFilterStatus(json.settings.filterStatus);
           if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
           if (json.settings.filterPriority) setFilterPriority(json.settings.filterPriority);
+          if (json.settings.filterSubcategory) setFilterSubcategory(json.settings.filterSubcategory);
           if (typeof json.settings.colPct === 'boolean') setShowPct(json.settings.colPct);
           if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
           if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
           if (typeof json.settings.colEndDate === 'boolean') setShowEndDate(json.settings.colEndDate);
+          if (json.settings.expandedIds) {
+            setExpandedIds(new Set(json.settings.expandedIds));
+            hasInitializedExpansion.current = true;
+          }
+          if (json.settings.hiddenRowIds) setHiddenRowIds(new Set(json.settings.hiddenRowIds));
         }
+
+        // If no saved expansion state, default to expanding all groups
+        if (!hasInitializedExpansion.current && normalized.items) {
+          const ids = new Set<string>();
+          const collect = (items: RoadmapItem[]) => {
+            for (const item of items) {
+              if (item.children?.length) { ids.add(item.id); collect(item.children); }
+            }
+          };
+          collect(normalized.items);
+          setExpandedIds(ids);
+          hasInitializedExpansion.current = true;
+        }
+
         setLoading(false);
       })
       .catch(() => addToast('Không thể tải dữ liệu roadmap.json', 'error'));
-  }, []);
+  }, [addToast, normalizeDocument]);
 
   const handleSave = async (currentData: RoadmapDocument) => {
     setSaving(true);
@@ -92,8 +125,11 @@ export default function Home() {
         settings: {
           beforeWeeks, afterMonths,
           filterStatus, filterTeam, filterPriority,
+          filterSubcategory,
           colPct: showPct, colPriority: showPriority,
           colStartDate: showStartDate, colEndDate: showEndDate,
+          expandedIds: Array.from(expandedIds),
+          hiddenRowIds: Array.from(hiddenRowIds),
         }
       };
 
@@ -130,37 +166,44 @@ export default function Home() {
 
   const handleMilestonesSave = (milestones: Milestone[]) => {
     if (!data) return;
-    setData({ ...data, milestones });
+    const newData = normalizeDocument({ ...data, milestones });
+    setData(newData);
+    handleSave(newData);
   };
 
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
-    setData(newData);
+    const normalized = normalizeDocument(newData);
+    setData(normalized);
     if (shouldSave) {
-      handleSave(newData);
+      handleSave(normalized);
     }
   };
 
   const handleRootAdd = (newItem: RoadmapItem) => {
     if (!data) return;
-    setData({ ...data, items: [...data.items, newItem] });
+    setData(normalizeDocument({ ...data, items: [...data.items, newItem] }));
   };
 
-  const handleLoadJson = async (jsonData: any) => {
-    if (!jsonData || !jsonData.items) {
+  const handleLoadJson = async (jsonData: unknown) => {
+    const parsed = jsonData as Partial<RoadmapDocument> | null;
+    if (!parsed || !Array.isArray(parsed.items)) {
       addToast('File JSON không hợp lệ, thiếu `items`', 'error');
       return;
     }
     const yes = await showConfirm('Bạn có chắc chắn muốn ĐÈ BẢN LƯU bằng file JSON vừa tải lên không?');
     if (!yes) return;
 
-    setData(jsonData);
-    if (jsonData.settings) {
-      if (typeof jsonData.settings.beforeWeeks === 'number') setBeforeWeeks(jsonData.settings.beforeWeeks);
-      if (typeof jsonData.settings.afterMonths === 'number') setAfterMonths(jsonData.settings.afterMonths);
-      if (jsonData.settings.filterStatus) setFilterStatus(jsonData.settings.filterStatus);
-      if (jsonData.settings.filterTeam) setFilterTeam(jsonData.settings.filterTeam);
+    const normalized = normalizeDocument(parsed as RoadmapDocument);
+    setData(normalized);
+    if (parsed.settings) {
+      if (typeof parsed.settings.beforeWeeks === 'number') setBeforeWeeks(parsed.settings.beforeWeeks);
+      if (typeof parsed.settings.afterMonths === 'number') setAfterMonths(parsed.settings.afterMonths);
+      if (parsed.settings.filterStatus) setFilterStatus(parsed.settings.filterStatus);
+      if (parsed.settings.filterTeam) setFilterTeam(parsed.settings.filterTeam);
+      if (parsed.settings.filterPriority) setFilterPriority(parsed.settings.filterPriority);
+      if (parsed.settings.filterSubcategory) setFilterSubcategory(parsed.settings.filterSubcategory);
     }
-    await handleSave(jsonData);
+    await handleSave(normalized);
   };
 
   const handleDownloadJson = () => {
@@ -190,16 +233,20 @@ export default function Home() {
     return Array.from(teams).sort();
   }, [data]);
 
-  // ── Filtered Tree ──
-  const filteredData = useMemo(() => {
-    if (!data) return null;
-    return {
-      ...data,
-      items: filterRoadmapTree(data.items, { status: filterStatus, team: filterTeam, priority: filterPriority })
+  const availableSubcategories = useMemo(() => {
+    if (!data) return [];
+    const subcategories = new Set<string>();
+    const findSubcategories = (items: RoadmapItem[]) => {
+      items.forEach(item => {
+        if (item.type === 'subcategory') subcategories.add(item.name);
+        if (item.children) findSubcategories(item.children);
+      });
     };
-  }, [data, filterStatus, filterTeam, filterPriority]);
+    findSubcategories(data.items);
+    return Array.from(subcategories).sort((a, b) => a.localeCompare(b));
+  }, [data]);
 
-  if (loading || !data || !filteredData) {
+  if (loading || !data) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
         Đang tải Roadmap...
@@ -241,29 +288,44 @@ export default function Home() {
         onLoadJson={handleLoadJson}
         isSaving={saving}
         availableTeams={availableTeams}
+        availableSubcategories={availableSubcategories}
         filterStatus={filterStatus}
         filterTeam={filterTeam}
         filterPriority={filterPriority}
+        filterSubcategory={filterSubcategory}
         onFilterChange={(type, values) => {
           if (type === 'status') setFilterStatus(values);
           else if (type === 'team') setFilterTeam(values);
           else if (type === 'priority') setFilterPriority(values);
+          else if (type === 'subcategory') setFilterSubcategory(values);
         }}
-        onSaveView={() => handleSave({ ...data, settings: { beforeWeeks, afterMonths, filterStatus, filterTeam, filterPriority } })}
+        onSaveView={() => handleSave({
+          ...data, settings: {
+            beforeWeeks, afterMonths, filterStatus, filterTeam, filterPriority, filterSubcategory,
+            colPct: showPct, colPriority: showPriority, colStartDate: showStartDate, colEndDate: showEndDate,
+            expandedIds: Array.from(expandedIds), hiddenRowIds: Array.from(hiddenRowIds)
+          }
+        })}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
-          data={filteredData}
+          data={data}
           onDataChange={handleDataChange}
           onRootAdd={handleRootAdd}
           showConfirm={showConfirm}
           viewStart={viewStart}
           viewEnd={viewEnd}
+          filterStatus={filterStatus}
+          filterTeam={filterTeam}
+          filterPriority={filterPriority}
+          filterSubcategory={filterSubcategory}
           showPct={showPct} setShowPct={setShowPct}
           showPriority={showPriority} setShowPriority={setShowPriority}
           showStartDate={showStartDate} setShowStartDate={setShowStartDate}
           showEndDate={showEndDate} setShowEndDate={setShowEndDate}
           today={today}
+          expandedIds={expandedIds} setExpandedIds={setExpandedIds}
+          hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
         />
       </div>
     </main>
