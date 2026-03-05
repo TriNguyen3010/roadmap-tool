@@ -59,7 +59,7 @@ export default function FilterPopup({
             isOpen={isOpen}
             onClose={onClose}
             title={`Bộ lọc hiển thị (${activeFilterCount})`}
-            subtitle="Chọn điều kiện để thu gọn roadmap"
+            subtitle="Các nhóm filter kết hợp theo AND (giao nhau)"
             widthClassName="w-[440px]"
             footer={(
                 <div className="flex flex-col gap-2">

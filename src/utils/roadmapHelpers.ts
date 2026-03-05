@@ -216,73 +216,108 @@ export const filterRoadmapTree = (
     const selectedPriorities = new Set(filters.priority || []);
     const selectedSubcategories = new Set(filters.subcategory || []);
 
-    const applyFilter = (
-        nodes: RoadmapItem[],
-        insideSelectedCategory: boolean,
-        insideSelectedSubcategory: boolean
-    ): RoadmapItem[] => {
-        return nodes
-            .map(item => {
-                const isSelectedCategory = item.type === 'category' && selectedCategories.has(item.name);
-                const isSelectedSubcategory = item.type === 'subcategory' && selectedSubcategories.has(item.name);
-                const nextInsideSelectedCategory = insideSelectedCategory || isSelectedCategory;
-                const nextInsideSelectedSubcategory = insideSelectedSubcategory || isSelectedSubcategory;
-                const filteredChildren = item.children
-                    ? applyFilter(item.children, nextInsideSelectedCategory, nextInsideSelectedSubcategory)
-                    : [];
-
-                let matchesCategory = true;
-                let matchesStatus = true;
-                let matchesTeam = true;
-                let matchesPriority = true;
-                let matchesSubcategory = true;
-
-                if (hasCategoryFilter) {
-                    if (item.type === 'category') {
-                        matchesCategory = isSelectedCategory;
-                    } else {
-                        matchesCategory = nextInsideSelectedCategory;
-                    }
-                }
-
-                if (hasStatusFilter) {
-                    matchesStatus = selectedStatuses.has(item.status);
-                }
-
-                if (hasTeamFilter) {
-                    if (item.type === 'team' && item.teamRole) {
-                        matchesTeam = selectedTeams.has(item.teamRole);
-                    } else {
-                        matchesTeam = false;
-                    }
-                }
-
-                if (hasPriorityFilter) {
-                    if ((item.type === 'group' || item.type === 'feature') && item.priority) {
-                        matchesPriority = selectedPriorities.has(item.priority);
-                    } else {
-                        matchesPriority = false;
-                    }
-                }
-
-                if (hasSubcategoryFilter) {
-                    if (item.type === 'subcategory') {
-                        matchesSubcategory = isSelectedSubcategory;
-                    } else {
-                        matchesSubcategory = nextInsideSelectedSubcategory;
-                    }
-                }
-
-                const isMatch = matchesCategory && matchesStatus && matchesTeam && matchesPriority && matchesSubcategory;
-
-                if (isMatch || filteredChildren.length > 0) {
-                    return { ...item, children: filteredChildren };
-                }
-
-                return null;
-            })
-            .filter(Boolean) as RoadmapItem[];
+    type Context = {
+        insideSelectedCategory: boolean;
+        insideSelectedSubcategory: boolean;
+        insideSelectedPriority: boolean;
     };
 
-    return applyFilter(items, false, false);
+    type VisitResult = {
+        node: RoadmapItem | null;
+        hasSelectedTeamInSubtree: boolean;
+    };
+
+    const visitNode = (item: RoadmapItem, context: Context): VisitResult => {
+        const isSelectedCategory = item.type === 'category' && selectedCategories.has(item.name);
+        const isSelectedSubcategory = item.type === 'subcategory' && selectedSubcategories.has(item.name);
+        const isPriorityCarrier = item.type === 'group' || item.type === 'feature';
+        const hasPriorityValue = isPriorityCarrier && !!item.priority;
+        const isSelectedPriority =
+            hasPriorityValue &&
+            selectedPriorities.has(item.priority as string);
+
+        const nextContext: Context = {
+            insideSelectedCategory: context.insideSelectedCategory || isSelectedCategory,
+            insideSelectedSubcategory: context.insideSelectedSubcategory || isSelectedSubcategory,
+            // Priority context is inherited only through nodes that do not redefine priority.
+            // If a group/feature has its own priority and it does not match, priority context resets.
+            insideSelectedPriority: hasPriorityValue ? isSelectedPriority : context.insideSelectedPriority,
+        };
+
+        const childResults = (item.children || []).map(child => visitNode(child, nextContext));
+        const filteredChildren = childResults
+            .map(result => result.node)
+            .filter(Boolean) as RoadmapItem[];
+
+        const localTeamMatch = item.type === 'team' && !!item.teamRole && selectedTeams.has(item.teamRole);
+        const hasSelectedTeamInSubtree = localTeamMatch || childResults.some(result => result.hasSelectedTeamInSubtree);
+
+        let matchesCategory = true;
+        let matchesStatus = true;
+        let matchesTeam = true;
+        let matchesPriority = true;
+        let matchesSubcategory = true;
+
+        if (hasCategoryFilter) {
+            if (item.type === 'category') {
+                matchesCategory = isSelectedCategory;
+            } else {
+                matchesCategory = nextContext.insideSelectedCategory;
+            }
+        }
+
+        if (hasStatusFilter) {
+            matchesStatus = selectedStatuses.has(normalizeItemStatus(item.status));
+        }
+
+        if (hasTeamFilter) {
+            if (item.type === 'team' && item.teamRole) {
+                matchesTeam = selectedTeams.has(item.teamRole);
+            } else if (hasPriorityFilter) {
+                // When combined with priority filter, allow non-team ancestors to satisfy team
+                // via matching team descendants so feature/group branches can survive intersection.
+                matchesTeam = hasSelectedTeamInSubtree;
+            } else {
+                matchesTeam = false;
+            }
+        }
+
+        if (hasPriorityFilter) {
+            if ((item.type === 'group' || item.type === 'feature') && item.priority) {
+                matchesPriority = selectedPriorities.has(item.priority);
+            } else if (hasTeamFilter) {
+                // Allow team descendants under a selected-priority branch to satisfy priority
+                // when team + priority filters are combined.
+                matchesPriority = context.insideSelectedPriority || isSelectedPriority;
+            } else {
+                matchesPriority = false;
+            }
+        }
+
+        if (hasSubcategoryFilter) {
+            if (item.type === 'subcategory') {
+                matchesSubcategory = isSelectedSubcategory;
+            } else {
+                matchesSubcategory = nextContext.insideSelectedSubcategory;
+            }
+        }
+
+        const isMatch = matchesCategory && matchesStatus && matchesTeam && matchesPriority && matchesSubcategory;
+        const node = (isMatch || filteredChildren.length > 0)
+            ? { ...item, children: filteredChildren }
+            : null;
+
+        return {
+            node,
+            hasSelectedTeamInSubtree,
+        };
+    };
+
+    return items
+        .map(item => visitNode(item, {
+            insideSelectedCategory: false,
+            insideSelectedSubcategory: false,
+            insideSelectedPriority: false,
+        }).node)
+        .filter(Boolean) as RoadmapItem[];
 };
