@@ -23,6 +23,7 @@ export interface RoadmapItem {
   startDate?: string;
   endDate?: string;
   priority?: ItemPriority;
+  quickNote?: string;
   children?: RoadmapItem[];
 }
 

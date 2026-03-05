@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { RoadmapItem, ItemType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
-import { X } from 'lucide-react';
+import SidePanelShell from './SidePanelShell';
 
 interface AddNodePopupProps {
     parentId: string;
@@ -32,14 +32,6 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
         else next.add(role);
         setSelectedTeams(next);
     };
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
 
     const createItem = (partial: Omit<RoadmapItem, 'status' | 'progress' | 'statusMode' | 'manualStatus'>): RoadmapItem => {
         const hasChildren = !!(partial.children && partial.children.length > 0);
@@ -88,16 +80,20 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/10 transition-colors" onClick={onClose}>
-            <div
-                className="bg-white w-[380px] h-full shadow-2xl p-6 flex flex-col gap-4 border-l border-gray-200 animate-in slide-in-from-right overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="flex items-center justify-between">
-                    <h2 className="text-base font-bold text-gray-800">Add {childType} to &quot;{parentName}&quot;</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        <SidePanelShell
+            isOpen
+            onClose={onClose}
+            title={`Add ${childType}`}
+            subtitle={`Parent: ${parentName}`}
+            widthClassName="w-[420px]"
+            footer={(
+                <div className="flex gap-2 justify-end">
+                    <button onClick={onClose} className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
+                    <button onClick={handleAdd} className="px-4 py-1.5 rounded bg-green-600 text-white text-sm font-semibold hover:bg-green-700">Add</button>
                 </div>
-
+            )}
+        >
+            <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-gray-600">Name</label>
                     <input
@@ -154,12 +150,7 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                         </div>
                     </div>
                 )}
-
-                <div className="flex gap-2 justify-end">
-                    <button onClick={onClose} className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100">Cancel</button>
-                    <button onClick={handleAdd} className="px-4 py-1.5 rounded bg-green-600 text-white text-sm font-semibold hover:bg-green-700">Add</button>
-                </div>
             </div>
-        </div>
+        </SidePanelShell>
     );
 }

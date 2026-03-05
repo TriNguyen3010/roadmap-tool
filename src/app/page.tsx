@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { startOfDay, subWeeks, addMonths, endOfMonth, format } from 'date-fns';
 import Toolbar from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
-import SidePanel from '@/components/SidePanel';
+import MilestoneEditor from '@/components/MilestoneEditor';
+import FilterPopup from '@/components/FilterPopup';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/hooks/useToast';
@@ -16,8 +17,8 @@ export default function Home() {
   const [data, setData] = useState<RoadmapDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
-  const [activeSidePanel, setActiveSidePanel] = useState<'filter' | 'milestones'>('filter');
+  const [showMilestones, setShowMilestones] = useState(false);
+  const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [isEditor, setIsEditor] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -160,6 +161,7 @@ export default function Home() {
       await fetch('/api/auth/editor/logout', { method: 'POST' });
     } finally {
       setIsEditor(false);
+      setShowMilestones(false);
       addToast('Đã chuyển về chế độ Viewer.', 'success');
     }
   }, [addToast]);
@@ -248,14 +250,12 @@ export default function Home() {
     handleSave(newData);
   };
 
-  const openFilterPanel = useCallback(() => {
-    setActiveSidePanel('filter');
-    setIsSidePanelOpen(true);
+  const openFilterPopup = useCallback(() => {
+    setShowFilterPopup(true);
   }, []);
 
-  const openMilestonesPanel = useCallback(() => {
-    setActiveSidePanel('milestones');
-    setIsSidePanelOpen(true);
+  const openMilestonesPopup = useCallback(() => {
+    setShowMilestones(true);
   }, []);
 
   const handleFilterChange = useCallback((type: 'category' | 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => {
@@ -359,11 +359,6 @@ export default function Home() {
     return Array.from(categories).sort((a, b) => a.localeCompare(b));
   }, [data]);
 
-  const milestonesVersion = useMemo(
-    () => (data?.milestones || []).map(m => `${m.id}:${m.label}:${m.startDate}:${m.endDate}:${m.color}`).join('|'),
-    [data?.milestones]
-  );
-
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
@@ -384,16 +379,42 @@ export default function Home() {
         />
       )}
 
+      {showMilestones && (
+        <MilestoneEditor
+          milestones={data.milestones || []}
+          onSave={handleMilestonesSave}
+          onClose={() => setShowMilestones(false)}
+        />
+      )}
+
+      {showFilterPopup && (
+        <FilterPopup
+          isOpen={showFilterPopup}
+          onClose={() => setShowFilterPopup(false)}
+          canEdit={isEditor}
+          availableCategories={availableCategories}
+          availableTeams={availableTeams}
+          availableSubcategories={availableSubcategories}
+          filterCategory={filterCategory}
+          filterStatus={filterStatus}
+          filterTeam={filterTeam}
+          filterPriority={filterPriority}
+          filterSubcategory={filterSubcategory}
+          onFilterChange={handleFilterChange}
+          onSaveView={() => handleSave(data)}
+        />
+      )}
+
       <Toolbar
         documentName={data.releaseName}
         onNameChange={handleNameChange}
         onSave={() => handleSave(data)}
         onExportExcel={handleExportExcel}
         onDownloadJson={handleDownloadJson}
-        onOpenFilterPanel={openFilterPanel}
-        onOpenMilestonesPanel={openMilestonesPanel}
-        isSidePanelOpen={isSidePanelOpen}
-        activeSidePanel={activeSidePanel}
+        onOpenFilterPopup={openFilterPopup}
+        onOpenMilestonesPopup={openMilestonesPopup}
+        isFilterPopupOpen={showFilterPopup}
+        isMilestonesPopupOpen={showMilestones}
         beforeWeeks={beforeWeeks}
         afterMonths={afterMonths}
         onBeforeWeeksChange={setBeforeWeeks}
@@ -410,50 +431,28 @@ export default function Home() {
         filterPriority={filterPriority}
         filterSubcategory={filterSubcategory}
       />
-      <div className="flex-1 overflow-hidden flex">
-        <div className="flex-1 overflow-hidden">
-          <SpreadsheetGrid
-            key={isEditor ? 'editor-grid' : 'viewer-grid'}
-            data={data}
-            onDataChange={handleDataChange}
-            onRootAdd={handleRootAdd}
-            showConfirm={showConfirm}
-            viewStart={viewStart}
-            viewEnd={viewEnd}
-            filterCategory={filterCategory}
-            filterStatus={filterStatus}
-            filterTeam={filterTeam}
-            filterPriority={filterPriority}
-            filterSubcategory={filterSubcategory}
-            canEdit={isEditor}
-            showPct={showPct} setShowPct={setShowPct}
-            showPriority={showPriority} setShowPriority={setShowPriority}
-            showStartDate={showStartDate} setShowStartDate={setShowStartDate}
-            showEndDate={showEndDate} setShowEndDate={setShowEndDate}
-            today={today}
-            expandedIds={expandedIds} setExpandedIds={setExpandedIds}
-            hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
-          />
-        </div>
-        <SidePanel
-          key={milestonesVersion}
-          isOpen={isSidePanelOpen}
-          activeTab={activeSidePanel}
-          onTabChange={setActiveSidePanel}
-          onClose={() => setIsSidePanelOpen(false)}
-          canEdit={isEditor}
-          availableCategories={availableCategories}
-          availableTeams={availableTeams}
-          availableSubcategories={availableSubcategories}
+      <div className="flex-1 overflow-hidden">
+        <SpreadsheetGrid
+          key={isEditor ? 'editor-grid' : 'viewer-grid'}
+          data={data}
+          onDataChange={handleDataChange}
+          onRootAdd={handleRootAdd}
+          showConfirm={showConfirm}
+          viewStart={viewStart}
+          viewEnd={viewEnd}
           filterCategory={filterCategory}
           filterStatus={filterStatus}
           filterTeam={filterTeam}
           filterPriority={filterPriority}
           filterSubcategory={filterSubcategory}
-          onFilterChange={handleFilterChange}
-          onSaveView={() => handleSave(data)}
-          milestones={data.milestones || []}
-          onSaveMilestones={handleMilestonesSave}
+          canEdit={isEditor}
+          showPct={showPct} setShowPct={setShowPct}
+          showPriority={showPriority} setShowPriority={setShowPriority}
+          showStartDate={showStartDate} setShowStartDate={setShowStartDate}
+          showEndDate={showEndDate} setShowEndDate={setShowEndDate}
+          today={today}
+          expandedIds={expandedIds} setExpandedIds={setExpandedIds}
+          hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
         />
       </div>
     </main>

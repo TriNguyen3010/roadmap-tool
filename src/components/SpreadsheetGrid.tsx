@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, ItemPriority, PRIORITY_LEVELS } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS } from '@/types/roadmap';
 import {
     flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
-import { format, isSameDay, differenceInDays, startOfDay, isWithinInterval, parseISO } from 'date-fns';
-import { ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle } from 'lucide-react';
+import { format, isSameDay, differenceInDays, isWithinInterval, parseISO } from 'date-fns';
+import { ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink } from 'lucide-react';
 import EditPopup from './EditPopup';
 import AddNodePopup from './AddNodePopup';
 
@@ -94,6 +94,7 @@ const PRIORITY_TAG_TEXT: Record<string, string> = {
     'Low': '#166534',
 };
 const COL_PRIORITY_W = 70;
+const MAX_QUICK_NOTE_LENGTH = 500;
 
 const CHILD_TYPE_MAP: Record<ItemType, ItemType | null> = {
     category: 'subcategory',
@@ -153,17 +154,37 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     // ── Drag & Drop States ──
     const [draggedId, setDraggedId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
+    const [activeNotePreview, setActiveNotePreview] = useState<{ id: string; top: number; left: number } | null>(null);
+    const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
+    const [quickNoteDraft, setQuickNoteDraft] = useState('');
+    const [quickNoteSaving, setQuickNoteSaving] = useState(false);
 
-    const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => { if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop; };
-    const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => { if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop; };
+    const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => {
+        if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop;
+        if (activeNotePreview) void closeQuickNotePreview();
+    };
+    const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
+        if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop;
+        if (activeNotePreview) void closeQuickNotePreview();
+    };
 
     // ── Individual row hide (leaf rows only) ──
     const toggleHideRow = (id: string) => {
-        setHiddenRowIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+        setHiddenRowIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
     };
 
     const toggleExpand = (id: string) => {
-        setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
     };
 
     const visibleItems = useMemo(() => filterRoadmapTree(data.items, {
@@ -178,6 +199,50 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         const raw = flattenRoadmap(visibleItems);
         return raw.filter(item => !item.parentIds.some(pid => !expandedIds.has(pid)));
     }, [visibleItems, expandedIds]);
+
+    const activeNoteItem = useMemo(() => {
+        if (!activeNotePreview) return null;
+        return findNodeById(data.items, activeNotePreview.id);
+    }, [activeNotePreview, data.items]);
+    const activeNoteText = activeNoteItem?.quickNote?.trim() || '';
+    const activeNoteOriginal = activeNoteItem?.quickNote || '';
+    const isQuickNoteDirty = !!activeNoteItem && quickNoteDraft !== activeNoteOriginal;
+
+    const resetQuickNoteState = useCallback(() => {
+        setActiveNotePreview(null);
+        setIsQuickNoteEditing(false);
+        setQuickNoteDraft('');
+        setQuickNoteSaving(false);
+    }, []);
+
+    const closeQuickNotePreview = useCallback(async (skipDirtyCheck = false): Promise<boolean> => {
+        if (!activeNotePreview) return true;
+        if (!skipDirtyCheck && canEdit && isQuickNoteEditing && isQuickNoteDirty) {
+            const confirmClose = await showConfirm('Quick note đang có thay đổi chưa lưu. Đóng mà không lưu?');
+            if (!confirmClose) return false;
+        }
+        resetQuickNoteState();
+        return true;
+    }, [activeNotePreview, canEdit, isQuickNoteDirty, isQuickNoteEditing, resetQuickNoteState, showConfirm]);
+
+    useEffect(() => {
+        if (!activeNotePreview) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('[data-quick-note-popover="true"]')) return;
+            if (target.closest('[data-quick-note-trigger="true"]')) return;
+            void closeQuickNotePreview();
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') void closeQuickNotePreview();
+        };
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [activeNotePreview, closeQuickNotePreview]);
 
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
@@ -194,7 +259,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         }
         maxW += 5; // padding
         if (maxW > 450) maxW = 450; // Cap tối đa 450px
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setNameW(maxW);
     }, [flattened]);
 
@@ -237,14 +301,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         return groups;
     }, [timelineDays]);
 
-    const milestones: Milestone[] = data.milestones || [];
-    const milestoneRanges = useMemo(() => milestones.map(m => {
-        const startIdx = timelineDays.findIndex(d => isSameDay(d, parseISO(m.startDate)));
-        const endIdx = timelineDays.findIndex(d => isSameDay(d, parseISO(m.endDate)));
-        if (startIdx < 0) return null;
-        const actualEnd = endIdx >= 0 ? endIdx : startIdx;
-        return { ...m, left: startIdx * COL_W, width: (actualEnd - startIdx + 1) * COL_W };
-    }).filter(Boolean) as (Milestone & { left: number; width: number })[], [milestones, timelineDays]);
+    const milestoneRanges = useMemo(() => {
+        const milestones = data.milestones || [];
+        return milestones.map(m => {
+            const startIdx = timelineDays.findIndex(d => isSameDay(d, parseISO(m.startDate)));
+            const endIdx = timelineDays.findIndex(d => isSameDay(d, parseISO(m.endDate)));
+            if (startIdx < 0) return null;
+            const actualEnd = endIdx >= 0 ? endIdx : startIdx;
+            return { ...m, left: startIdx * COL_W, width: (actualEnd - startIdx + 1) * COL_W };
+        }).filter(Boolean) as (Milestone & { left: number; width: number })[];
+    }, [data.milestones, timelineDays]);
 
     // ── CRUD handlers ──
     const handleEditSave = (updated: RoadmapItem) => {
@@ -323,10 +389,76 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setDragOverId(null);
     };
 
+    const openQuickNotePreview = async (event: React.MouseEvent, row: FlattenedItem) => {
+        event.stopPropagation();
+        if (activeNotePreview?.id === row.id) {
+            await closeQuickNotePreview();
+            return;
+        }
+        if (activeNotePreview) {
+            const closed = await closeQuickNotePreview();
+            if (!closed) return;
+        }
+
+        const triggerRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const popoverWidth = 320;
+        const left = Math.max(8, Math.min(triggerRect.left, window.innerWidth - popoverWidth - 8));
+        const top = Math.min(triggerRect.bottom + 8, window.innerHeight - 220);
+        const note = row.quickNote || '';
+
+        setActiveNotePreview({ id: row.id, top, left });
+        setQuickNoteDraft(note);
+        setIsQuickNoteEditing(canEdit && note.trim().length === 0);
+        setQuickNoteSaving(false);
+    };
+
     const openEditor = (id: string) => {
         if (!canEdit) return;
         const node = findNodeById(data.items, id);
         if (node) setEditingItem(node);
+    };
+
+    const openFullEditorFromQuickNote = async () => {
+        if (!canEdit || !activeNoteItem) return;
+        if (isQuickNoteEditing && isQuickNoteDirty) {
+            const confirmDiscard = await showConfirm('Quick note đang có thay đổi chưa lưu. Mở Edit mà không lưu?');
+            if (!confirmDiscard) return;
+        }
+        const id = activeNoteItem.id;
+        resetQuickNoteState();
+        openEditor(id);
+    };
+
+    const toggleQuickNoteEditMode = async () => {
+        if (!canEdit || !activeNoteItem) return;
+        if (isQuickNoteEditing) {
+            if (isQuickNoteDirty) {
+                const confirmDiscard = await showConfirm('Quick note đang có thay đổi chưa lưu. Huỷ chỉnh sửa nhanh?');
+                if (!confirmDiscard) return;
+            }
+            setQuickNoteDraft(activeNoteOriginal);
+            setIsQuickNoteEditing(false);
+            return;
+        }
+        setIsQuickNoteEditing(true);
+    };
+
+    const handleQuickNoteSave = async () => {
+        if (!canEdit || !activeNoteItem || quickNoteSaving || !isQuickNoteDirty) return;
+        setQuickNoteSaving(true);
+        try {
+            const source = findNodeById(data.items, activeNoteItem.id);
+            if (!source) return;
+            const updatedSource = { ...source };
+            const normalizedNote = quickNoteDraft.trim();
+            if (normalizedNote.length > 0) updatedSource.quickNote = normalizedNote;
+            else delete updatedSource.quickNote;
+            onDataChange({ ...data, items: updateNodeById(data.items, activeNoteItem.id, updatedSource) }, true);
+            setQuickNoteDraft(normalizedNote);
+            setIsQuickNoteEditing(false);
+        } finally {
+            setQuickNoteSaving(false);
+        }
     };
 
     const updateFromSource = (id: string, mapper: (source: RoadmapItem) => RoadmapItem) => {
@@ -530,6 +662,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const hasChildren = row.children && row.children.length > 0;
                         const isExpanded = expandedIds.has(row.id);
                         const childType = CHILD_TYPE_MAP[row.type];
+                        const hasQuickNote = !!row.quickNote?.trim();
 
                         const canDragRow = canEdit;
                         const isDragged = draggedId === row.id;
@@ -594,6 +727,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             {row.subcategoryType}
                                         </span>
                                     )}
+                                    <button
+                                        data-quick-note-trigger="true"
+                                        onClick={(e) => { void openQuickNotePreview(e, row); }}
+                                        className={`ml-auto shrink-0 rounded p-0.5 transition-colors ${hasQuickNote ? 'text-blue-600 hover:bg-blue-100' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'}`}
+                                        title={hasQuickNote ? 'Xem quick note' : 'Thêm quick note'}
+                                    >
+                                        <MessageSquare size={12} />
+                                    </button>
                                 </div>
 
                                 {/* Priority — only for group/feature, hidden when showPriority=false */}
@@ -635,8 +776,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                             e.preventDefault();
                                                             e.stopPropagation();
                                                             updateFromSource(row.id, source => {
-                                                                const { priority: _priority, ...rest } = source;
-                                                                return rest as RoadmapItem;
+                                                                const next = { ...source };
+                                                                delete next.priority;
+                                                                return next;
                                                             });
                                                             setOpenPriorityId(null);
                                                         }}
@@ -868,6 +1010,96 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     </div>
                 </div>
             </div>
+
+            {activeNotePreview && activeNoteItem && (
+                <div
+                    data-quick-note-popover="true"
+                    className="fixed z-50 w-[320px] rounded-lg border border-slate-200 bg-white shadow-xl p-3 text-xs"
+                    style={{ top: activeNotePreview.top, left: activeNotePreview.left }}
+                >
+                    {canEdit ? (
+                        <div className="flex items-center justify-between mb-1">
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Note</p>
+                            <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5">
+                                <button
+                                    className={`inline-flex h-5 w-5 items-center justify-center rounded-full transition-colors ${isQuickNoteEditing
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'text-slate-500 hover:bg-slate-100 hover:text-emerald-700'
+                                        }`}
+                                    title={isQuickNoteEditing ? 'Đang chỉnh sửa nhanh' : 'Edit nhanh'}
+                                    aria-label="Edit nhanh"
+                                    onClick={() => { void toggleQuickNoteEditMode(); }}
+                                >
+                                    <Pencil size={11} />
+                                </button>
+                                <button
+                                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-700 disabled:opacity-50"
+                                    title="Open in Edit"
+                                    aria-label="Open in Edit"
+                                    onClick={() => { void openFullEditorFromQuickNote(); }}
+                                    disabled={quickNoteSaving}
+                                >
+                                    <ExternalLink size={11} />
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Note</p>
+                    )}
+
+                    {canEdit && isQuickNoteEditing ? (
+                        <div>
+                            <div className="flex justify-end mb-1">
+                                <span className="text-[10px] text-slate-400">{quickNoteDraft.length}/{MAX_QUICK_NOTE_LENGTH}</span>
+                            </div>
+                            <textarea
+                                rows={4}
+                                value={quickNoteDraft}
+                                onChange={(e) => setQuickNoteDraft(e.target.value.slice(0, MAX_QUICK_NOTE_LENGTH))}
+                                onKeyDown={(e) => {
+                                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                                        e.preventDefault();
+                                        void handleQuickNoteSave();
+                                    }
+                                }}
+                                className="w-full rounded border border-slate-300 px-2 py-1.5 text-[11px] leading-relaxed text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
+                                placeholder="Ghi chú nhanh..."
+                            />
+                            <div className="mt-2 flex justify-end gap-2">
+                                <button
+                                    className="rounded border border-slate-300 px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-100"
+                                    disabled={quickNoteSaving}
+                                    onClick={() => {
+                                        setQuickNoteDraft(activeNoteOriginal);
+                                        setIsQuickNoteEditing(false);
+                                    }}
+                                >
+                                    Huỷ
+                                </button>
+                                <button
+                                    className="rounded bg-blue-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300"
+                                    disabled={!isQuickNoteDirty || quickNoteSaving}
+                                    onClick={() => { void handleQuickNoteSave(); }}
+                                >
+                                    {quickNoteSaving ? 'Đang lưu...' : 'Lưu'}
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <p
+                            className="text-[11px] text-slate-600 break-words leading-relaxed"
+                            style={{
+                                display: '-webkit-box',
+                                WebkitLineClamp: 4,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            {activeNoteText || 'Chưa có note.'}
+                        </p>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

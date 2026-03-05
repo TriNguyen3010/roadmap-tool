@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import SidePanelShell from './SidePanelShell';
 
 // ── Before options: weeks (negative offset from today)
 export const BEFORE_OPTIONS: { label: string; weeks: number }[] = [
@@ -31,10 +32,10 @@ interface ToolbarProps {
     onNameChange: (name: string) => void;
     onSave: () => void;
     onExportExcel?: () => void;
-    onOpenMilestonesPanel: () => void;
-    onOpenFilterPanel: () => void;
-    isSidePanelOpen: boolean;
-    activeSidePanel: 'filter' | 'milestones';
+    onOpenMilestonesPopup: () => void;
+    onOpenFilterPopup: () => void;
+    isFilterPopupOpen?: boolean;
+    isMilestonesPopupOpen?: boolean;
     beforeWeeks: number;
     afterMonths: number;
     onBeforeWeeksChange: (w: number) => void;
@@ -55,7 +56,7 @@ interface ToolbarProps {
 
 export default function Toolbar({
     documentName, onNameChange, onSave, onExportExcel,
-    onOpenMilestonesPanel, onOpenFilterPanel, isSidePanelOpen, activeSidePanel, beforeWeeks, afterMonths,
+    onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
     filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory
@@ -153,21 +154,14 @@ export default function Toolbar({
             <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
 
             {authOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={() => setAuthOpen(false)}>
-                    <div className="w-[360px] rounded-xl border border-gray-200 bg-white p-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <p className="text-sm font-bold text-gray-800">Unlock Editor</p>
-                        <p className="mt-1 text-xs text-gray-500">Nhập mật khẩu để bật chế độ chỉnh sửa.</p>
-                        <input
-                            ref={passwordRef}
-                            type="password"
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && void handleUnlockSubmit()}
-                            className="mt-3 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                            placeholder="Editor password"
-                        />
-                        {authError && <p className="mt-2 text-xs text-red-600">{authError}</p>}
-                        <div className="mt-3 flex justify-end gap-2">
+                <SidePanelShell
+                    isOpen={authOpen}
+                    onClose={() => setAuthOpen(false)}
+                    title="Unlock Editor"
+                    subtitle="Nhập mật khẩu để bật chế độ chỉnh sửa"
+                    widthClassName="w-[360px]"
+                    footer={(
+                        <div className="flex justify-end gap-2">
                             <button
                                 onClick={() => setAuthOpen(false)}
                                 className="rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100"
@@ -182,8 +176,19 @@ export default function Toolbar({
                                 {authSubmitting ? 'Checking...' : 'Unlock'}
                             </button>
                         </div>
-                    </div>
-                </div>
+                    )}
+                >
+                    <input
+                        ref={passwordRef}
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && void handleUnlockSubmit()}
+                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        placeholder="Editor password"
+                    />
+                    {authError && <p className="mt-2 text-xs text-red-600">{authError}</p>}
+                </SidePanelShell>
             )}
 
             {/* LEFT: logo + doc name */}
@@ -251,9 +256,10 @@ export default function Toolbar({
 
                 {/* Milestones */}
                 <button
-                    onClick={onOpenMilestonesPanel}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-white rounded text-xs font-semibold transition-colors ${isSidePanelOpen && activeSidePanel === 'milestones' ? 'bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'}`}
-                    title={canEdit ? 'Mở Side Panel Milestones' : 'Mở Side Panel Milestones (chỉ xem)'}
+                    onClick={() => canEdit && onOpenMilestonesPopup()}
+                    disabled={!canEdit}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-white rounded text-xs font-semibold transition-colors disabled:bg-amber-300 ${isMilestonesPopupOpen ? 'bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'}`}
+                    title={canEdit ? 'Mở side panel Milestones' : 'Viewer mode: không thể chỉnh milestone'}
                 >
                     <Flag size={13} />
                     <span>Milestones</span>
@@ -270,9 +276,9 @@ export default function Toolbar({
                 </button>
 
                 <button
-                    onClick={() => { onOpenFilterPanel(); setSettingsOpen(false); }}
-                    title="Mở Side Panel Filter"
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white text-xs ${isSidePanelOpen && activeSidePanel === 'filter' ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
+                    onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); }}
+                    title="Mở side panel Filter"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white text-xs ${isFilterPopupOpen ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
                 >
                     <Filter size={13} />
                     <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>

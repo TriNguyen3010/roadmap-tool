@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { RoadmapItem, ItemStatus, StatusMode, SubcategoryType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
-import { X } from 'lucide-react';
+import SidePanelShell from './SidePanelShell';
 
 interface EditPopupProps {
     item: RoadmapItem;
@@ -18,6 +18,7 @@ const SUB_TYPE_STYLE: Record<SubcategoryType, { bg: string; text: string; border
     'Bug': { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5' },
     'Growth Camp': { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
 };
+const MAX_QUICK_NOTE_LENGTH = 500;
 
 export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const hasChildren = !!(item.children && item.children.length > 0);
@@ -29,6 +30,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const [progress, setProgress] = useState(item.progress ?? 0);
     const [startDate, setStartDate] = useState(item.startDate || '');
     const [endDate, setEndDate] = useState(item.endDate || '');
+    const [quickNote, setQuickNote] = useState(item.quickNote || '');
     const [subcategoryType, setSubcategoryType] = useState<SubcategoryType | undefined>(item.subcategoryType);
 
     // Dates/progress are locked when item has children that are NOT all teams
@@ -47,14 +49,6 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
         }
         return set;
     });
-
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
 
     const handleStatusChange = (s: ItemStatus) => {
         setStatus(s);
@@ -80,6 +74,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
 
     const handleSubmit = () => {
         let updatedChildren = item.children;
+        const normalizedQuickNote = quickNote.trim();
 
         if (item.type === 'feature' || item.type === 'group') {
             const currentTeamsMap = new Map<TeamRole, RoadmapItem>();
@@ -128,6 +123,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
             statusMode: nextStatusMode,
             manualStatus: nextStatusMode === 'manual' ? status : undefined,
             progress,
+            quickNote: normalizedQuickNote.length > 0 ? normalizedQuickNote : undefined,
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
             children: updatedChildren
         });
@@ -135,18 +131,20 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/10 transition-colors" onClick={onClose}>
-            <div
-                className="bg-white w-[440px] h-full shadow-2xl p-6 flex flex-col gap-4 border-l border-gray-200 animate-in slide-in-from-right overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <h2 className="text-base font-bold text-gray-800">
-                        Chỉnh sửa · <span className="text-gray-400 font-normal text-sm">{item.type}</span>
-                    </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        <SidePanelShell
+            isOpen
+            onClose={onClose}
+            title="Chỉnh sửa hạng mục"
+            subtitle={`Loại: ${item.type}`}
+            widthClassName="w-[520px]"
+            footer={(
+                <div className="flex gap-2 justify-end">
+                    <button onClick={onClose} className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100">Huỷ</button>
+                    <button onClick={handleSubmit} className="px-4 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">Lưu</button>
                 </div>
+            )}
+        >
+            <div className="flex flex-col gap-4">
 
                 {/* Subcategory Type (only for subcategory items) */}
                 {item.type === 'subcategory' && (
@@ -191,6 +189,21 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                         />
                     )}
+                </div>
+
+                {/* Quick note */}
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-gray-600">Quick note (Optional)</label>
+                        <span className="text-[10px] text-gray-400">{quickNote.length}/{MAX_QUICK_NOTE_LENGTH}</span>
+                    </div>
+                    <textarea
+                        rows={4}
+                        className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
+                        value={quickNote}
+                        onChange={(e) => setQuickNote(e.target.value.slice(0, MAX_QUICK_NOTE_LENGTH))}
+                        placeholder="Ghi chú nhanh để xem lại sau..."
+                    />
                 </div>
 
                 {/* Teams */}
@@ -314,12 +327,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                     </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2 justify-end mt-1">
-                    <button onClick={onClose} className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100">Huỷ</button>
-                    <button onClick={handleSubmit} className="px-4 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">Lưu</button>
-                </div>
             </div>
-        </div>
+        </SidePanelShell>
     );
 }
