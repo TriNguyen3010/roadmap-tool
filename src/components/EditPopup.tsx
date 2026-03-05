@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { RoadmapItem, ItemStatus, StatusMode, SubcategoryType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
+import { RoadmapItem, ItemStatus, StatusMode, SubcategoryType, TeamRole, TEAM_ROLES, STATUS_OPTIONS, normalizeItemStatus } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
 
@@ -26,7 +26,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
 
     const [name, setName] = useState(item.name);
     const [statusMode, setStatusMode] = useState<StatusMode>(initialStatusMode);
-    const [status, setStatus] = useState<ItemStatus>(item.manualStatus ?? item.status);
+    const [status, setStatus] = useState<ItemStatus>(normalizeItemStatus(item.manualStatus ?? item.status));
     const [progress, setProgress] = useState(item.progress ?? 0);
     const [startDate, setStartDate] = useState(item.startDate || '');
     const [endDate, setEndDate] = useState(item.endDate || '');
@@ -61,7 +61,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
         if (statusMode === 'manual') {
             if (v === 100) setStatus('Done');
             else if (v === 0) setStatus('Not Started');
-            else setStatus('In Progress');
+            else setStatus('Dev In Progress');
         }
     };
 
@@ -298,13 +298,13 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                     <label className="text-xs font-semibold text-gray-600">Trạng thái</label>
                     <select
                         className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-500"
-                        value={statusMode === 'manual' ? status : item.status}
+                        value={statusMode === 'manual' ? status : normalizeItemStatus(item.status)}
                         onChange={(e) => handleStatusChange(e.target.value as ItemStatus)}
                         disabled={statusMode === 'auto'}
                     >
-                        <option value="Not Started">Not Started</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Done">Done</option>
+                        {STATUS_OPTIONS.map(option => (
+                            <option key={option} value={option}>{option}</option>
+                        ))}
                     </select>
                     {statusMode === 'auto' && (
                         <p className="text-[11px] text-gray-500">Status đang tự động theo task con.</p>

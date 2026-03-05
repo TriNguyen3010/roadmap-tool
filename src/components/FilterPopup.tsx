@@ -2,6 +2,7 @@
 
 import { Save } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
+import { STATUS_OPTIONS } from '@/types/roadmap';
 
 interface FilterPopupProps {
     isOpen: boolean;
@@ -129,7 +130,7 @@ export default function FilterPopup({
                 <div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Status</p>
                     <div className="flex flex-col gap-2">
-                        {['Done', 'In Progress', 'Not Started'].map(st => (
+                        {STATUS_OPTIONS.map(st => (
                             <label key={st} className="flex items-center gap-2 cursor-pointer group">
                                 <input
                                     type="checkbox"

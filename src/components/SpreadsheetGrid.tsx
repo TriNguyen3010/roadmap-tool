@@ -1,12 +1,12 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode, TimelineMode } from '@/types/roadmap';
 import {
     flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
-import { format, isSameDay, differenceInDays, isWithinInterval, parseISO } from 'date-fns';
+import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
 import { ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink } from 'lucide-react';
 import EditPopup from './EditPopup';
 import AddNodePopup from './AddNodePopup';
@@ -18,6 +18,7 @@ interface GridProps {
     showConfirm: (message: string) => Promise<boolean>;
     viewStart: string;
     viewEnd: string;
+    timelineMode: TimelineMode;
     today: Date;
     filterCategory: string[];
     filterStatus: string[];
@@ -62,6 +63,18 @@ type RenderEntry =
     | { kind: 'row'; row: FlattenedItem }
     | { kind: 'gap'; ids: string[]; names: string[] };
 
+type TimelineUnit = {
+    start: Date;
+    end: Date;
+    labelTop: string;
+    labelBottom: string;
+};
+
+type HeaderGroup = {
+    label: string;
+    count: number;
+};
+
 const DEPTH_STYLES: { bg: string; font: string }[] = [
     { bg: '#c6d3ea', font: 'bold' },     // Level 0 (category)
     { bg: '#d4e4c8', font: 'bold' },     // Level 1 (subcategory)
@@ -72,18 +85,21 @@ const DEPTH_STYLES: { bg: string; font: string }[] = [
 
 const STATUS_BAR_COLOR: Record<string, string> = {
     'Done': '#22c55e',
-    'In Progress': '#3b82f6',
+    'PD In Progress': '#f59e0b',
+    'Dev In Progress': '#3b82f6',
     'Not Started': '#9ca3af',
 };
 
 const STATUS_TAG_BG: Record<string, string> = {
     'Done': '#bbf7d0',
-    'In Progress': '#bfdbfe',
+    'PD In Progress': '#fef3c7',
+    'Dev In Progress': '#bfdbfe',
     'Not Started': '#f3f4f6',
 };
 const STATUS_TAG_TEXT: Record<string, string> = {
     'Done': '#166534',
-    'In Progress': '#1e40af',
+    'PD In Progress': '#92400e',
+    'Dev In Progress': '#1e40af',
     'Not Started': '#374151',
 };
 
@@ -134,6 +150,7 @@ function countWorkdays(start: Date, end: Date): number {
 }
 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
+    timelineMode,
     filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory, canEdit,
     showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
@@ -290,32 +307,106 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, [flattened, hiddenRowIds]);
 
     const timelineDays = useMemo(() => generateTimelineDays(viewStart, viewEnd, 0), [viewStart, viewEnd]);
-    const todayIndex = today ? timelineDays.findIndex(d => isSameDay(d, today)) : -1;
 
-    const weekGroups = useMemo(() => {
-        const groups: { label: string; days: Date[] }[] = [];
-        let cur: { label: string; wk: string; days: Date[] } | null = null;
-        for (const day of timelineDays) {
-            const wk = format(day, 'yyyy-ww');
-            if (!cur || cur.wk !== wk) {
-                if (cur) groups.push({ label: cur.label, days: cur.days });
-                cur = { label: `W${format(day, 'ww')} · ${format(day, 'MMM d')}`, wk, days: [day] };
-            } else { cur.days.push(day); }
+    const timelineUnitWidth = useMemo(() => {
+        if (timelineMode === 'day') return COL_W;
+        if (timelineMode === 'week') return 46;
+        return 64;
+    }, [timelineMode]);
+
+    const timelineUnits: TimelineUnit[] = useMemo(() => {
+        if (timelineDays.length === 0) return [];
+        if (timelineMode === 'day') {
+            return timelineDays.map(day => ({
+                start: day,
+                end: day,
+                labelTop: day.getDay() === 6 ? 'Sa' : day.getDay() === 0 ? 'Su' : format(day, 'EEE')[0],
+                labelBottom: format(day, 'd'),
+            }));
         }
-        if (cur) groups.push({ label: cur.label, days: cur.days });
+
+        if (timelineMode === 'week') {
+            const weekStarts = eachWeekOfInterval(
+                { start: timelineDays[0], end: timelineDays[timelineDays.length - 1] },
+                { weekStartsOn: 1 }
+            );
+            return weekStarts.map(start => ({
+                start,
+                end: endOfWeek(start, { weekStartsOn: 1 }),
+                labelTop: `W${format(start, 'ww')}`,
+                labelBottom: format(start, 'MMM d'),
+            }));
+        }
+
+        const monthStarts = eachMonthOfInterval({ start: timelineDays[0], end: timelineDays[timelineDays.length - 1] });
+        return monthStarts.map(start => ({
+            start,
+            end: endOfMonth(start),
+            labelTop: format(start, 'MMM'),
+            labelBottom: format(start, 'yy'),
+        }));
+    }, [timelineDays, timelineMode]);
+
+    const todayIndex = useMemo(() => {
+        if (!today) return -1;
+        return timelineUnits.findIndex(unit => today >= unit.start && today <= unit.end);
+    }, [today, timelineUnits]);
+
+    const headerGroups: HeaderGroup[] = useMemo(() => {
+        const groups: HeaderGroup[] = [];
+        let currentKey = '';
+        for (const unit of timelineUnits) {
+            let key = '';
+            let label = '';
+            if (timelineMode === 'day') {
+                key = format(unit.start, 'yyyy-ww');
+                label = `W${format(unit.start, 'ww')} · ${format(unit.start, 'MMM d')}`;
+            } else if (timelineMode === 'week') {
+                key = format(unit.start, 'yyyy-MM');
+                label = format(unit.start, 'MMM yyyy');
+            } else {
+                key = format(unit.start, 'yyyy');
+                label = format(unit.start, 'yyyy');
+            }
+
+            if (groups.length === 0 || key !== currentKey) {
+                groups.push({ label, count: 1 });
+                currentKey = key;
+            } else {
+                groups[groups.length - 1].count += 1;
+            }
+        }
         return groups;
-    }, [timelineDays]);
+    }, [timelineUnits, timelineMode]);
 
     const milestoneRanges = useMemo(() => {
         const milestones = data.milestones || [];
         return milestones.map(m => {
-            const startIdx = timelineDays.findIndex(d => isSameDay(d, parseISO(m.startDate)));
-            const endIdx = timelineDays.findIndex(d => isSameDay(d, parseISO(m.endDate)));
-            if (startIdx < 0) return null;
-            const actualEnd = endIdx >= 0 ? endIdx : startIdx;
-            return { ...m, left: startIdx * COL_W, width: (actualEnd - startIdx + 1) * COL_W };
-        }).filter(Boolean) as (Milestone & { left: number; width: number })[];
-    }, [data.milestones, timelineDays]);
+            const milestoneStart = parseISO(m.startDate);
+            const milestoneEndRaw = parseISO(m.endDate);
+            if (Number.isNaN(milestoneStart.getTime())) return null;
+            const milestoneEnd = Number.isNaN(milestoneEndRaw.getTime()) ? milestoneStart : milestoneEndRaw;
+
+            let firstIdx = -1;
+            let lastIdx = -1;
+            for (let i = 0; i < timelineUnits.length; i++) {
+                const unit = timelineUnits[i];
+                const overlaps = unit.end >= milestoneStart && unit.start <= milestoneEnd;
+                if (!overlaps) continue;
+                if (firstIdx === -1) firstIdx = i;
+                lastIdx = i;
+            }
+            if (firstIdx < 0 || lastIdx < 0) return null;
+
+            return {
+                ...m,
+                start: milestoneStart,
+                end: milestoneEnd,
+                left: firstIdx * timelineUnitWidth,
+                width: (lastIdx - firstIdx + 1) * timelineUnitWidth,
+            };
+        }).filter(Boolean) as (Milestone & { start: Date; end: Date; left: number; width: number })[];
+    }, [data.milestones, timelineUnits, timelineUnitWidth]);
 
     // ── CRUD handlers ──
     const handleEditSave = (updated: RoadmapItem) => {
@@ -861,14 +952,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
             {/* ── RIGHT PANE – GANTT ── */}
             <div ref={rightPaneRef} className="flex-1 overflow-auto relative" onScroll={handleScrollRight}>
-                <div style={{ width: timelineDays.length * COL_W, minWidth: '100%' }}>
+                <div style={{ width: timelineUnits.length * timelineUnitWidth, minWidth: '100%' }}>
 
                     {/* ── STICKY HEADER ── */}
                     <div className="sticky top-0 z-20 flex flex-col" style={{ height: TOTAL_HEADER_H }}>
 
                         {/* Row 0: Milestone labels */}
                         <div className="relative flex border-b border-gray-300 bg-white shrink-0 overflow-hidden" style={{ height: MILESTONE_HEADER_H }}>
-                            {timelineDays.map((_, i) => <div key={i} className="shrink-0" style={{ width: COL_W }} />)}
+                            {timelineUnits.map((_, i) => <div key={i} className="shrink-0" style={{ width: timelineUnitWidth }} />)}
                             {milestoneRanges.map((m) => (
                                 <div key={m.id} className="absolute top-0 bottom-0 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden whitespace-nowrap px-1"
                                     style={{ left: m.left, width: m.width, backgroundColor: m.color }} title={m.label}>
@@ -879,9 +970,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                         {/* Row 1: Week groups */}
                         <div className="relative flex border-b border-gray-400 bg-gray-200 shrink-0" style={{ height: ROW_HEIGHT }}>
-                            {weekGroups.map((wk, i) => (
+                            {headerGroups.map((wk, i) => (
                                 <div key={i} className="shrink-0 border-r border-gray-400 flex items-center px-1 text-[10px] font-bold text-gray-700 overflow-hidden"
-                                    style={{ width: wk.days.length * COL_W }}>
+                                    style={{ width: wk.count * timelineUnitWidth }}>
                                     {wk.label}
                                 </div>
                             ))}
@@ -889,27 +980,25 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                         {/* Row 2: Days */}
                         <div className="relative flex border-b-2 border-gray-500 shrink-0" style={{ height: ROW_HEIGHT }}>
-                            {timelineDays.map((day, idx) => {
-                                const isToday = today ? isSameDay(day, today) : false;
-                                const dow = day.getDay();
-                                const isWeekend = dow === 0 || dow === 6;
-                                const isMilestoneDay = milestoneRanges.some(m => isWithinInterval(day, { start: parseISO(m.startDate), end: parseISO(m.endDate) }));
-                                const milestoneBg = isMilestoneDay
-                                    ? milestoneRanges.find(m => isWithinInterval(day, { start: parseISO(m.startDate), end: parseISO(m.endDate) }))!.color
-                                    : undefined;
+                            {timelineUnits.map((unit, idx) => {
+                                const isToday = today ? (today >= unit.start && today <= unit.end) : false;
+                                const isWeekend = timelineMode === 'day' && (unit.start.getDay() === 0 || unit.start.getDay() === 6);
+                                const matchedMilestone = milestoneRanges.find(m => unit.end >= m.start && unit.start <= m.end);
+                                const milestoneBg = matchedMilestone?.color;
+                                const isMilestoneUnit = !!matchedMilestone;
 
                                 let bg = '#f1f5f9';
                                 let textColor = '#64748b';
                                 let fontWeight: 'normal' | 'bold' = 'normal';
                                 if (isToday) { bg = '#fef08a'; textColor = '#92400e'; fontWeight = 'bold'; }
-                                else if (isMilestoneDay && milestoneBg) { bg = hexToRgba(milestoneBg, 0.3); textColor = milestoneBg; fontWeight = 'bold'; }
+                                else if (isMilestoneUnit && milestoneBg) { bg = hexToRgba(milestoneBg, 0.3); textColor = milestoneBg; fontWeight = 'bold'; }
                                 else if (isWeekend) { bg = '#ede9fe'; textColor = '#7c3aed'; }
 
                                 return (
                                     <div key={idx} className="shrink-0 flex flex-col items-center justify-center border-r border-gray-300 text-[9px]"
-                                        style={{ width: COL_W, backgroundColor: bg, fontWeight, color: textColor }}>
-                                        <div className="uppercase">{dow === 6 ? 'Sa' : dow === 0 ? 'Su' : format(day, 'EEE')[0]}</div>
-                                        <div>{format(day, 'd')}</div>
+                                        style={{ width: timelineUnitWidth, backgroundColor: bg, fontWeight, color: textColor }}>
+                                        <div className={timelineMode === 'day' ? 'uppercase' : ''}>{unit.labelTop}</div>
+                                        <div>{unit.labelBottom}</div>
                                     </div>
                                 );
                             })}
@@ -921,7 +1010,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         {/* Today line */}
                         {today && todayIndex >= 0 && (
                             <div className="absolute top-0 bottom-0 z-10 pointer-events-none"
-                                style={{ left: todayIndex * COL_W + COL_W / 2, width: 2, backgroundColor: '#ef4444' }} />
+                                style={{ left: todayIndex * timelineUnitWidth + timelineUnitWidth / 2, width: 2, backgroundColor: '#ef4444' }} />
                         )}
 
                         {/* Milestone column shading */}
@@ -931,13 +1020,15 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         ))}
 
                         {/* Weekend shading */}
-                        <div className="absolute inset-0 flex pointer-events-none">
-                            {timelineDays.map((d, i) => {
-                                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                                return <div key={i} className="shrink-0 border-r border-gray-100 h-full"
-                                    style={{ width: COL_W, backgroundColor: isWeekend ? 'rgba(139,92,246,0.09)' : 'transparent' }} />;
-                            })}
-                        </div>
+                        {timelineMode === 'day' && (
+                            <div className="absolute inset-0 flex pointer-events-none">
+                                {timelineUnits.map((unit, i) => {
+                                    const isWeekend = unit.start.getDay() === 0 || unit.start.getDay() === 6;
+                                    return <div key={i} className="shrink-0 border-r border-gray-100 h-full"
+                                        style={{ width: timelineUnitWidth, backgroundColor: isWeekend ? 'rgba(139,92,246,0.09)' : 'transparent' }} />;
+                                })}
+                            </div>
+                        )}
 
                         {/* Feature rows */}
                         {renderList.map((entry) => {
@@ -957,16 +1048,28 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             const { row } = entry;
                             let barLeft = -1, barWidth = 0, workdays = 0, sprintStr = '';
                             if (row.startDate && row.endDate) {
-                                const sd = new Date(row.startDate!), ed = new Date(row.endDate!);
-                                const si = timelineDays.findIndex(d => isSameDay(d, sd));
-                                if (si >= 0) {
-                                    const calendarDays = differenceInDays(ed, sd) + 1;
-                                    barLeft = si * COL_W;
-                                    barWidth = calendarDays * COL_W;
-                                    workdays = countWorkdays(sd, ed);
+                                const sd = parseISO(row.startDate);
+                                const edRaw = parseISO(row.endDate);
+                                if (!Number.isNaN(sd.getTime())) {
+                                    const ed = Number.isNaN(edRaw.getTime()) ? sd : edRaw;
+                                    let firstIdx = -1;
+                                    let lastIdx = -1;
+                                    for (let i = 0; i < timelineUnits.length; i++) {
+                                        const unit = timelineUnits[i];
+                                        const overlaps = unit.end >= sd && unit.start <= ed;
+                                        if (!overlaps) continue;
+                                        if (firstIdx === -1) firstIdx = i;
+                                        lastIdx = i;
+                                    }
+                                    if (firstIdx >= 0 && lastIdx >= 0) {
+                                        const calendarDays = differenceInDays(ed, sd) + 1;
+                                        barLeft = firstIdx * timelineUnitWidth;
+                                        barWidth = (lastIdx - firstIdx + 1) * timelineUnitWidth;
+                                        workdays = countWorkdays(sd, ed);
 
-                                    const sprintsNum = calendarDays / 14;
-                                    sprintStr = Number.isInteger(sprintsNum) ? sprintsNum.toString() : sprintsNum.toFixed(1);
+                                        const sprintsNum = calendarDays / 14;
+                                        sprintStr = Number.isInteger(sprintsNum) ? sprintsNum.toString() : sprintsNum.toFixed(1);
+                                    }
                                 }
                             }
                             const depthStyle = DEPTH_STYLES[Math.min(row.depth, DEPTH_STYLES.length - 1)];

@@ -1,12 +1,27 @@
 export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'feature';
-export type ItemStatus = 'Not Started' | 'In Progress' | 'Done';
+export type ItemStatus = 'Not Started' | 'PD In Progress' | 'Dev In Progress' | 'Done';
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
+export type TimelineMode = 'day' | 'week' | 'month';
 export type ItemPriority = 'High' | 'Medium' | 'Low';
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
 export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE';
 export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE'];
 export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low'];
+export const STATUS_OPTIONS: ItemStatus[] = ['Not Started', 'PD In Progress', 'Dev In Progress', 'Done'];
+
+export function normalizeItemStatus(status: string | undefined | null): ItemStatus {
+  if (status === 'In Progress') return 'Dev In Progress';
+  if (status === 'Not Started' || status === 'PD In Progress' || status === 'Dev In Progress' || status === 'Done') {
+    return status;
+  }
+  return 'Not Started';
+}
+
+export function normalizeStatusFilter(statuses: string[] | undefined | null): ItemStatus[] {
+  if (!statuses || statuses.length === 0) return [];
+  return Array.from(new Set(statuses.map(normalizeItemStatus)));
+}
 
 
 export interface RoadmapItem {
@@ -55,6 +70,7 @@ export interface RoadmapDocument {
     colEndDate?: boolean;
     colFeaturesWidth?: number;
     colFeaturesWidthMode?: ColumnWidthMode;
+    timelineMode?: TimelineMode;
     expandedIds?: string[];
     hiddenRowIds?: string[];
   };

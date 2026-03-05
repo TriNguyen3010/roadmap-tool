@@ -6,16 +6,18 @@ import Toolbar from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
 import MilestoneEditor from '@/components/MilestoneEditor';
 import FilterPopup from '@/components/FilterPopup';
+import TimelineModeFab from '@/components/TimelineModeFab';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/hooks/useToast';
-import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode, TimelineMode, normalizeStatusFilter } from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
 import { recalculateRoadmap } from '@/utils/roadmapHelpers';
 
 const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
 const MAX_FEATURES_COL_WIDTH = 450;
+const DEFAULT_TIMELINE_MODE: TimelineMode = 'day';
 
 function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
@@ -48,6 +50,7 @@ export default function Home() {
   const [showEndDate, setShowEndDate] = useState(false);
   const [featuresColWidth, setFeaturesColWidth] = useState(DEFAULT_FEATURES_COL_WIDTH);
   const [featuresColWidthMode, setFeaturesColWidthMode] = useState<ColumnWidthMode>('auto');
+  const [timelineMode, setTimelineMode] = useState<TimelineMode>(DEFAULT_TIMELINE_MODE);
 
   // Row visibility & expansion
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -106,7 +109,7 @@ export default function Home() {
           if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
           if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
           if (json.settings.filterCategory) setFilterCategory(json.settings.filterCategory);
-          if (json.settings.filterStatus) setFilterStatus(json.settings.filterStatus);
+          if (json.settings.filterStatus) setFilterStatus(normalizeStatusFilter(json.settings.filterStatus));
           if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
           if (json.settings.filterPriority) setFilterPriority(json.settings.filterPriority);
           if (json.settings.filterSubcategory) setFilterSubcategory(json.settings.filterSubcategory);
@@ -121,6 +124,9 @@ export default function Home() {
             setFeaturesColWidthMode(json.settings.colFeaturesWidthMode);
           } else if (typeof json.settings.colFeaturesWidth === 'number') {
             setFeaturesColWidthMode('manual');
+          }
+          if (json.settings.timelineMode === 'day' || json.settings.timelineMode === 'week' || json.settings.timelineMode === 'month') {
+            setTimelineMode(json.settings.timelineMode);
           }
           if (json.settings.expandedIds) {
             setExpandedIds(new Set(json.settings.expandedIds));
@@ -190,7 +196,7 @@ export default function Home() {
       beforeWeeks,
       afterMonths,
       filterCategory,
-      filterStatus,
+      filterStatus: normalizeStatusFilter(filterStatus),
       filterTeam,
       filterPriority,
       filterSubcategory,
@@ -200,6 +206,7 @@ export default function Home() {
       colEndDate: showEndDate,
       colFeaturesWidth: clampFeaturesColWidth(featuresColWidth),
       colFeaturesWidthMode: featuresColWidthMode,
+      timelineMode,
       expandedIds: Array.from(expandedIds),
       hiddenRowIds: Array.from(hiddenRowIds),
     }
@@ -217,6 +224,7 @@ export default function Home() {
     showEndDate,
     featuresColWidth,
     featuresColWidthMode,
+    timelineMode,
     expandedIds,
     hiddenRowIds,
   ]);
@@ -319,7 +327,7 @@ export default function Home() {
       if (typeof parsed.settings.beforeWeeks === 'number') setBeforeWeeks(parsed.settings.beforeWeeks);
       if (typeof parsed.settings.afterMonths === 'number') setAfterMonths(parsed.settings.afterMonths);
       if (parsed.settings.filterCategory) setFilterCategory(parsed.settings.filterCategory);
-      if (parsed.settings.filterStatus) setFilterStatus(parsed.settings.filterStatus);
+      if (parsed.settings.filterStatus) setFilterStatus(normalizeStatusFilter(parsed.settings.filterStatus));
       if (parsed.settings.filterTeam) setFilterTeam(parsed.settings.filterTeam);
       if (parsed.settings.filterPriority) setFilterPriority(parsed.settings.filterPriority);
       if (parsed.settings.filterSubcategory) setFilterSubcategory(parsed.settings.filterSubcategory);
@@ -330,6 +338,9 @@ export default function Home() {
         setFeaturesColWidthMode(parsed.settings.colFeaturesWidthMode);
       } else if (typeof parsed.settings.colFeaturesWidth === 'number') {
         setFeaturesColWidthMode('manual');
+      }
+      if (parsed.settings.timelineMode === 'day' || parsed.settings.timelineMode === 'week' || parsed.settings.timelineMode === 'month') {
+        setTimelineMode(parsed.settings.timelineMode);
       }
     }
     await handleSave(normalized);
@@ -470,6 +481,7 @@ export default function Home() {
           showConfirm={showConfirm}
           viewStart={viewStart}
           viewEnd={viewEnd}
+          timelineMode={timelineMode}
           filterCategory={filterCategory}
           filterStatus={filterStatus}
           filterTeam={filterTeam}
@@ -489,6 +501,7 @@ export default function Home() {
           hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
         />
       </div>
+      <TimelineModeFab mode={timelineMode} onModeChange={setTimelineMode} />
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import { ItemStatus, RoadmapItem, StatusMode } from '../types/roadmap';
+import { ItemStatus, RoadmapItem, StatusMode, normalizeItemStatus, normalizeStatusFilter } from '../types/roadmap';
 import { addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
 export interface FlattenedItem extends RoadmapItem {
@@ -35,9 +35,17 @@ const stripTransientFields = (item: RoadmapItem): RoadmapItem => {
 };
 
 const deriveStatusFromChildren = (children: RoadmapItem[]): ItemStatus => {
-    const allNotStarted = children.every(c => c.status === 'Not Started');
-    const allDone = children.every(c => c.status === 'Done');
-    return allDone ? 'Done' : allNotStarted ? 'Not Started' : 'In Progress';
+    const normalizedStatuses = children.map(c => normalizeItemStatus(c.status));
+    const allNotStarted = normalizedStatuses.every(status => status === 'Not Started');
+    const allDone = normalizedStatuses.every(status => status === 'Done');
+    const hasDevInProgress = normalizedStatuses.some(status => status === 'Dev In Progress');
+    const hasPdInProgress = normalizedStatuses.some(status => status === 'PD In Progress');
+
+    if (allDone) return 'Done';
+    if (allNotStarted) return 'Not Started';
+    if (hasDevInProgress) return 'Dev In Progress';
+    if (hasPdInProgress) return 'PD In Progress';
+    return 'Dev In Progress';
 };
 
 const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
@@ -48,12 +56,13 @@ const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
     const fallbackMode: StatusMode = hasChildren ? 'auto' : 'manual';
     const statusMode: StatusMode = hasChildren ? (item.statusMode ?? fallbackMode) : 'manual';
 
+    const normalizedItemStatus = normalizeItemStatus(item.status);
     const derivedStatus: ItemStatus = hasChildren
         ? deriveStatusFromChildren(updatedChildren || [])
-        : item.status;
+        : normalizedItemStatus;
 
     const manualStatus: ItemStatus | undefined = statusMode === 'manual'
-        ? (item.manualStatus ?? item.status)
+        ? normalizeItemStatus(item.manualStatus ?? item.status)
         : undefined;
 
     const effectiveStatus: ItemStatus = statusMode === 'manual'
@@ -92,7 +101,8 @@ export const calculateProgress = (items: RoadmapItem[]): RoadmapItem[] => {
 // Auto derive status from children:
 // - All Not Started → Not Started
 // - All Done → Done
-// - Anything else (any mix, or any In Progress) → In Progress
+// - Any Dev In Progress → Dev In Progress
+// - Else any PD In Progress → PD In Progress
 export const calculateStatus = (items: RoadmapItem[]): RoadmapItem[] => {
     return recalculateRoadmap(items);
 };
@@ -201,7 +211,7 @@ export const filterRoadmapTree = (
     if (!hasCategoryFilter && !hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasSubcategoryFilter) return items;
 
     const selectedCategories = new Set(filters.category || []);
-    const selectedStatuses = new Set(filters.status || []);
+    const selectedStatuses = new Set(normalizeStatusFilter(filters.status));
     const selectedTeams = new Set(filters.team || []);
     const selectedPriorities = new Set(filters.priority || []);
     const selectedSubcategories = new Set(filters.subcategory || []);
