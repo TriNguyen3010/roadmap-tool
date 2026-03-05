@@ -2,7 +2,7 @@
 
 import { Save } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
-import { STATUS_OPTIONS } from '@/types/roadmap';
+import { PRIORITY_LEVELS, STATUS_OPTIONS } from '@/types/roadmap';
 
 interface FilterPopupProps {
     isOpen: boolean;
@@ -147,7 +147,7 @@ export default function FilterPopup({
                 <div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Priority</p>
                     <div className="flex flex-col gap-2">
-                        {['High', 'Medium', 'Low'].map(p => (
+                        {PRIORITY_LEVELS.map(p => (
                             <label key={p} className="flex items-center gap-2 cursor-pointer group">
                                 <input
                                     type="checkbox"

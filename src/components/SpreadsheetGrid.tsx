@@ -107,11 +107,13 @@ const PRIORITY_TAG_BG: Record<string, string> = {
     'High': '#fee2e2',
     'Medium': '#fef9c3',
     'Low': '#dcfce7',
+    'Sếp Vinh': '#fce7f3',
 };
 const PRIORITY_TAG_TEXT: Record<string, string> = {
     'High': '#b91c1c',
     'Medium': '#854d0e',
     'Low': '#166534',
+    'Sếp Vinh': '#9d174d',
 };
 const COL_PRIORITY_W = 70;
 const MAX_QUICK_NOTE_LENGTH = 500;
@@ -183,10 +185,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => {
         if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
+        if (openPriorityId) setOpenPriorityId(null);
     };
     const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
         if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
+        if (openPriorityId) setOpenPriorityId(null);
     };
 
     const handleNameMouseEnter = (e: React.MouseEvent<HTMLSpanElement>, fullName: string) => {
@@ -271,6 +275,25 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             window.removeEventListener('keydown', handleEscape);
         };
     }, [activeNotePreview, closeQuickNotePreview]);
+
+    useEffect(() => {
+        if (!openPriorityId) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('[data-priority-dropdown="true"]')) return;
+            if (target.closest('[data-priority-trigger="true"]')) return;
+            setOpenPriorityId(null);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOpenPriorityId(null);
+        };
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [openPriorityId]);
 
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
@@ -849,6 +872,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {showPriority && (
                                     (row.type === 'group' || row.type === 'feature') ? (
                                         <div
+                                            data-priority-trigger="true"
                                             className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors relative"
                                             style={{ width: COL_PRIORITY_W }}
                                             title="Click để đổi priority"
@@ -864,9 +888,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 {row.priority ?? '—'}
                                             </span>
                                             {canEdit && openPriorityId === row.id && (
-                                                <div className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]">
+                                                <div data-priority-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]">
                                                     {PRIORITY_LEVELS.map(p => {
-                                                        const dropdownColor: Record<string, string> = { High: '#dc2626', Medium: '#d97706', Low: '#16a34a' };
+                                                        const dropdownColor: Record<string, string> = {
+                                                            High: '#dc2626',
+                                                            Medium: '#d97706',
+                                                            Low: '#16a34a',
+                                                            'Sếp Vinh': '#be185d',
+                                                        };
                                                         return (
                                                             <button key={p} className="text-left text-[11px] px-3 py-1.5 font-bold hover:bg-gray-50 transition-colors"
                                                                 style={{ color: dropdownColor[p] }}

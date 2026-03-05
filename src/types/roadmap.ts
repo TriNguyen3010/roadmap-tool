@@ -3,11 +3,11 @@ export type ItemStatus = 'Not Started' | 'PD In Progress' | 'Dev In Progress' | 
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
 export type TimelineMode = 'day' | 'week' | 'month';
-export type ItemPriority = 'High' | 'Medium' | 'Low';
+export type ItemPriority = 'High' | 'Medium' | 'Low' | 'Sếp Vinh';
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
 export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE';
 export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE'];
-export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low'];
+export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low', 'Sếp Vinh'];
 export const STATUS_OPTIONS: ItemStatus[] = ['Not Started', 'PD In Progress', 'Dev In Progress', 'Done'];
 
 export function normalizeItemStatus(status: string | undefined | null): ItemStatus {
