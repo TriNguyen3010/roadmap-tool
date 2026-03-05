@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode } from '@/types/roadmap';
 import {
     flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
@@ -34,6 +34,10 @@ interface GridProps {
     setShowStartDate: (v: boolean) => void;
     showEndDate: boolean;
     setShowEndDate: (v: boolean) => void;
+    nameW: number;
+    setNameW: (v: number | ((prev: number) => number)) => void;
+    nameWMode: ColumnWidthMode;
+    setNameWMode: (mode: ColumnWidthMode) => void;
     // Row visibility & expansion (lifted to parent)
     expandedIds: Set<string>;
     setExpandedIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
@@ -132,13 +136,13 @@ function countWorkdays(start: Date, end: Date): number {
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory, canEdit,
     showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
+    nameW, setNameW, nameWMode, setNameWMode,
     expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds
 }: GridProps) {
     const leftPaneRef = useRef<HTMLDivElement>(null);
     const rightPaneRef = useRef<HTMLDivElement>(null);
 
     // ── Column widths (resizable) ──
-    const [nameW, setNameW] = useState(260);
     const [statusW, setStatusW] = useState(COL_STATUS_DEFAULT);
     const [startDateW, setStartDateW] = useState(COL_DATE_DEFAULT);
     const [endDateW, setEndDateW] = useState(COL_DATE_DEFAULT);
@@ -246,6 +250,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
+        if (nameWMode !== 'auto') return;
         let maxW = 160; // Chiều rộng tối thiểu
         for (const row of flattened) {
             let displayDepth = row.depth;
@@ -260,7 +265,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         maxW += 5; // padding
         if (maxW > 450) maxW = 450; // Cap tối đa 450px
         setNameW(maxW);
-    }, [flattened]);
+    }, [flattened, nameWMode, setNameW]);
 
     // Build render list: group consecutive hidden leaf rows into gap entries
     const renderList: RenderEntry[] = useMemo(() => {
@@ -536,7 +541,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         FEATURES
                         <div
                             className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400/40 z-10"
-                            onMouseDown={e => startResize(e, setNameW, 120)}
+                            onMouseDown={e => { setNameWMode('manual'); startResize(e, setNameW, 120); }}
                             title="Kéo để thay đổi cột"
                         />
                     </div>

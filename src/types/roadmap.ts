@@ -1,6 +1,7 @@
 export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'feature';
 export type ItemStatus = 'Not Started' | 'In Progress' | 'Done';
 export type StatusMode = 'auto' | 'manual';
+export type ColumnWidthMode = 'auto' | 'manual';
 export type ItemPriority = 'High' | 'Medium' | 'Low';
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
 export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE';
@@ -52,6 +53,8 @@ export interface RoadmapDocument {
     colPct?: boolean;
     colStartDate?: boolean;
     colEndDate?: boolean;
+    colFeaturesWidth?: number;
+    colFeaturesWidthMode?: ColumnWidthMode;
     expandedIds?: string[];
     hiddenRowIds?: string[];
   };

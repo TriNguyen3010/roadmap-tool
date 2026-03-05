@@ -9,9 +9,17 @@ import FilterPopup from '@/components/FilterPopup';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/hooks/useToast';
-import { RoadmapDocument, RoadmapItem, Milestone } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode } from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
 import { recalculateRoadmap } from '@/utils/roadmapHelpers';
+
+const DEFAULT_FEATURES_COL_WIDTH = 260;
+const MIN_FEATURES_COL_WIDTH = 120;
+const MAX_FEATURES_COL_WIDTH = 450;
+
+function clampFeaturesColWidth(width: number): number {
+  return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
+}
 
 export default function Home() {
   const [data, setData] = useState<RoadmapDocument | null>(null);
@@ -38,6 +46,8 @@ export default function Home() {
   const [showPriority, setShowPriority] = useState(true);
   const [showStartDate, setShowStartDate] = useState(false);
   const [showEndDate, setShowEndDate] = useState(false);
+  const [featuresColWidth, setFeaturesColWidth] = useState(DEFAULT_FEATURES_COL_WIDTH);
+  const [featuresColWidthMode, setFeaturesColWidthMode] = useState<ColumnWidthMode>('auto');
 
   // Row visibility & expansion
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -104,6 +114,14 @@ export default function Home() {
           if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
           if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
           if (typeof json.settings.colEndDate === 'boolean') setShowEndDate(json.settings.colEndDate);
+          if (typeof json.settings.colFeaturesWidth === 'number') {
+            setFeaturesColWidth(clampFeaturesColWidth(json.settings.colFeaturesWidth));
+          }
+          if (json.settings.colFeaturesWidthMode === 'auto' || json.settings.colFeaturesWidthMode === 'manual') {
+            setFeaturesColWidthMode(json.settings.colFeaturesWidthMode);
+          } else if (typeof json.settings.colFeaturesWidth === 'number') {
+            setFeaturesColWidthMode('manual');
+          }
           if (json.settings.expandedIds) {
             setExpandedIds(new Set(json.settings.expandedIds));
             hasInitializedExpansion.current = true;
@@ -180,6 +198,8 @@ export default function Home() {
       colPriority: showPriority,
       colStartDate: showStartDate,
       colEndDate: showEndDate,
+      colFeaturesWidth: clampFeaturesColWidth(featuresColWidth),
+      colFeaturesWidthMode: featuresColWidthMode,
       expandedIds: Array.from(expandedIds),
       hiddenRowIds: Array.from(hiddenRowIds),
     }
@@ -195,6 +215,8 @@ export default function Home() {
     showPriority,
     showStartDate,
     showEndDate,
+    featuresColWidth,
+    featuresColWidthMode,
     expandedIds,
     hiddenRowIds,
   ]);
@@ -301,6 +323,14 @@ export default function Home() {
       if (parsed.settings.filterTeam) setFilterTeam(parsed.settings.filterTeam);
       if (parsed.settings.filterPriority) setFilterPriority(parsed.settings.filterPriority);
       if (parsed.settings.filterSubcategory) setFilterSubcategory(parsed.settings.filterSubcategory);
+      if (typeof parsed.settings.colFeaturesWidth === 'number') {
+        setFeaturesColWidth(clampFeaturesColWidth(parsed.settings.colFeaturesWidth));
+      }
+      if (parsed.settings.colFeaturesWidthMode === 'auto' || parsed.settings.colFeaturesWidthMode === 'manual') {
+        setFeaturesColWidthMode(parsed.settings.colFeaturesWidthMode);
+      } else if (typeof parsed.settings.colFeaturesWidth === 'number') {
+        setFeaturesColWidthMode('manual');
+      }
     }
     await handleSave(normalized);
   };
@@ -450,6 +480,10 @@ export default function Home() {
           showPriority={showPriority} setShowPriority={setShowPriority}
           showStartDate={showStartDate} setShowStartDate={setShowStartDate}
           showEndDate={showEndDate} setShowEndDate={setShowEndDate}
+          nameW={featuresColWidth}
+          setNameW={setFeaturesColWidth}
+          nameWMode={featuresColWidthMode}
+          setNameWMode={setFeaturesColWidthMode}
           today={today}
           expandedIds={expandedIds} setExpandedIds={setExpandedIds}
           hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
