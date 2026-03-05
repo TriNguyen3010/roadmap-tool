@@ -189,6 +189,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (activeNotePreview) void closeQuickNotePreview();
     };
 
+    const handleNameMouseEnter = (e: React.MouseEvent<HTMLSpanElement>, fullName: string) => {
+        const el = e.currentTarget;
+        const isTruncated = el.scrollWidth > el.clientWidth;
+        if (isTruncated) el.title = fullName;
+        else el.removeAttribute('title');
+    };
+
     // ── Individual row hide (leaf rows only) ──
     const toggleHideRow = (id: string) => {
         setHiddenRowIds(prev => {
@@ -814,7 +821,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     {hasChildren
                                         ? (isExpanded ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />)
                                         : <span className="w-[14px] shrink-0" />}
-                                    <span className="truncate">{row.name}</span>
+                                    <span
+                                        className="min-w-0 flex-1 truncate"
+                                        onMouseEnter={(e) => handleNameMouseEnter(e, row.name)}
+                                    >
+                                        {row.name}
+                                    </span>
                                     {row.type === 'subcategory' && row.subcategoryType && (
                                         <span
                                             className="ml-1 shrink-0 text-[9px] px-1.5 py-0 rounded-full font-bold whitespace-nowrap"
