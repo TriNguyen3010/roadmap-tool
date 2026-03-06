@@ -10,7 +10,7 @@ import TimelineModeFab from '@/components/TimelineModeFab';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/hooks/useToast';
-import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode, TimelineMode, normalizeStatusFilter } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode, TimelineMode, normalizeItemPriority, normalizePriorityFilterValues, normalizeStatusFilter } from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
 import { recalculateRoadmap } from '@/utils/roadmapHelpers';
 
@@ -21,6 +21,14 @@ const DEFAULT_TIMELINE_MODE: TimelineMode = 'day';
 
 function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
+}
+
+function normalizePriorityTree(items: RoadmapItem[]): RoadmapItem[] {
+  return items.map(item => ({
+    ...item,
+    priority: normalizeItemPriority(item.priority),
+    children: item.children ? normalizePriorityTree(item.children) : item.children,
+  }));
 }
 
 export default function Home() {
@@ -68,7 +76,10 @@ export default function Home() {
 
   const normalizeDocument = useCallback((doc: RoadmapDocument): RoadmapDocument => ({
     ...doc,
-    items: recalculateRoadmap(doc.items || []),
+    settings: doc.settings
+      ? { ...doc.settings, filterPriority: normalizePriorityFilterValues(doc.settings.filterPriority) }
+      : doc.settings,
+    items: recalculateRoadmap(normalizePriorityTree(doc.items || [])),
   }), []);
 
   const [confirmState, setConfirmState] = useState<{
@@ -111,7 +122,7 @@ export default function Home() {
           if (json.settings.filterCategory) setFilterCategory(json.settings.filterCategory);
           if (json.settings.filterStatus) setFilterStatus(normalizeStatusFilter(json.settings.filterStatus));
           if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
-          if (json.settings.filterPriority) setFilterPriority(json.settings.filterPriority);
+          if (json.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(json.settings.filterPriority));
           if (json.settings.filterSubcategory) setFilterSubcategory(json.settings.filterSubcategory);
           if (typeof json.settings.colPct === 'boolean') setShowPct(json.settings.colPct);
           if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
@@ -198,7 +209,7 @@ export default function Home() {
       filterCategory,
       filterStatus: normalizeStatusFilter(filterStatus),
       filterTeam,
-      filterPriority,
+      filterPriority: normalizePriorityFilterValues(filterPriority),
       filterSubcategory,
       colPct: showPct,
       colPriority: showPriority,
@@ -292,7 +303,7 @@ export default function Home() {
     if (type === 'category') setFilterCategory(values);
     else if (type === 'status') setFilterStatus(values);
     else if (type === 'team') setFilterTeam(values);
-    else if (type === 'priority') setFilterPriority(values);
+    else if (type === 'priority') setFilterPriority(normalizePriorityFilterValues(values));
     else if (type === 'subcategory') setFilterSubcategory(values);
   }, []);
 
@@ -329,7 +340,7 @@ export default function Home() {
       if (parsed.settings.filterCategory) setFilterCategory(parsed.settings.filterCategory);
       if (parsed.settings.filterStatus) setFilterStatus(normalizeStatusFilter(parsed.settings.filterStatus));
       if (parsed.settings.filterTeam) setFilterTeam(parsed.settings.filterTeam);
-      if (parsed.settings.filterPriority) setFilterPriority(parsed.settings.filterPriority);
+      if (parsed.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(parsed.settings.filterPriority));
       if (parsed.settings.filterSubcategory) setFilterSubcategory(parsed.settings.filterSubcategory);
       if (typeof parsed.settings.colFeaturesWidth === 'number') {
         setFeaturesColWidth(clampFeaturesColWidth(parsed.settings.colFeaturesWidth));

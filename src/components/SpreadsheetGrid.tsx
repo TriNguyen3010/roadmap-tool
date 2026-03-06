@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode, TimelineMode } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode, TimelineMode, normalizeItemPriority } from '@/types/roadmap';
 import {
     flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
@@ -107,13 +107,13 @@ const PRIORITY_TAG_BG: Record<string, string> = {
     'High': '#fee2e2',
     'Medium': '#fef9c3',
     'Low': '#dcfce7',
-    'Sếp Vinh': '#fce7f3',
+    'Reported': '#fce7f3',
 };
 const PRIORITY_TAG_TEXT: Record<string, string> = {
     'High': '#b91c1c',
     'Medium': '#854d0e',
     'Low': '#166534',
-    'Sếp Vinh': '#9d174d',
+    'Reported': '#9d174d',
 };
 const COL_PRIORITY_W = 70;
 const MAX_QUICK_NOTE_LENGTH = 500;
@@ -245,6 +245,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, [activeImagePreviewId, data.items]);
     const activeImagePreviewUrl = activeImagePreviewItem?.imageUrl?.trim() || '';
     const activeImagePreviewName = activeImagePreviewItem?.imageName?.trim() || activeImagePreviewItem?.name || 'image';
+    const activeImagePreviewNote = activeImagePreviewItem?.quickNote?.trim() || '';
     const isQuickNoteDirty = !!activeNoteItem && quickNoteDraft !== activeNoteOriginal;
 
     const resetQuickNoteState = useCallback(() => {
@@ -839,6 +840,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const hasQuickNote = !!row.quickNote?.trim();
                         const hasQuickImage = !!row.imageUrl?.trim();
                         const isImagePreviewActive = activeImagePreviewId === row.id;
+                        const normalizedRowPriority = normalizeItemPriority(row.priority);
 
                         const canDragRow = canEdit;
                         const isDragged = draggedId === row.id;
@@ -946,11 +948,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             <span
                                                 className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
                                                 style={{
-                                                    backgroundColor: row.priority ? PRIORITY_TAG_BG[row.priority] : '#f3f4f6',
-                                                    color: row.priority ? PRIORITY_TAG_TEXT[row.priority] : '#9ca3af'
+                                                    backgroundColor: normalizedRowPriority ? PRIORITY_TAG_BG[normalizedRowPriority] : '#f3f4f6',
+                                                    color: normalizedRowPriority ? PRIORITY_TAG_TEXT[normalizedRowPriority] : '#9ca3af'
                                                 }}
                                             >
-                                                {row.priority ?? '—'}
+                                                {normalizedRowPriority ?? '—'}
                                             </span>
                                             {canEdit && openPriorityId === row.id && (
                                                 <div data-priority-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]">
@@ -959,7 +961,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                             High: '#dc2626',
                                                             Medium: '#d97706',
                                                             Low: '#16a34a',
-                                                            'Sếp Vinh': '#be185d',
+                                                            Reported: '#be185d',
                                                         };
                                                         return (
                                                             <button key={p} className="text-left text-[11px] px-3 py-1.5 font-bold hover:bg-gray-50 transition-colors"
@@ -1323,21 +1325,41 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         className="flex-1 bg-black/35"
                         onClick={() => setActiveImagePreviewId(null)}
                     />
-                    <aside className="relative h-full w-[min(92vw,760px)] border-l border-gray-200 bg-white shadow-2xl">
-                        <button
-                            type="button"
-                            aria-label="Đóng xem ảnh"
-                            className="absolute right-3 top-3 z-10 rounded bg-white/90 p-1 text-gray-600 shadow hover:bg-white hover:text-gray-800"
-                            onClick={() => setActiveImagePreviewId(null)}
-                        >
-                            <X size={16} />
-                        </button>
-                        <div className="h-full w-full bg-slate-50 p-4">
-                            <img
-                                src={activeImagePreviewUrl}
-                                alt={activeImagePreviewName}
-                                className="h-full w-full object-contain"
-                            />
+                    <aside className="h-full w-[min(96vw,980px)] border-l border-gray-200 bg-white shadow-2xl flex flex-col">
+                        <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold text-gray-800">Image Preview</p>
+                                <p className="truncate text-xs text-gray-500">{activeImagePreviewName}</p>
+                            </div>
+                            <button
+                                type="button"
+                                aria-label="Đóng xem ảnh"
+                                className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                                onClick={() => setActiveImagePreviewId(null)}
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+                        <div className="min-h-0 flex-1 bg-slate-50 p-4">
+                            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_clamp(200px,24vw,280px)] gap-3">
+                                <div className="min-h-0 rounded-lg border border-slate-200 bg-white p-2">
+                                    <img
+                                        src={activeImagePreviewUrl}
+                                        alt={activeImagePreviewName}
+                                        className="h-full w-full object-contain"
+                                    />
+                                </div>
+                                <section className="min-h-0 rounded-lg border border-slate-200 bg-white flex flex-col">
+                                    <div className="border-b border-slate-200 px-3 py-2">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Note</p>
+                                    </div>
+                                    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+                                        <p className="text-[12px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words">
+                                            {activeImagePreviewNote || 'Chưa có note.'}
+                                        </p>
+                                    </div>
+                                </section>
+                            </div>
                         </div>
                     </aside>
                 </div>

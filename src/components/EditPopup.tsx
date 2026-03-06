@@ -292,6 +292,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                 title="Chỉnh sửa hạng mục"
                 subtitle={`Loại: ${item.type}`}
                 widthClassName="w-[92vw] max-w-[520px]"
+                scrollMode="panel"
                 beforePanel={hasImagePreview ? (
                     <aside className="hidden h-full min-w-[280px] w-[360px] max-w-[32vw] flex-col border-l border-r border-gray-200 bg-white shadow-2xl lg:flex">
                         <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">

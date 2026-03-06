@@ -1,4 +1,4 @@
-import { ItemStatus, RoadmapItem, StatusMode, normalizeItemStatus, normalizeStatusFilter } from '../types/roadmap';
+import { ItemPriority, ItemStatus, PRIORITY_FILTER_NONE, RoadmapItem, StatusMode, normalizeItemPriority, normalizeItemStatus, normalizePriorityFilterValues, normalizeStatusFilter } from '../types/roadmap';
 import { addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
 export interface FlattenedItem extends RoadmapItem {
@@ -82,6 +82,7 @@ const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
     return {
         ...item,
         ...(item.children !== undefined ? { children: updatedChildren } : {}),
+        priority: normalizeItemPriority(item.priority),
         statusMode,
         manualStatus,
         status: effectiveStatus,
@@ -213,7 +214,11 @@ export const filterRoadmapTree = (
     const selectedCategories = new Set(filters.category || []);
     const selectedStatuses = new Set(normalizeStatusFilter(filters.status));
     const selectedTeams = new Set(filters.team || []);
-    const selectedPriorities = new Set(filters.priority || []);
+    const selectedPriorityFilters = new Set(normalizePriorityFilterValues(filters.priority));
+    const wantsNonePriority = selectedPriorityFilters.has(PRIORITY_FILTER_NONE);
+    const selectedPriorities = new Set<ItemPriority>(
+        Array.from(selectedPriorityFilters).filter((value): value is ItemPriority => value !== PRIORITY_FILTER_NONE)
+    );
     const selectedSubcategories = new Set(filters.subcategory || []);
 
     type Context = {
@@ -230,18 +235,23 @@ export const filterRoadmapTree = (
     const visitNode = (item: RoadmapItem, context: Context): VisitResult => {
         const isSelectedCategory = item.type === 'category' && selectedCategories.has(item.name);
         const isSelectedSubcategory = item.type === 'subcategory' && selectedSubcategories.has(item.name);
+        const normalizedPriority = normalizeItemPriority(item.priority);
         const isPriorityCarrier = item.type === 'group' || item.type === 'feature';
-        const hasPriorityValue = isPriorityCarrier && !!item.priority;
+        const isSelectedUnsetPriority = isPriorityCarrier && !normalizedPriority && wantsNonePriority;
+        const hasPriorityValue = isPriorityCarrier && !!normalizedPriority;
         const isSelectedPriority =
             hasPriorityValue &&
-            selectedPriorities.has(item.priority as string);
+            !!normalizedPriority &&
+            selectedPriorities.has(normalizedPriority);
 
         const nextContext: Context = {
             insideSelectedCategory: context.insideSelectedCategory || isSelectedCategory,
             insideSelectedSubcategory: context.insideSelectedSubcategory || isSelectedSubcategory,
             // Priority context is inherited only through nodes that do not redefine priority.
             // If a group/feature has its own priority and it does not match, priority context resets.
-            insideSelectedPriority: hasPriorityValue ? isSelectedPriority : context.insideSelectedPriority,
+            insideSelectedPriority: isPriorityCarrier
+                ? (isSelectedPriority || isSelectedUnsetPriority)
+                : context.insideSelectedPriority,
         };
 
         const childResults = (item.children || []).map(child => visitNode(child, nextContext));
@@ -283,12 +293,12 @@ export const filterRoadmapTree = (
         }
 
         if (hasPriorityFilter) {
-            if ((item.type === 'group' || item.type === 'feature') && item.priority) {
-                matchesPriority = selectedPriorities.has(item.priority);
+            if (item.type === 'group' || item.type === 'feature') {
+                matchesPriority = isSelectedPriority || isSelectedUnsetPriority;
             } else if (hasTeamFilter) {
                 // Allow team descendants under a selected-priority branch to satisfy priority
                 // when team + priority filters are combined.
-                matchesPriority = context.insideSelectedPriority || isSelectedPriority;
+                matchesPriority = context.insideSelectedPriority || isSelectedPriority || isSelectedUnsetPriority;
             } else {
                 matchesPriority = false;
             }

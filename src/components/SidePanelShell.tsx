@@ -14,6 +14,7 @@ interface SidePanelShellProps {
     children: ReactNode;
     footer?: ReactNode;
     headerRight?: ReactNode;
+    scrollMode?: 'content' | 'panel';
 }
 
 export default function SidePanelShell({
@@ -27,6 +28,7 @@ export default function SidePanelShell({
     children,
     footer,
     headerRight,
+    scrollMode = 'content',
 }: SidePanelShellProps) {
     useEffect(() => {
         if (!isOpen) return;
@@ -57,7 +59,7 @@ export default function SidePanelShell({
                 onClick={onClose}
             />
             {beforePanel}
-            <aside className={`${widthClassName} h-full bg-white border-l border-gray-200 shadow-2xl flex flex-col`}>
+            <aside className={`${widthClassName} h-full bg-white border-l border-gray-200 shadow-2xl flex flex-col ${scrollMode === 'panel' ? 'overflow-y-auto' : ''}`}>
                 <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-start justify-between gap-2">
                     <div className="min-w-0">
                         <p className="text-sm font-bold text-gray-800">{title}</p>
@@ -74,7 +76,7 @@ export default function SidePanelShell({
                         </button>
                     </div>
                 </div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-4">{children}</div>
+                <div className={scrollMode === 'panel' ? 'p-4' : 'flex-1 min-h-0 overflow-y-auto p-4'}>{children}</div>
                 {footer && <div className="border-t border-gray-200 bg-gray-50 p-3">{footer}</div>}
             </aside>
         </div>
