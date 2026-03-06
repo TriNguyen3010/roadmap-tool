@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode, TimelineMode, normalizeItemPriority } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode, TimelineMode, normalizeItemImages, normalizeItemPriority } from '@/types/roadmap';
 import {
     flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
 import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
-import { ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
 import EditPopup from './EditPopup';
 import AddNodePopup from './AddNodePopup';
 
@@ -179,6 +179,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [dragOverId, setDragOverId] = useState<string | null>(null);
     const [activeNotePreview, setActiveNotePreview] = useState<{ id: string; top: number; left: number } | null>(null);
     const [activeImagePreviewId, setActiveImagePreviewId] = useState<string | null>(null);
+    const [activeImagePreviewIndex, setActiveImagePreviewIndex] = useState(0);
     const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
     const [quickNoteDraft, setQuickNoteDraft] = useState('');
     const [quickNoteSaving, setQuickNoteSaving] = useState(false);
@@ -243,8 +244,18 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (!activeImagePreviewId) return null;
         return findNodeById(data.items, activeImagePreviewId);
     }, [activeImagePreviewId, data.items]);
-    const activeImagePreviewUrl = activeImagePreviewItem?.imageUrl?.trim() || '';
-    const activeImagePreviewName = activeImagePreviewItem?.imageName?.trim() || activeImagePreviewItem?.name || 'image';
+    const activeImagePreviewImages = useMemo(() => {
+        if (!activeImagePreviewItem) return [];
+        return normalizeItemImages(activeImagePreviewItem);
+    }, [activeImagePreviewItem]);
+    const normalizedActiveImagePreviewIndex = activeImagePreviewImages.length === 0
+        ? -1
+        : Math.max(0, Math.min(activeImagePreviewIndex, activeImagePreviewImages.length - 1));
+    const activeImagePreviewImage = normalizedActiveImagePreviewIndex >= 0
+        ? activeImagePreviewImages[normalizedActiveImagePreviewIndex]
+        : null;
+    const activeImagePreviewUrl = activeImagePreviewImage?.url?.trim() || '';
+    const activeImagePreviewName = activeImagePreviewImage?.name?.trim() || activeImagePreviewItem?.name || 'image';
     const activeImagePreviewNote = activeImagePreviewItem?.quickNote?.trim() || '';
     const isQuickNoteDirty = !!activeNoteItem && quickNoteDraft !== activeNoteOriginal;
 
@@ -286,16 +297,23 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     useEffect(() => {
         if (!activeImagePreviewId) return;
-        if (!activeImagePreviewItem || !activeImagePreviewUrl) {
+        if (!activeImagePreviewItem || activeImagePreviewImages.length === 0 || !activeImagePreviewUrl) {
             setActiveImagePreviewId(null);
+            setActiveImagePreviewIndex(0);
             return;
+        }
+        if (activeImagePreviewIndex >= activeImagePreviewImages.length) {
+            setActiveImagePreviewIndex(0);
         }
 
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
 
         const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') setActiveImagePreviewId(null);
+            if (event.key === 'Escape') {
+                setActiveImagePreviewId(null);
+                setActiveImagePreviewIndex(0);
+            }
         };
 
         window.addEventListener('keydown', handleEscape);
@@ -303,7 +321,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             window.removeEventListener('keydown', handleEscape);
             document.body.style.overflow = previousOverflow;
         };
-    }, [activeImagePreviewId, activeImagePreviewItem, activeImagePreviewUrl]);
+    }, [activeImagePreviewId, activeImagePreviewItem, activeImagePreviewImages.length, activeImagePreviewIndex, activeImagePreviewUrl]);
 
     useEffect(() => {
         if (!openPriorityId) return;
@@ -572,10 +590,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     const openImagePreview = async (event: React.MouseEvent, row: FlattenedItem) => {
         event.stopPropagation();
-        if (!row.imageUrl?.trim()) return;
+        const rowImages = normalizeItemImages(row);
+        if (rowImages.length === 0) return;
 
         if (activeImagePreviewId === row.id) {
             setActiveImagePreviewId(null);
+            setActiveImagePreviewIndex(0);
             return;
         }
 
@@ -585,6 +605,23 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         }
 
         setActiveImagePreviewId(row.id);
+        setActiveImagePreviewIndex(0);
+    };
+
+    const showPrevPreviewImage = () => {
+        if (activeImagePreviewImages.length <= 1) return;
+        setActiveImagePreviewIndex(prev => {
+            const safePrev = prev < 0 ? 0 : prev;
+            return safePrev === 0 ? activeImagePreviewImages.length - 1 : safePrev - 1;
+        });
+    };
+
+    const showNextPreviewImage = () => {
+        if (activeImagePreviewImages.length <= 1) return;
+        setActiveImagePreviewIndex(prev => {
+            const safePrev = prev < 0 ? 0 : prev;
+            return safePrev === activeImagePreviewImages.length - 1 ? 0 : safePrev + 1;
+        });
     };
 
     const openEditor = (id: string) => {
@@ -838,7 +875,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const isExpanded = expandedIds.has(row.id);
                         const childType = CHILD_TYPE_MAP[row.type];
                         const hasQuickNote = !!row.quickNote?.trim();
-                        const hasQuickImage = !!row.imageUrl?.trim();
+                        const rowImages = normalizeItemImages(row);
+                        const quickImageCount = rowImages.length;
+                        const hasQuickImage = quickImageCount > 0;
                         const isImagePreviewActive = activeImagePreviewId === row.id;
                         const normalizedRowPriority = normalizeItemPriority(row.priority);
 
@@ -923,13 +962,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             <button
                                                 data-quick-note-trigger="true"
                                                 onClick={(e) => { void openImagePreview(e, row); }}
-                                                className={`rounded p-0.5 transition-colors ${isImagePreviewActive
+                                                className={`relative inline-flex items-center gap-0.5 rounded p-0.5 transition-colors ${isImagePreviewActive
                                                     ? 'text-emerald-700 bg-emerald-100'
                                                     : 'text-emerald-500 hover:bg-emerald-100 hover:text-emerald-700'
                                                     }`}
                                                 title="Xem hình"
                                             >
                                                 <ImageIcon size={12} />
+                                                {quickImageCount > 1 && <span className="text-[9px] font-semibold">{quickImageCount}</span>}
                                             </button>
                                         )}
                                     </div>
@@ -1317,13 +1357,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                 </div>
             )}
 
-            {activeImagePreviewId && activeImagePreviewUrl && (
+            {activeImagePreviewId && activeImagePreviewImage && (
                 <div className="fixed inset-0 z-[70] flex" role="dialog" aria-modal="true">
                     <button
                         type="button"
                         aria-label="Đóng xem ảnh"
                         className="flex-1 bg-black/35"
-                        onClick={() => setActiveImagePreviewId(null)}
+                        onClick={() => {
+                            setActiveImagePreviewId(null);
+                            setActiveImagePreviewIndex(0);
+                        }}
                     />
                     <aside className="h-full w-[min(96vw,980px)] border-l border-gray-200 bg-white shadow-2xl flex flex-col">
                         <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
@@ -1331,23 +1374,74 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 <p className="text-sm font-bold text-gray-800">Image Preview</p>
                                 <p className="truncate text-xs text-gray-500">{activeImagePreviewName}</p>
                             </div>
-                            <button
-                                type="button"
-                                aria-label="Đóng xem ảnh"
-                                className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
-                                onClick={() => setActiveImagePreviewId(null)}
-                            >
-                                <X size={16} />
-                            </button>
+                            <div className="flex items-center gap-1">
+                                {activeImagePreviewImages.length > 1 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            aria-label="Ảnh trước"
+                                            className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                                            onClick={showPrevPreviewImage}
+                                        >
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-label="Ảnh kế"
+                                            className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                                            onClick={showNextPreviewImage}
+                                        >
+                                            <ChevronRight size={16} />
+                                        </button>
+                                    </>
+                                )}
+                                <button
+                                    type="button"
+                                    aria-label="Đóng xem ảnh"
+                                    className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                                    onClick={() => {
+                                        setActiveImagePreviewId(null);
+                                        setActiveImagePreviewIndex(0);
+                                    }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
                         </div>
                         <div className="min-h-0 flex-1 bg-slate-50 p-4">
                             <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_clamp(200px,24vw,280px)] gap-3">
-                                <div className="min-h-0 rounded-lg border border-slate-200 bg-white p-2">
-                                    <img
-                                        src={activeImagePreviewUrl}
-                                        alt={activeImagePreviewName}
-                                        className="h-full w-full object-contain"
-                                    />
+                                <div className="min-h-0 rounded-lg border border-slate-200 bg-white p-2 flex flex-col">
+                                    <div className="min-h-0 flex-1">
+                                        <img
+                                            src={activeImagePreviewImage.url}
+                                            alt={activeImagePreviewName}
+                                            className="h-full w-full object-contain"
+                                        />
+                                    </div>
+                                    {activeImagePreviewImages.length > 1 && (
+                                        <div className="mt-2 border-t border-slate-200 pt-2">
+                                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                                {activeImagePreviewImages.map((image, index) => {
+                                                    const isActive = index === normalizedActiveImagePreviewIndex;
+                                                    return (
+                                                        <button
+                                                            key={image.id}
+                                                            type="button"
+                                                            className={`shrink-0 overflow-hidden rounded border ${isActive ? 'border-blue-400 ring-2 ring-blue-200' : 'border-slate-200'}`}
+                                                            onClick={() => setActiveImagePreviewIndex(index)}
+                                                            title={image.name || `Ảnh ${index + 1}`}
+                                                        >
+                                                            <img
+                                                                src={image.url}
+                                                                alt={image.name || `Ảnh ${index + 1}`}
+                                                                className="h-16 w-24 object-cover"
+                                                            />
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                                 <section className="min-h-0 rounded-lg border border-slate-200 bg-white flex flex-col">
                                     <div className="border-b border-slate-200 px-3 py-2">

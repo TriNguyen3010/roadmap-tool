@@ -10,7 +10,7 @@ import TimelineModeFab from '@/components/TimelineModeFab';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/hooks/useToast';
-import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode, TimelineMode, normalizeItemPriority, normalizePriorityFilterValues, normalizeStatusFilter } from '@/types/roadmap';
+import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode, TimelineMode, normalizeItemImages, normalizeItemPriority, normalizePriorityFilterValues, normalizeStatusFilter, toLegacyImageFields } from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
 import { recalculateRoadmap } from '@/utils/roadmapHelpers';
 
@@ -23,12 +23,17 @@ function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
 }
 
-function normalizePriorityTree(items: RoadmapItem[]): RoadmapItem[] {
-  return items.map(item => ({
-    ...item,
-    priority: normalizeItemPriority(item.priority),
-    children: item.children ? normalizePriorityTree(item.children) : item.children,
-  }));
+function normalizeItemTree(items: RoadmapItem[]): RoadmapItem[] {
+  return items.map(item => {
+    const normalizedImages = normalizeItemImages(item);
+    return {
+      ...item,
+      images: normalizedImages,
+      ...toLegacyImageFields(normalizedImages),
+      priority: normalizeItemPriority(item.priority),
+      children: item.children ? normalizeItemTree(item.children) : item.children,
+    };
+  });
 }
 
 export default function Home() {
@@ -79,7 +84,7 @@ export default function Home() {
     settings: doc.settings
       ? { ...doc.settings, filterPriority: normalizePriorityFilterValues(doc.settings.filterPriority) }
       : doc.settings,
-    items: recalculateRoadmap(normalizePriorityTree(doc.items || [])),
+    items: recalculateRoadmap(normalizeItemTree(doc.items || [])),
   }), []);
 
   const [confirmState, setConfirmState] = useState<{

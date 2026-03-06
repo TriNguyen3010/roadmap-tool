@@ -1,8 +1,20 @@
 'use client';
 
-import { type ChangeEvent, useRef, useState } from 'react';
-import { Eye, ImagePlus, Trash2, X } from 'lucide-react';
-import { RoadmapItem, ItemStatus, StatusMode, SubcategoryType, TeamRole, TEAM_ROLES, STATUS_OPTIONS, normalizeItemStatus } from '@/types/roadmap';
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Eye, ImagePlus, Trash2, X } from 'lucide-react';
+import {
+    ItemImage,
+    ItemStatus,
+    RoadmapItem,
+    StatusMode,
+    SubcategoryType,
+    TeamRole,
+    TEAM_ROLES,
+    STATUS_OPTIONS,
+    normalizeItemImages,
+    normalizeItemStatus,
+    toLegacyImageFields,
+} from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
 
@@ -22,10 +34,30 @@ const SUB_TYPE_STYLE: Record<SubcategoryType, { bg: string; text: string; border
 const MAX_QUICK_NOTE_LENGTH = 500;
 const MAX_UPLOAD_IMAGE_MB = 5;
 const MAX_UPLOAD_IMAGE_BYTES = MAX_UPLOAD_IMAGE_MB * 1024 * 1024;
+const MAX_UPLOAD_IMAGE_COUNT = 10;
+
+const normalizeLocalImages = (images: ItemImage[]): ItemImage[] => {
+    return images.reduce<ItemImage[]>((result, image) => {
+        const id = image.id.trim();
+        const url = image.url.trim();
+        if (!id || !url) return result;
+        const name = image.name?.trim();
+        result.push({
+            id,
+            url,
+            name: name || undefined,
+            provider: image.provider,
+            updatedAt: image.updatedAt,
+        });
+        return result;
+    }, []);
+};
 
 export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const hasChildren = !!(item.children && item.children.length > 0);
     const initialStatusMode: StatusMode = hasChildren ? (item.statusMode ?? 'auto') : 'manual';
+    const initialImages = useMemo(() => normalizeItemImages(item), [item]);
+    const initialImageIdSet = useMemo(() => new Set(initialImages.map((image) => image.id)), [initialImages]);
 
     const [name, setName] = useState(item.name);
     const [statusMode, setStatusMode] = useState<StatusMode>(initialStatusMode);
@@ -35,14 +67,16 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const [endDate, setEndDate] = useState(item.endDate || '');
     const [quickNote, setQuickNote] = useState(item.quickNote || '');
     const [subcategoryType, setSubcategoryType] = useState<SubcategoryType | undefined>(item.subcategoryType);
-    const [imageUrl, setImageUrl] = useState(item.imageUrl || '');
-    const [imageId, setImageId] = useState(item.imageId || '');
-    const [imageName, setImageName] = useState(item.imageName || '');
-    const [imageProvider, setImageProvider] = useState<'cloudinary' | undefined>(item.imageProvider);
+    const [images, setImages] = useState<ItemImage[]>(initialImages);
+    const [selectedImageIndex, setSelectedImageIndex] = useState(initialImages.length > 0 ? 0 : -1);
+    const [removedExistingImageIds, setRemovedExistingImageIds] = useState<Set<string>>(new Set());
+    const [newUploadedImageIds, setNewUploadedImageIds] = useState<Set<string>>(new Set());
     const [isUploadingImage, setIsUploadingImage] = useState(false);
     const [imageError, setImageError] = useState<string | null>(null);
     const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const selectedImage = selectedImageIndex >= 0 ? images[selectedImageIndex] : null;
 
     // Dates/progress are locked when item has children that are NOT all teams
     const hasNonTeamChildren = !!(item.children && item.children.some(c => c.type !== 'team'));
@@ -60,6 +94,17 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
         }
         return set;
     });
+
+    useEffect(() => {
+        if (images.length === 0) {
+            if (selectedImageIndex !== -1) setSelectedImageIndex(-1);
+            if (isImagePreviewOpen) setIsImagePreviewOpen(false);
+            return;
+        }
+        if (selectedImageIndex < 0 || selectedImageIndex >= images.length) {
+            setSelectedImageIndex(0);
+        }
+    }, [images, selectedImageIndex, isImagePreviewOpen]);
 
     const handleStatusChange = (s: ItemStatus) => {
         setStatus(s);
@@ -92,6 +137,12 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
         });
     };
 
+    const cleanupUnsavedNewImages = async (): Promise<void> => {
+        const targets = images.filter(image => newUploadedImageIds.has(image.id));
+        if (targets.length === 0) return;
+        await Promise.allSettled(targets.map(image => deleteImageById(image.id)));
+    };
+
     const handlePickImage = () => {
         if (isUploadingImage) return;
         setImageError(null);
@@ -99,81 +150,143 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     };
 
     const handleUploadImage = async (event: ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+        const files = Array.from(event.target.files || []);
         event.target.value = '';
-        if (!file) return;
+        if (files.length === 0) return;
 
-        if (!file.type.startsWith('image/')) {
-            setImageError('Chỉ hỗ trợ file ảnh (jpg, png, webp).');
+        const availableSlots = MAX_UPLOAD_IMAGE_COUNT - images.length;
+        if (availableSlots <= 0) {
+            setImageError(`Tối đa ${MAX_UPLOAD_IMAGE_COUNT} ảnh cho mỗi hạng mục.`);
             return;
         }
 
-        if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-            setImageError(`Ảnh vượt quá ${MAX_UPLOAD_IMAGE_MB}MB.`);
-            return;
-        }
+        const filesToProcess = files.slice(0, availableSlots);
+        const droppedByLimit = files.length - filesToProcess.length;
+        const errors: string[] = [];
+        const uploaded: ItemImage[] = [];
 
         setIsUploadingImage(true);
         setImageError(null);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('itemId', item.id);
 
-            const res = await fetch('/api/image/upload', { method: 'POST', body: formData });
-            const payload = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(typeof payload?.error === 'string' ? payload.error : 'Upload ảnh thất bại.');
+        for (const file of filesToProcess) {
+            if (!file.type.startsWith('image/')) {
+                errors.push(`${file.name}: chỉ hỗ trợ file ảnh (jpg, png, webp).`);
+                continue;
+            }
+            if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+                errors.push(`${file.name}: vượt quá ${MAX_UPLOAD_IMAGE_MB}MB.`);
+                continue;
             }
 
-            const nextImageUrl = typeof payload?.imageUrl === 'string' ? payload.imageUrl : '';
-            const nextImageId = typeof payload?.imageId === 'string' ? payload.imageId : '';
-            const nextImageName = typeof payload?.imageName === 'string' ? payload.imageName : file.name;
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('itemId', item.id);
 
-            if (!nextImageUrl || !nextImageId) {
-                throw new Error('Upload ảnh thất bại: dữ liệu trả về không hợp lệ.');
+                const res = await fetch('/api/image/upload', { method: 'POST', body: formData });
+                const payload = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(typeof payload?.error === 'string' ? payload.error : 'Upload ảnh thất bại.');
+                }
+
+                const nextImageUrl = typeof payload?.imageUrl === 'string' ? payload.imageUrl.trim() : '';
+                const nextImageId = typeof payload?.imageId === 'string' ? payload.imageId.trim() : '';
+                const nextImageName = typeof payload?.imageName === 'string' ? payload.imageName.trim() : file.name;
+
+                if (!nextImageUrl || !nextImageId) {
+                    throw new Error('Upload ảnh thất bại: dữ liệu trả về không hợp lệ.');
+                }
+
+                uploaded.push({
+                    id: nextImageId,
+                    url: nextImageUrl,
+                    name: nextImageName || undefined,
+                    provider: 'cloudinary',
+                    updatedAt: new Date().toISOString(),
+                });
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Upload ảnh thất bại.';
+                errors.push(`${file.name}: ${message}`);
             }
-
-            if (imageId && imageId !== (item.imageId || '') && imageId !== nextImageId) {
-                void deleteImageById(imageId);
-            }
-
-            setImageUrl(nextImageUrl);
-            setImageId(nextImageId);
-            setImageName(nextImageName);
-            setImageProvider('cloudinary');
-            setImageError(null);
-        } catch (error) {
-            setImageError(error instanceof Error ? error.message : 'Upload ảnh thất bại.');
-        } finally {
-            setIsUploadingImage(false);
         }
+
+        if (uploaded.length > 0) {
+            setImages(prev => [...prev, ...uploaded]);
+            setNewUploadedImageIds(prev => {
+                const next = new Set(prev);
+                uploaded.forEach(image => next.add(image.id));
+                return next;
+            });
+            if (selectedImageIndex < 0) setSelectedImageIndex(0);
+        }
+
+        if (droppedByLimit > 0) {
+            errors.push(`Đã bỏ qua ${droppedByLimit} ảnh do vượt giới hạn ${MAX_UPLOAD_IMAGE_COUNT} ảnh.`);
+        }
+
+        setImageError(errors.length > 0 ? errors.join(' ') : null);
+        setIsUploadingImage(false);
     };
 
-    const handleRemoveImage = async () => {
+    const handleSelectImage = (index: number) => {
+        setSelectedImageIndex(index);
+    };
+
+    const handleRemoveSelectedImage = async () => {
+        if (!selectedImage) return;
+        const target = selectedImage;
+        const targetIndex = selectedImageIndex;
+
         setImageError(null);
         if (isUploadingImage) return;
 
-        if (imageId && imageId !== (item.imageId || '')) {
-            try {
-                await deleteImageById(imageId);
-            } catch {
-                // Keep UX simple: if cleanup fails, user can still continue editing.
-            }
+        setImages(prev => prev.filter((_, idx) => idx !== targetIndex));
+
+        if (initialImageIdSet.has(target.id)) {
+            setRemovedExistingImageIds(prev => {
+                const next = new Set(prev);
+                next.add(target.id);
+                return next;
+            });
+            return;
         }
 
-        setImageUrl('');
-        setImageId('');
-        setImageName('');
-        setImageProvider(undefined);
-        setIsImagePreviewOpen(false);
+        setNewUploadedImageIds(prev => {
+            const next = new Set(prev);
+            next.delete(target.id);
+            return next;
+        });
+
+        try {
+            await deleteImageById(target.id);
+        } catch {
+            // Keep UX simple: if cleanup fails, user can still continue editing.
+        }
     };
 
-    const handleCloseWithoutSave = () => {
-        if (imageId && imageId !== (item.imageId || '')) {
-            void deleteImageById(imageId);
+    const handlePrevImage = () => {
+        if (images.length <= 1) return;
+        setSelectedImageIndex(prev => {
+            const safePrev = prev < 0 ? 0 : prev;
+            return safePrev === 0 ? images.length - 1 : safePrev - 1;
+        });
+    };
+
+    const handleNextImage = () => {
+        if (images.length <= 1) return;
+        setSelectedImageIndex(prev => {
+            const safePrev = prev < 0 ? 0 : prev;
+            return safePrev === images.length - 1 ? 0 : safePrev + 1;
+        });
+    };
+
+    const handleCloseWithoutSave = async () => {
+        if (isUploadingImage) return;
+        try {
+            await cleanupUnsavedNewImages();
+        } finally {
+            onClose();
         }
-        onClose();
     };
 
     const handlePanelClose = () => {
@@ -187,11 +300,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const handleSubmit = () => {
         let updatedChildren = item.children;
         const normalizedQuickNote = quickNote.trim();
-        const nextImageUrl = imageUrl.trim();
-        const nextImageId = imageId.trim();
-        const nextImageName = imageName.trim();
-        const previousImageId = item.imageId || '';
-        const hasImageChanged = (item.imageUrl || '') !== nextImageUrl || previousImageId !== nextImageId;
+        const normalizedImages = normalizeLocalImages(images);
 
         if (item.type === 'feature' || item.type === 'group') {
             const currentTeamsMap = new Map<TeamRole, RoadmapItem>();
@@ -241,44 +350,63 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
             manualStatus: nextStatusMode === 'manual' ? status : undefined,
             progress,
             quickNote: normalizedQuickNote.length > 0 ? normalizedQuickNote : undefined,
-            imageUrl: nextImageUrl || undefined,
-            imageId: nextImageId || undefined,
-            imageName: nextImageName || undefined,
-            imageProvider: nextImageId ? (imageProvider || 'cloudinary') : undefined,
-            imageUpdatedAt: nextImageUrl ? (hasImageChanged ? new Date().toISOString() : item.imageUpdatedAt) : undefined,
+            images: normalizedImages.length > 0 ? normalizedImages : undefined,
+            ...toLegacyImageFields(normalizedImages),
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
             children: updatedChildren
         });
-        if (previousImageId && previousImageId !== nextImageId) {
-            void deleteImageById(previousImageId);
-        }
+
+        removedExistingImageIds.forEach((imageId) => {
+            void deleteImageById(imageId);
+        });
+
         onClose();
     };
 
-    const hasImagePreview = isImagePreviewOpen && !!imageUrl;
+    const hasImagePreview = isImagePreviewOpen && !!selectedImage;
 
     return (
         <>
-            {hasImagePreview && (
+            {hasImagePreview && selectedImage && (
                 <div className="fixed inset-0 z-[60] bg-black/45 p-4 lg:hidden">
                     <div className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
                         <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
                             <div className="min-w-0">
                                 <p className="text-sm font-bold text-gray-800">Image Preview</p>
-                                <p className="truncate text-xs text-gray-500">{imageName || item.name}</p>
+                                <p className="truncate text-xs text-gray-500">{selectedImage.name || item.name}</p>
                             </div>
-                            <button
-                                className="rounded p-1 transition-colors hover:bg-gray-200"
-                                onClick={() => setIsImagePreviewOpen(false)}
-                                title="Đóng preview"
-                            >
-                                <X size={16} className="text-gray-500" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                                {images.length > 1 && (
+                                    <>
+                                        <button
+                                            className="rounded p-1 transition-colors hover:bg-gray-200"
+                                            onClick={handlePrevImage}
+                                            title="Ảnh trước"
+                                        >
+                                            <ChevronLeft size={15} className="text-gray-500" />
+                                        </button>
+                                        <button
+                                            className="rounded p-1 transition-colors hover:bg-gray-200"
+                                            onClick={handleNextImage}
+                                            title="Ảnh kế"
+                                        >
+                                            <ChevronRight size={15} className="text-gray-500" />
+                                        </button>
+                                    </>
+                                )}
+                                <button
+                                    className="rounded p-1 transition-colors hover:bg-gray-200"
+                                    onClick={() => setIsImagePreviewOpen(false)}
+                                    title="Đóng preview"
+                                >
+                                    <X size={16} className="text-gray-500" />
+                                </button>
+                            </div>
                         </div>
                         <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-50 p-4">
                             <img
-                                src={imageUrl}
-                                alt={imageName || item.name}
+                                src={selectedImage.url}
+                                alt={selectedImage.name || item.name}
                                 className="max-h-full max-w-full rounded border border-gray-200 bg-white object-contain shadow-sm"
                             />
                         </div>
@@ -293,25 +421,45 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                 subtitle={`Loại: ${item.type}`}
                 widthClassName="w-[92vw] max-w-[520px]"
                 scrollMode="panel"
-                beforePanel={hasImagePreview ? (
+                beforePanel={hasImagePreview && selectedImage ? (
                     <aside className="hidden h-full min-w-[280px] w-[360px] max-w-[32vw] flex-col border-l border-r border-gray-200 bg-white shadow-2xl lg:flex">
                         <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
                             <div className="min-w-0">
                                 <p className="text-sm font-bold text-gray-800">Image Preview</p>
-                                <p className="truncate text-xs text-gray-500">{imageName || item.name}</p>
+                                <p className="truncate text-xs text-gray-500">{selectedImage.name || item.name}</p>
                             </div>
-                            <button
-                                className="rounded p-1 transition-colors hover:bg-gray-200"
-                                onClick={() => setIsImagePreviewOpen(false)}
-                                title="Đóng preview"
-                            >
-                                <X size={16} className="text-gray-500" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                                {images.length > 1 && (
+                                    <>
+                                        <button
+                                            className="rounded p-1 transition-colors hover:bg-gray-200"
+                                            onClick={handlePrevImage}
+                                            title="Ảnh trước"
+                                        >
+                                            <ChevronLeft size={15} className="text-gray-500" />
+                                        </button>
+                                        <button
+                                            className="rounded p-1 transition-colors hover:bg-gray-200"
+                                            onClick={handleNextImage}
+                                            title="Ảnh kế"
+                                        >
+                                            <ChevronRight size={15} className="text-gray-500" />
+                                        </button>
+                                    </>
+                                )}
+                                <button
+                                    className="rounded p-1 transition-colors hover:bg-gray-200"
+                                    onClick={() => setIsImagePreviewOpen(false)}
+                                    title="Đóng preview"
+                                >
+                                    <X size={16} className="text-gray-500" />
+                                </button>
+                            </div>
                         </div>
                         <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-50 p-4">
                             <img
-                                src={imageUrl}
-                                alt={imageName || item.name}
+                                src={selectedImage.url}
+                                alt={selectedImage.name || item.name}
                                 className="max-h-full max-w-full rounded border border-gray-200 bg-white object-contain shadow-sm"
                             />
                         </div>
@@ -323,6 +471,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                             <input
                                 ref={fileInputRef}
                                 type="file"
+                                multiple
                                 accept="image/png,image/jpeg,image/jpg,image/webp"
                                 className="hidden"
                                 onChange={handleUploadImage}
@@ -331,24 +480,24 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                                 <button
                                     type="button"
                                     onClick={handlePickImage}
-                                    disabled={isUploadingImage}
+                                    disabled={isUploadingImage || images.length >= MAX_UPLOAD_IMAGE_COUNT}
                                     className="inline-flex items-center gap-1 rounded border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
                                 >
                                     <ImagePlus size={12} />
-                                    {isUploadingImage ? 'Đang upload...' : imageUrl ? 'Đổi ảnh' : 'Upload ảnh'}
+                                    {isUploadingImage ? 'Đang upload...' : 'Upload ảnh'}
                                 </button>
-                                {imageUrl && (
+                                {selectedImage && (
                                     <button
                                         type="button"
                                         className="inline-flex items-center gap-1 rounded border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-                                        onClick={() => { void handleRemoveImage(); }}
+                                        onClick={() => { void handleRemoveSelectedImage(); }}
                                         disabled={isUploadingImage}
                                     >
                                         <Trash2 size={12} />
                                         Xóa ảnh
                                     </button>
                                 )}
-                                {imageUrl && (
+                                {selectedImage && (
                                     <button
                                         type="button"
                                         className="inline-flex items-center gap-1 rounded border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
@@ -358,21 +507,31 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                                         Xem preview
                                     </button>
                                 )}
+                                <span className="ml-auto text-[10px] font-semibold text-gray-500">{images.length}/{MAX_UPLOAD_IMAGE_COUNT}</span>
                             </div>
-                            {imageUrl && (
-                                <button
-                                    type="button"
-                                    className="mt-2 w-full rounded border border-gray-200 bg-gray-50 p-1.5 text-left hover:bg-gray-100 transition-colors"
-                                    onClick={() => setIsImagePreviewOpen(true)}
-                                    title="Mở preview kế bên"
-                                >
-                                    <img
-                                        src={imageUrl}
-                                        alt={imageName || item.name}
-                                        className="h-16 w-full rounded object-cover border border-gray-200 bg-white"
-                                    />
-                                    <p className="mt-1 text-[10px] text-gray-500 truncate">{imageName || item.name}</p>
-                                </button>
+                            {images.length > 0 && (
+                                <div className="mt-2 grid grid-cols-3 gap-2">
+                                    {images.map((image, index) => (
+                                        <div
+                                            key={image.id}
+                                            className={`relative overflow-hidden rounded border ${selectedImageIndex === index ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-200'}`}
+                                        >
+                                            <button
+                                                type="button"
+                                                className="w-full text-left"
+                                                onClick={() => handleSelectImage(index)}
+                                                title={image.name || `Ảnh ${index + 1}`}
+                                            >
+                                                <img
+                                                    src={image.url}
+                                                    alt={image.name || `Ảnh ${index + 1}`}
+                                                    className="h-16 w-full border-b border-gray-100 bg-white object-cover"
+                                                />
+                                                <p className="px-1 py-0.5 text-[10px] text-gray-500 truncate">{image.name || `Ảnh ${index + 1}`}</p>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                             {imageError && <p className="mt-2 text-[11px] text-red-600">{imageError}</p>}
                         </div>
