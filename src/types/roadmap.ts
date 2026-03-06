@@ -40,6 +40,11 @@ export interface RoadmapItem {
   endDate?: string;
   priority?: ItemPriority;
   quickNote?: string;
+  imageUrl?: string;
+  imageId?: string;
+  imageName?: string;
+  imageProvider?: 'cloudinary';
+  imageUpdatedAt?: string;
   children?: RoadmapItem[];
 }
 

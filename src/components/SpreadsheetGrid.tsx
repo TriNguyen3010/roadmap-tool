@@ -7,7 +7,7 @@ import {
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
 import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
-import { ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink } from 'lucide-react';
+import { ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
 import EditPopup from './EditPopup';
 import AddNodePopup from './AddNodePopup';
 
@@ -178,6 +178,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [draggedId, setDraggedId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
     const [activeNotePreview, setActiveNotePreview] = useState<{ id: string; top: number; left: number } | null>(null);
+    const [activeImagePreviewId, setActiveImagePreviewId] = useState<string | null>(null);
     const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
     const [quickNoteDraft, setQuickNoteDraft] = useState('');
     const [quickNoteSaving, setQuickNoteSaving] = useState(false);
@@ -238,6 +239,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, [activeNotePreview, data.items]);
     const activeNoteText = activeNoteItem?.quickNote?.trim() || '';
     const activeNoteOriginal = activeNoteItem?.quickNote || '';
+    const activeImagePreviewItem = useMemo(() => {
+        if (!activeImagePreviewId) return null;
+        return findNodeById(data.items, activeImagePreviewId);
+    }, [activeImagePreviewId, data.items]);
+    const activeImagePreviewUrl = activeImagePreviewItem?.imageUrl?.trim() || '';
+    const activeImagePreviewName = activeImagePreviewItem?.imageName?.trim() || activeImagePreviewItem?.name || 'image';
     const isQuickNoteDirty = !!activeNoteItem && quickNoteDraft !== activeNoteOriginal;
 
     const resetQuickNoteState = useCallback(() => {
@@ -275,6 +282,27 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             window.removeEventListener('keydown', handleEscape);
         };
     }, [activeNotePreview, closeQuickNotePreview]);
+
+    useEffect(() => {
+        if (!activeImagePreviewId) return;
+        if (!activeImagePreviewItem || !activeImagePreviewUrl) {
+            setActiveImagePreviewId(null);
+            return;
+        }
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setActiveImagePreviewId(null);
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('keydown', handleEscape);
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [activeImagePreviewId, activeImagePreviewItem, activeImagePreviewUrl]);
 
     useEffect(() => {
         if (!openPriorityId) return;
@@ -517,6 +545,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     const openQuickNotePreview = async (event: React.MouseEvent, row: FlattenedItem) => {
         event.stopPropagation();
+        const anchorEl = event.currentTarget as HTMLElement | null;
+        if (activeImagePreviewId) setActiveImagePreviewId(null);
         if (activeNotePreview?.id === row.id) {
             await closeQuickNotePreview();
             return;
@@ -526,7 +556,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             if (!closed) return;
         }
 
-        const triggerRect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const triggerRect = anchorEl?.getBoundingClientRect?.();
+        if (!triggerRect) return;
         const popoverWidth = 320;
         const left = Math.max(8, Math.min(triggerRect.left, window.innerWidth - popoverWidth - 8));
         const top = Math.min(triggerRect.bottom + 8, window.innerHeight - 220);
@@ -536,6 +567,23 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setQuickNoteDraft(note);
         setIsQuickNoteEditing(canEdit && note.trim().length === 0);
         setQuickNoteSaving(false);
+    };
+
+    const openImagePreview = async (event: React.MouseEvent, row: FlattenedItem) => {
+        event.stopPropagation();
+        if (!row.imageUrl?.trim()) return;
+
+        if (activeImagePreviewId === row.id) {
+            setActiveImagePreviewId(null);
+            return;
+        }
+
+        if (activeNotePreview) {
+            const closed = await closeQuickNotePreview();
+            if (!closed) return;
+        }
+
+        setActiveImagePreviewId(row.id);
     };
 
     const openEditor = (id: string) => {
@@ -789,6 +837,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const isExpanded = expandedIds.has(row.id);
                         const childType = CHILD_TYPE_MAP[row.type];
                         const hasQuickNote = !!row.quickNote?.trim();
+                        const hasQuickImage = !!row.imageUrl?.trim();
+                        const isImagePreviewActive = activeImagePreviewId === row.id;
 
                         const canDragRow = canEdit;
                         const isDragged = draggedId === row.id;
@@ -858,14 +908,29 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             {row.subcategoryType}
                                         </span>
                                     )}
-                                    <button
-                                        data-quick-note-trigger="true"
-                                        onClick={(e) => { void openQuickNotePreview(e, row); }}
-                                        className={`ml-auto shrink-0 rounded p-0.5 transition-colors ${hasQuickNote ? 'text-blue-600 hover:bg-blue-100' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'}`}
-                                        title={hasQuickNote ? 'Xem quick note' : 'Thêm quick note'}
-                                    >
-                                        <MessageSquare size={12} />
-                                    </button>
+                                    <div className="ml-auto flex shrink-0 items-center gap-0.5">
+                                        <button
+                                            data-quick-note-trigger="true"
+                                            onClick={(e) => { void openQuickNotePreview(e, row); }}
+                                            className={`rounded p-0.5 transition-colors ${hasQuickNote ? 'text-blue-600 hover:bg-blue-100' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'}`}
+                                            title={hasQuickNote ? 'Xem quick note' : 'Thêm quick note'}
+                                        >
+                                            <MessageSquare size={12} />
+                                        </button>
+                                        {hasQuickImage && (
+                                            <button
+                                                data-quick-note-trigger="true"
+                                                onClick={(e) => { void openImagePreview(e, row); }}
+                                                className={`rounded p-0.5 transition-colors ${isImagePreviewActive
+                                                    ? 'text-emerald-700 bg-emerald-100'
+                                                    : 'text-emerald-500 hover:bg-emerald-100 hover:text-emerald-700'
+                                                    }`}
+                                                title="Xem hình"
+                                            >
+                                                <ImageIcon size={12} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Priority — only for group/feature, hidden when showPriority=false */}
@@ -1247,6 +1312,34 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             {activeNoteText || 'Chưa có note.'}
                         </p>
                     )}
+                </div>
+            )}
+
+            {activeImagePreviewId && activeImagePreviewUrl && (
+                <div className="fixed inset-0 z-[70] flex" role="dialog" aria-modal="true">
+                    <button
+                        type="button"
+                        aria-label="Đóng xem ảnh"
+                        className="flex-1 bg-black/35"
+                        onClick={() => setActiveImagePreviewId(null)}
+                    />
+                    <aside className="relative h-full w-[min(92vw,760px)] border-l border-gray-200 bg-white shadow-2xl">
+                        <button
+                            type="button"
+                            aria-label="Đóng xem ảnh"
+                            className="absolute right-3 top-3 z-10 rounded bg-white/90 p-1 text-gray-600 shadow hover:bg-white hover:text-gray-800"
+                            onClick={() => setActiveImagePreviewId(null)}
+                        >
+                            <X size={16} />
+                        </button>
+                        <div className="h-full w-full bg-slate-50 p-4">
+                            <img
+                                src={activeImagePreviewUrl}
+                                alt={activeImagePreviewName}
+                                className="h-full w-full object-contain"
+                            />
+                        </div>
+                    </aside>
                 </div>
             )}
         </div>

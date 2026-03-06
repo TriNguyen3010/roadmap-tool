@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { type ChangeEvent, useRef, useState } from 'react';
+import { Eye, ImagePlus, Trash2, X } from 'lucide-react';
 import { RoadmapItem, ItemStatus, StatusMode, SubcategoryType, TeamRole, TEAM_ROLES, STATUS_OPTIONS, normalizeItemStatus } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
@@ -19,6 +20,8 @@ const SUB_TYPE_STYLE: Record<SubcategoryType, { bg: string; text: string; border
     'Growth Camp': { bg: '#d1fae5', text: '#065f46', border: '#6ee7b7' },
 };
 const MAX_QUICK_NOTE_LENGTH = 500;
+const MAX_UPLOAD_IMAGE_MB = 5;
+const MAX_UPLOAD_IMAGE_BYTES = MAX_UPLOAD_IMAGE_MB * 1024 * 1024;
 
 export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const hasChildren = !!(item.children && item.children.length > 0);
@@ -32,6 +35,14 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const [endDate, setEndDate] = useState(item.endDate || '');
     const [quickNote, setQuickNote] = useState(item.quickNote || '');
     const [subcategoryType, setSubcategoryType] = useState<SubcategoryType | undefined>(item.subcategoryType);
+    const [imageUrl, setImageUrl] = useState(item.imageUrl || '');
+    const [imageId, setImageId] = useState(item.imageId || '');
+    const [imageName, setImageName] = useState(item.imageName || '');
+    const [imageProvider, setImageProvider] = useState<'cloudinary' | undefined>(item.imageProvider);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [imageError, setImageError] = useState<string | null>(null);
+    const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Dates/progress are locked when item has children that are NOT all teams
     const hasNonTeamChildren = !!(item.children && item.children.some(c => c.type !== 'team'));
@@ -72,9 +83,115 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
         setSelectedTeams(next);
     };
 
+    const deleteImageById = async (targetImageId: string): Promise<void> => {
+        if (!targetImageId) return;
+        await fetch('/api/image/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageId: targetImageId }),
+        });
+    };
+
+    const handlePickImage = () => {
+        if (isUploadingImage) return;
+        setImageError(null);
+        fileInputRef.current?.click();
+    };
+
+    const handleUploadImage = async (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            setImageError('Chỉ hỗ trợ file ảnh (jpg, png, webp).');
+            return;
+        }
+
+        if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+            setImageError(`Ảnh vượt quá ${MAX_UPLOAD_IMAGE_MB}MB.`);
+            return;
+        }
+
+        setIsUploadingImage(true);
+        setImageError(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('itemId', item.id);
+
+            const res = await fetch('/api/image/upload', { method: 'POST', body: formData });
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(typeof payload?.error === 'string' ? payload.error : 'Upload ảnh thất bại.');
+            }
+
+            const nextImageUrl = typeof payload?.imageUrl === 'string' ? payload.imageUrl : '';
+            const nextImageId = typeof payload?.imageId === 'string' ? payload.imageId : '';
+            const nextImageName = typeof payload?.imageName === 'string' ? payload.imageName : file.name;
+
+            if (!nextImageUrl || !nextImageId) {
+                throw new Error('Upload ảnh thất bại: dữ liệu trả về không hợp lệ.');
+            }
+
+            if (imageId && imageId !== (item.imageId || '') && imageId !== nextImageId) {
+                void deleteImageById(imageId);
+            }
+
+            setImageUrl(nextImageUrl);
+            setImageId(nextImageId);
+            setImageName(nextImageName);
+            setImageProvider('cloudinary');
+            setImageError(null);
+        } catch (error) {
+            setImageError(error instanceof Error ? error.message : 'Upload ảnh thất bại.');
+        } finally {
+            setIsUploadingImage(false);
+        }
+    };
+
+    const handleRemoveImage = async () => {
+        setImageError(null);
+        if (isUploadingImage) return;
+
+        if (imageId && imageId !== (item.imageId || '')) {
+            try {
+                await deleteImageById(imageId);
+            } catch {
+                // Keep UX simple: if cleanup fails, user can still continue editing.
+            }
+        }
+
+        setImageUrl('');
+        setImageId('');
+        setImageName('');
+        setImageProvider(undefined);
+        setIsImagePreviewOpen(false);
+    };
+
+    const handleCloseWithoutSave = () => {
+        if (imageId && imageId !== (item.imageId || '')) {
+            void deleteImageById(imageId);
+        }
+        onClose();
+    };
+
+    const handlePanelClose = () => {
+        if (isImagePreviewOpen) {
+            setIsImagePreviewOpen(false);
+            return;
+        }
+        void handleCloseWithoutSave();
+    };
+
     const handleSubmit = () => {
         let updatedChildren = item.children;
         const normalizedQuickNote = quickNote.trim();
+        const nextImageUrl = imageUrl.trim();
+        const nextImageId = imageId.trim();
+        const nextImageName = imageName.trim();
+        const previousImageId = item.imageId || '';
+        const hasImageChanged = (item.imageUrl || '') !== nextImageUrl || previousImageId !== nextImageId;
 
         if (item.type === 'feature' || item.type === 'group') {
             const currentTeamsMap = new Map<TeamRole, RoadmapItem>();
@@ -124,27 +241,160 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
             manualStatus: nextStatusMode === 'manual' ? status : undefined,
             progress,
             quickNote: normalizedQuickNote.length > 0 ? normalizedQuickNote : undefined,
+            imageUrl: nextImageUrl || undefined,
+            imageId: nextImageId || undefined,
+            imageName: nextImageName || undefined,
+            imageProvider: nextImageId ? (imageProvider || 'cloudinary') : undefined,
+            imageUpdatedAt: nextImageUrl ? (hasImageChanged ? new Date().toISOString() : item.imageUpdatedAt) : undefined,
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
             children: updatedChildren
         });
+        if (previousImageId && previousImageId !== nextImageId) {
+            void deleteImageById(previousImageId);
+        }
         onClose();
     };
 
+    const hasImagePreview = isImagePreviewOpen && !!imageUrl;
+
     return (
-        <SidePanelShell
-            isOpen
-            onClose={onClose}
-            title="Chỉnh sửa hạng mục"
-            subtitle={`Loại: ${item.type}`}
-            widthClassName="w-[520px]"
-            footer={(
-                <div className="flex gap-2 justify-end">
-                    <button onClick={onClose} className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100">Huỷ</button>
-                    <button onClick={handleSubmit} className="px-4 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">Lưu</button>
+        <>
+            {hasImagePreview && (
+                <div className="fixed inset-0 z-[60] bg-black/45 p-4 lg:hidden">
+                    <div className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold text-gray-800">Image Preview</p>
+                                <p className="truncate text-xs text-gray-500">{imageName || item.name}</p>
+                            </div>
+                            <button
+                                className="rounded p-1 transition-colors hover:bg-gray-200"
+                                onClick={() => setIsImagePreviewOpen(false)}
+                                title="Đóng preview"
+                            >
+                                <X size={16} className="text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-50 p-4">
+                            <img
+                                src={imageUrl}
+                                alt={imageName || item.name}
+                                className="max-h-full max-w-full rounded border border-gray-200 bg-white object-contain shadow-sm"
+                            />
+                        </div>
+                    </div>
                 </div>
             )}
-        >
-            <div className="flex flex-col gap-4">
+
+            <SidePanelShell
+                isOpen
+                onClose={handlePanelClose}
+                title="Chỉnh sửa hạng mục"
+                subtitle={`Loại: ${item.type}`}
+                widthClassName="w-[92vw] max-w-[520px]"
+                beforePanel={hasImagePreview ? (
+                    <aside className="hidden h-full min-w-[280px] w-[360px] max-w-[32vw] flex-col border-l border-r border-gray-200 bg-white shadow-2xl lg:flex">
+                        <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold text-gray-800">Image Preview</p>
+                                <p className="truncate text-xs text-gray-500">{imageName || item.name}</p>
+                            </div>
+                            <button
+                                className="rounded p-1 transition-colors hover:bg-gray-200"
+                                onClick={() => setIsImagePreviewOpen(false)}
+                                title="Đóng preview"
+                            >
+                                <X size={16} className="text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-50 p-4">
+                            <img
+                                src={imageUrl}
+                                alt={imageName || item.name}
+                                className="max-h-full max-w-full rounded border border-gray-200 bg-white object-contain shadow-sm"
+                            />
+                        </div>
+                    </aside>
+                ) : undefined}
+                footer={(
+                    <div className="flex flex-col gap-3">
+                        <div className="rounded-lg border border-gray-200 bg-white p-2">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/png,image/jpeg,image/jpg,image/webp"
+                                className="hidden"
+                                onChange={handleUploadImage}
+                            />
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handlePickImage}
+                                    disabled={isUploadingImage}
+                                    className="inline-flex items-center gap-1 rounded border border-blue-300 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                                >
+                                    <ImagePlus size={12} />
+                                    {isUploadingImage ? 'Đang upload...' : imageUrl ? 'Đổi ảnh' : 'Upload ảnh'}
+                                </button>
+                                {imageUrl && (
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 rounded border border-rose-300 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                                        onClick={() => { void handleRemoveImage(); }}
+                                        disabled={isUploadingImage}
+                                    >
+                                        <Trash2 size={12} />
+                                        Xóa ảnh
+                                    </button>
+                                )}
+                                {imageUrl && (
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 rounded border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                                        onClick={() => setIsImagePreviewOpen(true)}
+                                    >
+                                        <Eye size={12} />
+                                        Xem preview
+                                    </button>
+                                )}
+                            </div>
+                            {imageUrl && (
+                                <button
+                                    type="button"
+                                    className="mt-2 w-full rounded border border-gray-200 bg-gray-50 p-1.5 text-left hover:bg-gray-100 transition-colors"
+                                    onClick={() => setIsImagePreviewOpen(true)}
+                                    title="Mở preview kế bên"
+                                >
+                                    <img
+                                        src={imageUrl}
+                                        alt={imageName || item.name}
+                                        className="h-16 w-full rounded object-cover border border-gray-200 bg-white"
+                                    />
+                                    <p className="mt-1 text-[10px] text-gray-500 truncate">{imageName || item.name}</p>
+                                </button>
+                            )}
+                            {imageError && <p className="mt-2 text-[11px] text-red-600">{imageError}</p>}
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <button
+                                onClick={() => { void handleCloseWithoutSave(); }}
+                                className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100"
+                                disabled={isUploadingImage}
+                            >
+                                Huỷ
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                className="px-4 py-1.5 rounded bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:bg-blue-300"
+                                disabled={isUploadingImage}
+                            >
+                                Lưu
+                            </button>
+                        </div>
+                    </div>
+                )}
+            >
+                <div className="flex flex-col gap-4">
 
                 {/* Subcategory Type (only for subcategory items) */}
                 {item.type === 'subcategory' && (
@@ -327,7 +577,8 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                     </div>
                 </div>
 
-            </div>
-        </SidePanelShell>
+                </div>
+            </SidePanelShell>
+        </>
     );
 }

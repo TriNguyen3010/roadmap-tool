@@ -10,6 +10,7 @@ interface SidePanelShellProps {
     subtitle?: string;
     widthClassName?: string;
     zIndexClassName?: string;
+    beforePanel?: ReactNode;
     children: ReactNode;
     footer?: ReactNode;
     headerRight?: ReactNode;
@@ -22,6 +23,7 @@ export default function SidePanelShell({
     subtitle,
     widthClassName = 'w-[420px]',
     zIndexClassName = 'z-50',
+    beforePanel,
     children,
     footer,
     headerRight,
@@ -54,6 +56,7 @@ export default function SidePanelShell({
                 className="flex-1 bg-black/35"
                 onClick={onClose}
             />
+            {beforePanel}
             <aside className={`${widthClassName} h-full bg-white border-l border-gray-200 shadow-2xl flex flex-col`}>
                 <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -77,4 +80,3 @@ export default function SidePanelShell({
         </div>
     );
 }
-
