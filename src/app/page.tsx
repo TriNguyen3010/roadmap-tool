@@ -18,6 +18,7 @@ const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
 const MAX_FEATURES_COL_WIDTH = 450;
 const DEFAULT_TIMELINE_MODE: TimelineMode = 'day';
+const VERSION_POLL_INTERVAL_MS = 20_000;
 
 function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
@@ -44,6 +45,9 @@ export default function Home() {
   const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [isEditor, setIsEditor] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
+  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
+  const currentVersionRef = useRef<string | null>(null);
 
   // Timeline window: how many weeks before & months after today
   const [beforeWeeks, setBeforeWeeks] = useState(2);
@@ -87,6 +91,17 @@ export default function Home() {
     items: recalculateRoadmap(normalizeItemTree(doc.items || [])),
   }), []);
 
+  const fetchRoadmapVersion = useCallback(async (): Promise<string | null> => {
+    try {
+      const res = await fetch('/api/roadmap/version', { cache: 'no-store' });
+      if (!res.ok) return null;
+      const payload = await res.json().catch(() => ({}));
+      return typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const [confirmState, setConfirmState] = useState<{
     message: string;
     onConfirm: () => void;
@@ -116,11 +131,25 @@ export default function Home() {
   }, [today, afterMonths]);
 
   useEffect(() => {
-    fetch('/api/roadmap')
-      .then(res => res.json())
-      .then(json => {
+    let cancelled = false;
+
+    const loadRoadmap = async () => {
+      try {
+        const [roadmapRes, version] = await Promise.all([
+          fetch('/api/roadmap', { cache: 'no-store' }),
+          fetchRoadmapVersion(),
+        ]);
+        if (!roadmapRes.ok) throw new Error('roadmap fetch failed');
+
+        const json = await roadmapRes.json();
+        if (cancelled) return;
+
         const normalized = normalizeDocument(json);
         setData(normalized);
+        currentVersionRef.current = version;
+        setPendingRemoteVersion(null);
+        setDismissedVersion(null);
+
         if (json.settings) {
           if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
           if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
@@ -163,11 +192,65 @@ export default function Home() {
           setExpandedIds(ids);
           hasInitializedExpansion.current = true;
         }
+      } catch {
+        if (!cancelled) addToast('Không thể tải dữ liệu roadmap.json', 'error');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-        setLoading(false);
-      })
-      .catch(() => addToast('Không thể tải dữ liệu roadmap.json', 'error'));
-  }, [addToast, normalizeDocument]);
+    void loadRoadmap();
+    return () => {
+      cancelled = true;
+    };
+  }, [addToast, normalizeDocument, fetchRoadmapVersion]);
+
+  const checkRemoteVersion = useCallback(async () => {
+    const latestVersion = await fetchRoadmapVersion();
+    if (!latestVersion) return;
+
+    const currentVersion = currentVersionRef.current;
+    if (!currentVersion) {
+      currentVersionRef.current = latestVersion;
+      return;
+    }
+
+    const currentTs = Date.parse(currentVersion);
+    const latestTs = Date.parse(latestVersion);
+    const hasNewerVersion = Number.isFinite(currentTs) && Number.isFinite(latestTs)
+      ? latestTs > currentTs
+      : latestVersion !== currentVersion;
+
+    if (!hasNewerVersion) return;
+    if (dismissedVersion === latestVersion) return;
+
+    setPendingRemoteVersion(latestVersion);
+  }, [dismissedVersion, fetchRoadmapVersion]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    const poll = () => {
+      void checkRemoteVersion();
+    };
+    const intervalId = window.setInterval(poll, VERSION_POLL_INTERVAL_MS);
+
+    const onFocus = () => {
+      poll();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') poll();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [checkRemoteVersion, loading]);
 
   useEffect(() => {
     fetch('/api/auth/editor/session')
@@ -263,12 +346,18 @@ export default function Home() {
       }
       if (!res.ok) throw new Error();
       addToast('Đã lưu thành công vào roadmap.json!', 'success');
+      const latestVersion = await fetchRoadmapVersion();
+      if (latestVersion) {
+        currentVersionRef.current = latestVersion;
+      }
+      setPendingRemoteVersion(null);
+      setDismissedVersion(null);
     } catch {
       addToast('Lỗi khi lưu dữ liệu. Vui lòng thử lại.', 'error');
     } finally {
       setSaving(false);
     }
-  }, [addToast, buildDocumentSnapshot, ensureEditor]);
+  }, [addToast, buildDocumentSnapshot, ensureEditor, fetchRoadmapVersion]);
 
 
   const handleExportExcel = () => {
@@ -416,6 +505,15 @@ export default function Home() {
     return Array.from(categories).sort((a, b) => a.localeCompare(b));
   }, [data]);
 
+  const dismissVersionNotice = useCallback(() => {
+    if (pendingRemoteVersion) setDismissedVersion(pendingRemoteVersion);
+    setPendingRemoteVersion(null);
+  }, [pendingRemoteVersion]);
+
+  const refreshForLatestData = useCallback(() => {
+    window.location.reload();
+  }, []);
+
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
@@ -460,6 +558,32 @@ export default function Home() {
           onFilterChange={handleFilterChange}
           onSaveView={() => handleSave(data)}
         />
+      )}
+
+      {pendingRemoteVersion && (
+        <div className="shrink-0 border-b border-amber-300 bg-amber-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-medium text-amber-800">
+              Có dữ liệu mới trên hệ thống. Bấm Refresh để lấy phiên bản mới nhất.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded border border-amber-400 px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+                onClick={dismissVersionNotice}
+              >
+                Để sau
+              </button>
+              <button
+                type="button"
+                className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700"
+                onClick={refreshForLatestData}
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <Toolbar
