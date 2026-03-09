@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import {
     ColumnWidthMode,
+    GROUP_ITEM_TYPE_OPTIONS,
+    GroupItemType,
     ItemType,
     Milestone,
     PhaseOption,
@@ -39,8 +41,11 @@ interface GridProps {
     filterPriority: string[];
     filterPhase: string[];
     filterSubcategory: string[];
+    filterGroupItemType: string[];
     canEdit: boolean;
     // Column visibility (lifted to parent for persistence)
+    showWorkType: boolean;
+    setShowWorkType: (v: boolean) => void;
     showPriority: boolean;
     setShowPriority: (v: boolean) => void;
     showPhase: boolean;
@@ -95,7 +100,7 @@ const DEPTH_STYLES: { bg: string; font: string }[] = [
     { bg: '#c6d3ea', font: 'bold' },     // Level 0 (category)
     { bg: '#d4e4c8', font: 'bold' },     // Level 1 (subcategory)
     { bg: '#e8e8e8', font: 'bold' },     // Level 2 (group)
-    { bg: '#ffffff', font: 'normal' },   // Level 3 (feature)
+    { bg: '#ffffff', font: 'normal' },   // Level 3 (item)
     { bg: '#f9fafb', font: 'normal' },   // Level 4/5 (team styles fallback)
 ];
 
@@ -131,20 +136,28 @@ const PRIORITY_TAG_TEXT: Record<string, string> = {
     'Low': '#166534',
     'Reported': '#9d174d',
 };
+const COL_WORK_TYPE_W = 110;
 const COL_PRIORITY_W = 70;
 const MAX_QUICK_NOTE_LENGTH = 500;
 
 const CHILD_TYPE_MAP: Record<ItemType, ItemType | null> = {
     category: 'subcategory',
     subcategory: 'group',
-    group: 'feature',
-    feature: null,
+    group: 'item',
+    item: null,
     team: null,
 };
 
 // Subcategory type badge styles
 const SUB_TYPE_STYLE: Record<SubcategoryType, { bg: string; text: string }> = {
     'Feature': { bg: '#dbeafe', text: '#1d4ed8' },
+    'Bug': { bg: '#fee2e2', text: '#b91c1c' },
+    'Growth Camp': { bg: '#d1fae5', text: '#065f46' },
+};
+
+const GROUP_ITEM_TYPE_STYLE: Record<GroupItemType, { bg: string; text: string }> = {
+    'Feature': { bg: '#dbeafe', text: '#1d4ed8' },
+    'Improvement': { bg: '#fef3c7', text: '#92400e' },
     'Bug': { bg: '#fee2e2', text: '#b91c1c' },
     'Growth Camp': { bg: '#d1fae5', text: '#065f46' },
 };
@@ -177,7 +190,8 @@ function estimatePhaseCellWidth(labels: string[]): number {
 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     timelineMode,
-    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, canEdit,
+    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, canEdit,
+    showWorkType, setShowWorkType,
     showPriority, setShowPriority, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
     expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds
@@ -192,6 +206,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [endDateW, setEndDateW] = useState(COL_DATE_DEFAULT);
 
     // ── Priority dropdown open state ──
+    const [openWorkTypeId, setOpenWorkTypeId] = useState<string | null>(null);
     const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
     const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
@@ -213,12 +228,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => {
         if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
+        if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
         if (openPhaseId) setOpenPhaseId(null);
     };
     const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
         if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
+        if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
         if (openPhaseId) setOpenPhaseId(null);
     };
@@ -256,7 +273,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         priority: filterPriority,
         phase: filterPhase,
         subcategory: filterSubcategory,
-    }), [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory]);
+        groupItemType: filterGroupItemType,
+    }), [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType]);
 
     const phaseOptions: PhaseOption[] = useMemo(() => {
         const milestones = data.milestones || [];
@@ -403,6 +421,25 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, [activeImagePreviewId, activeImagePreviewItem, activeImagePreviewImages.length, activeImagePreviewIndex, activeImagePreviewUrl]);
 
     useEffect(() => {
+        if (!openWorkTypeId) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('[data-worktype-dropdown="true"]')) return;
+            if (target.closest('[data-worktype-trigger="true"]')) return;
+            setOpenWorkTypeId(null);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOpenWorkTypeId(null);
+        };
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [openWorkTypeId]);
+
+    useEffect(() => {
         if (!openPriorityId) return;
         const handlePointerDown = (event: MouseEvent) => {
             const target = event.target as HTMLElement;
@@ -446,7 +483,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         let maxW = 160; // Chiều rộng tối thiểu
         for (const row of flattened) {
             let displayDepth = row.depth;
-            if (row.type === 'feature') displayDepth = row.depth + 1;
+            if (row.type === 'item') displayDepth = row.depth + 1;
             else if (row.type === 'team' && row.depth >= 4) displayDepth = row.depth + 1;
 
             // khoảng thụt vào (displayDepth * 14) + icon (~14px) + font size chữ (~7.5px/char)
@@ -813,6 +850,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // ── Computed total left pane width ──
     const totalLeftW = COL_ID_W + nameW
+        + (showWorkType ? COL_WORK_TYPE_W : 0)
         + (showPriority ? COL_PRIORITY_W : 0)
         + statusW
         + (showPhase ? phaseW : 0)
@@ -823,6 +861,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // Grid template for left pane rows/header
     const gridTemplate = `${COL_ID_W}px ${nameW}px`
+        + (showWorkType ? ` ${COL_WORK_TYPE_W}px` : '')
         + (showPriority ? ` ${COL_PRIORITY_W}px` : '')
         + ` ${statusW}px`
         + (showPhase ? ` ${phaseW}px` : '')
@@ -867,6 +906,18 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             title="Kéo để thay đổi cột"
                         />
                     </div>
+
+                    {/* WORKTYPE header – click to hide */}
+                    {showWorkType && (
+                        <div
+                            className="flex items-center justify-center border-r border-gray-400 cursor-pointer hover:bg-indigo-100 transition-colors select-none"
+                            title="Click để ẩn cột WorkType"
+                            onClick={() => setShowWorkType(false)}
+                            style={{ minWidth: COL_WORK_TYPE_W, width: COL_WORK_TYPE_W }}
+                        >
+                            <span className="text-indigo-700">WORKTYPE</span>
+                        </div>
+                    )}
 
                     {/* PRIORITY header – click to hide */}
                     {showPriority && (
@@ -931,6 +982,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                     {/* Actions column header – shows restore buttons when hidden */}
                     <div className="flex items-center flex-wrap justify-center gap-0.5 px-0.5">
+                        {!showWorkType && (
+                            <button title="Hiện cột WorkType" onClick={() => setShowWorkType(true)}
+                                className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
+                                W
+                            </button>
+                        )}
                         {!showPriority && (
                             <button title="Hiện cột Priority" onClick={() => setShowPriority(true)}
                                 className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
@@ -1058,7 +1115,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     style={{
                                         paddingLeft: `${(() => {
                                             let displayDepth = row.depth;
-                                            if (row.type === 'feature') displayDepth = row.depth + 1;
+                                            if (row.type === 'item') displayDepth = row.depth + 1;
                                             else if (row.type === 'team' && row.depth >= 4) displayDepth = row.depth + 1;
                                             return displayDepth * 14 + 6;
                                         })()}px`, fontWeight: style.font
@@ -1129,9 +1186,82 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     </div>
                                 </div>
 
-                                {/* Priority — only for group/feature, hidden when showPriority=false */}
+                                {/* WorkType — only for group, hidden when showWorkType=false */}
+                                {showWorkType && (
+                                    <div
+                                        data-worktype-trigger="true"
+                                        className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit && row.type === 'group' ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                        style={{ width: COL_WORK_TYPE_W }}
+                                        title={row.type === 'group' ? 'Click để đổi WorkType' : ''}
+                                        onClick={e => {
+                                            if (!canEdit || row.type !== 'group') return;
+                                            e.stopPropagation();
+                                            setOpenPriorityId(null);
+                                            setOpenPhaseId(null);
+                                            setOpenWorkTypeId(openWorkTypeId === row.id ? null : row.id);
+                                        }}
+                                    >
+                                        {row.type === 'group' ? (
+                                            <span
+                                                className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
+                                                style={{
+                                                    backgroundColor: row.groupItemType ? GROUP_ITEM_TYPE_STYLE[row.groupItemType].bg : '#f3f4f6',
+                                                    color: row.groupItemType ? GROUP_ITEM_TYPE_STYLE[row.groupItemType].text : '#9ca3af',
+                                                }}
+                                                title={row.groupItemType || 'Unset'}
+                                            >
+                                                {row.groupItemType || '—'}
+                                            </span>
+                                        ) : (
+                                            <span className="mx-auto text-[10px] text-gray-300"> </span>
+                                        )}
+
+                                        {canEdit && row.type === 'group' && openWorkTypeId === row.id && (
+                                            <div
+                                                data-worktype-dropdown="true"
+                                                className="absolute bottom-full left-0 z-50 mb-1 min-w-[150px] rounded border border-gray-200 bg-white shadow-lg"
+                                            >
+                                                <div className="max-h-52 overflow-auto py-1">
+                                                    {GROUP_ITEM_TYPE_OPTIONS.map(typeOption => (
+                                                        <button
+                                                            key={typeOption}
+                                                            className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors ${row.groupItemType === typeOption ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                            onMouseDown={e => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                updateFromSource(row.id, source => ({ ...source, groupItemType: typeOption }));
+                                                                setOpenWorkTypeId(null);
+                                                            }}
+                                                        >
+                                                            {typeOption}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                <div className="border-t border-gray-100">
+                                                    <button
+                                                        className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
+                                                        onMouseDown={e => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            updateFromSource(row.id, source => {
+                                                                const next = { ...source };
+                                                                delete next.groupItemType;
+                                                                return next;
+                                                            });
+                                                            setOpenWorkTypeId(null);
+                                                        }}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Priority — only for group/item, hidden when showPriority=false */}
                                 {showPriority && (
-                                    (row.type === 'group' || row.type === 'feature') ? (
+                                    (row.type === 'group' || row.type === 'item') ? (
                                         <div
                                             data-priority-trigger="true"
                                             className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors relative"
@@ -1140,6 +1270,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             onClick={e => {
                                                 if (!canEdit) return;
                                                 e.stopPropagation();
+                                                setOpenWorkTypeId(null);
                                                 setOpenPhaseId(null);
                                                 setOpenPriorityId(openPriorityId === row.id ? null : row.id);
                                             }}
@@ -1214,6 +1345,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         onClick={e => {
                                             if (!canEdit || phaseOptions.length === 0) return;
                                             e.stopPropagation();
+                                            setOpenWorkTypeId(null);
                                             setOpenPriorityId(null);
                                             setOpenPhaseId(openPhaseId === row.id ? null : row.id);
                                         }}

@@ -5,6 +5,8 @@ import {
     PRIORITY_FILTER_NONE,
     RoadmapItem,
     StatusMode,
+    normalizeGroupItemType,
+    normalizeGroupItemTypeFilter,
     normalizeItemPriority,
     normalizeItemStatus,
     normalizePhaseFilterValues,
@@ -220,7 +222,8 @@ export const filterRoadmapTree = (
         team?: string[];
         priority?: string[];
         phase?: string[];
-        subcategory?: string[]
+        subcategory?: string[];
+        groupItemType?: string[];
     }
 ): RoadmapItem[] => {
     const hasCategoryFilter = filters.category && filters.category.length > 0;
@@ -229,8 +232,9 @@ export const filterRoadmapTree = (
     const hasPriorityFilter = filters.priority && filters.priority.length > 0;
     const hasPhaseFilter = filters.phase && filters.phase.length > 0;
     const hasSubcategoryFilter = filters.subcategory && filters.subcategory.length > 0;
+    const hasGroupItemTypeFilter = filters.groupItemType && filters.groupItemType.length > 0;
 
-    if (!hasCategoryFilter && !hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasPhaseFilter && !hasSubcategoryFilter) {
+    if (!hasCategoryFilter && !hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasPhaseFilter && !hasSubcategoryFilter && !hasGroupItemTypeFilter) {
         return items;
     }
 
@@ -248,11 +252,13 @@ export const filterRoadmapTree = (
         Array.from(selectedPhaseFilters).filter((value): value is string => value !== PHASE_FILTER_NONE)
     );
     const selectedSubcategories = new Set(filters.subcategory || []);
+    const selectedGroupItemTypes = new Set(normalizeGroupItemTypeFilter(filters.groupItemType));
 
     type Context = {
         insideSelectedCategory: boolean;
         insideSelectedSubcategory: boolean;
         insideSelectedPriority: boolean;
+        insideSelectedGroupItemType: boolean;
     };
 
     type VisitResult = {
@@ -263,8 +269,12 @@ export const filterRoadmapTree = (
     const visitNode = (item: RoadmapItem, context: Context): VisitResult => {
         const isSelectedCategory = item.type === 'category' && selectedCategories.has(item.name);
         const isSelectedSubcategory = item.type === 'subcategory' && selectedSubcategories.has(item.name);
+        const normalizedGroupItemType = normalizeGroupItemType(item.groupItemType);
+        const isSelectedGroupItemType = item.type === 'group'
+            && !!normalizedGroupItemType
+            && selectedGroupItemTypes.has(normalizedGroupItemType);
         const normalizedPriority = normalizeItemPriority(item.priority);
-        const isPriorityCarrier = item.type === 'group' || item.type === 'feature';
+        const isPriorityCarrier = item.type === 'group' || item.type === 'item';
         const isSelectedUnsetPriority = isPriorityCarrier && !normalizedPriority && wantsNonePriority;
         const hasPriorityValue = isPriorityCarrier && !!normalizedPriority;
         const isSelectedPriority =
@@ -275,8 +285,9 @@ export const filterRoadmapTree = (
         const nextContext: Context = {
             insideSelectedCategory: context.insideSelectedCategory || isSelectedCategory,
             insideSelectedSubcategory: context.insideSelectedSubcategory || isSelectedSubcategory,
+            insideSelectedGroupItemType: context.insideSelectedGroupItemType || isSelectedGroupItemType,
             // Priority context is inherited only through nodes that do not redefine priority.
-            // If a group/feature has its own priority and it does not match, priority context resets.
+            // If a group/item has its own priority and it does not match, priority context resets.
             insideSelectedPriority: isPriorityCarrier
                 ? (isSelectedPriority || isSelectedUnsetPriority)
                 : context.insideSelectedPriority,
@@ -296,6 +307,7 @@ export const filterRoadmapTree = (
         let matchesPriority = true;
         let matchesPhase = true;
         let matchesSubcategory = true;
+        let matchesGroupItemType = true;
 
         if (hasCategoryFilter) {
             if (item.type === 'category') {
@@ -314,7 +326,7 @@ export const filterRoadmapTree = (
                 matchesTeam = selectedTeams.has(item.teamRole);
             } else if (hasPriorityFilter) {
                 // When combined with priority filter, allow non-team ancestors to satisfy team
-                // via matching team descendants so feature/group branches can survive intersection.
+                // via matching team descendants so item/group branches can survive intersection.
                 matchesTeam = hasSelectedTeamInSubtree;
             } else {
                 matchesTeam = false;
@@ -322,7 +334,7 @@ export const filterRoadmapTree = (
         }
 
         if (hasPriorityFilter) {
-            if (item.type === 'group' || item.type === 'feature') {
+            if (item.type === 'group' || item.type === 'item') {
                 matchesPriority = isSelectedPriority || isSelectedUnsetPriority;
             } else if (hasTeamFilter) {
                 // Allow team descendants under a selected-priority branch to satisfy priority
@@ -348,7 +360,21 @@ export const filterRoadmapTree = (
             }
         }
 
-        const isMatch = matchesCategory && matchesStatus && matchesTeam && matchesPriority && matchesPhase && matchesSubcategory;
+        if (hasGroupItemTypeFilter) {
+            if (item.type === 'group') {
+                matchesGroupItemType = isSelectedGroupItemType;
+            } else {
+                matchesGroupItemType = nextContext.insideSelectedGroupItemType;
+            }
+        }
+
+        const isMatch = matchesCategory
+            && matchesStatus
+            && matchesTeam
+            && matchesPriority
+            && matchesPhase
+            && matchesSubcategory
+            && matchesGroupItemType;
         const node = (isMatch || filteredChildren.length > 0)
             ? { ...item, children: filteredChildren }
             : null;
@@ -364,6 +390,7 @@ export const filterRoadmapTree = (
             insideSelectedCategory: false,
             insideSelectedSubcategory: false,
             insideSelectedPriority: false,
+            insideSelectedGroupItemType: false,
         }).node)
         .filter(Boolean) as RoadmapItem[];
 };

@@ -53,6 +53,7 @@ interface ToolbarProps {
     filterPriority: string[];
     filterPhase: string[];
     filterSubcategory: string[];
+    filterGroupItemType: string[];
 }
 
 export default function Toolbar({
@@ -60,7 +61,7 @@ export default function Toolbar({
     onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
-    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory
+    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -104,6 +105,7 @@ export default function Toolbar({
         + filterPriority.length
         + filterPhase.length
         + filterSubcategory.length
+        + filterGroupItemType.length
     );
 
     const startEdit = () => {

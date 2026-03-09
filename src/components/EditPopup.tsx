@@ -3,6 +3,8 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye, ImagePlus, Trash2, X } from 'lucide-react';
 import {
+    GROUP_ITEM_TYPE_OPTIONS,
+    GroupItemType,
     ItemImage,
     ItemPriority,
     ItemStatus,
@@ -75,6 +77,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
     const [quickNote, setQuickNote] = useState(item.quickNote || '');
     const [selectedPhaseIds, setSelectedPhaseIds] = useState<Set<string>>(() => new Set(normalizePhaseIds(item.phaseIds)));
     const [subcategoryType, setSubcategoryType] = useState<SubcategoryType | undefined>(item.subcategoryType);
+    const [groupItemType, setGroupItemType] = useState<GroupItemType | ''>(() => item.type === 'group' ? (item.groupItemType || '') : '');
     const [images, setImages] = useState<ItemImage[]>(initialImages);
     const [selectedImageIndex, setSelectedImageIndex] = useState(initialImages.length > 0 ? 0 : -1);
     const [removedExistingImageIds, setRemovedExistingImageIds] = useState<Set<string>>(new Set());
@@ -86,16 +89,15 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
 
     const selectedImage = selectedImageIndex >= 0 ? images[selectedImageIndex] : null;
 
-    // Dates/progress are locked when item has children that are NOT all teams
+    // Dates are locked when item has children that are NOT all teams
     const hasNonTeamChildren = !!(item.children && item.children.some(c => c.type !== 'team'));
-    const isRolledUp = hasNonTeamChildren;
     const isCategoryManual = item.type === 'category' && statusMode === 'manual';
-    const isDateLocked = isRolledUp && !isCategoryManual;
+    const isDateLocked = hasNonTeamChildren && !isCategoryManual;
 
     // Initialize selectedTeams based on existing children that are of type 'team'
     const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(() => {
         const set = new Set<TeamRole>();
-        if ((item.type === 'feature' || item.type === 'group') && item.children) {
+        if ((item.type === 'item' || item.type === 'group') && item.children) {
             item.children.forEach(child => {
                 if (child.type === 'team' && child.teamRole) set.add(child.teamRole);
             });
@@ -118,15 +120,6 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
         setStatus(s);
         if (s === 'Done') setProgress(100);
         if (s === 'Not Started') setProgress(0);
-    };
-
-    const handleProgressChange = (v: number) => {
-        setProgress(v);
-        if (statusMode === 'manual') {
-            if (v === 100) setStatus('Done');
-            else if (v === 0) setStatus('Not Started');
-            else setStatus('Dev In Progress');
-        }
     };
 
     const toggleTeam = (role: TeamRole) => {
@@ -317,7 +310,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
         const normalizedQuickNote = quickNote.trim();
         const normalizedImages = normalizeLocalImages(images);
 
-        if (item.type === 'feature' || item.type === 'group') {
+        if (item.type === 'item' || item.type === 'group') {
             const currentTeamsMap = new Map<TeamRole, RoadmapItem>();
             if (item.children) {
                 item.children.forEach(child => {
@@ -368,11 +361,12 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
             images: normalizedImages.length > 0 ? normalizedImages : undefined,
             ...toLegacyImageFields(normalizedImages),
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
+            groupItemType: item.type === 'group' ? (groupItemType || undefined) : undefined,
             phaseIds: selectedPhaseIds.size > 0 ? Array.from(selectedPhaseIds) : undefined,
             children: updatedChildren
         };
 
-        if (item.type === 'feature' || item.type === 'group') {
+        if (item.type === 'item' || item.type === 'group') {
             if (priority) updatedItem.priority = priority;
             else delete updatedItem.priority;
         }
@@ -606,6 +600,33 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                     </div>
                 )}
 
+                {item.type === 'group' && (
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-gray-600">WorkType</label>
+                            {groupItemType && (
+                                <button
+                                    type="button"
+                                    className="text-[10px] font-semibold text-gray-500 hover:text-gray-700"
+                                    onClick={() => setGroupItemType('')}
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        <select
+                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={groupItemType}
+                            onChange={(e) => setGroupItemType((e.target.value || '') as GroupItemType | '')}
+                        >
+                            <option value="">None</option>
+                            {GROUP_ITEM_TYPE_OPTIONS.map(typeOption => (
+                                <option key={typeOption} value={typeOption}>{typeOption}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
                 {/* Name */}
                 <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-gray-600">Tên</label>
@@ -640,7 +661,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                 </div>
 
                 {/* Teams */}
-                {(item.type === 'feature' || item.type === 'group') && (
+                {(item.type === 'item' || item.type === 'group') && (
                     <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-gray-600">Teams (Optional)</label>
                         <div className="flex flex-wrap gap-2">
@@ -662,7 +683,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                     </div>
                 )}
 
-                {(item.type === 'feature' || item.type === 'group') && (
+                {(item.type === 'item' || item.type === 'group') && (
                     <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
                             <label className="text-xs font-semibold text-gray-600">Priority</label>
@@ -798,22 +819,6 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                     {statusMode === 'auto' && (
                         <p className="text-[11px] text-gray-500">Status đang tự động theo task con.</p>
                     )}
-                </div>
-
-                {/* Progress */}
-                <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-gray-600">
-                        Tiến độ: <span className="text-blue-600 font-bold">{progress}%</span>
-                    </label>
-                    <input
-                        type="range" min={0} max={100} step={5} value={progress}
-                        onChange={(e) => handleProgressChange(Number(e.target.value))}
-                        className="w-full accent-blue-500 disabled:opacity-50"
-                        disabled={isRolledUp}
-                    />
-                    <div className="flex justify-between text-[10px] text-gray-400">
-                        <span>0%</span><span>50%</span><span>100%</span>
-                    </div>
                 </div>
 
                 </div>

@@ -18,7 +18,10 @@ import {
   RoadmapItem,
   TimelineMode,
   normalizeItemImages,
+  normalizeGroupItemType,
+  normalizeGroupItemTypeFilter,
   normalizeItemPriority,
+  normalizeItemType,
   normalizePhaseFilterValues,
   normalizePhaseIds,
   normalizePriorityFilterValues,
@@ -70,9 +73,15 @@ function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] |
 
 function normalizeItemTree(items: RoadmapItem[]): RoadmapItem[] {
   return items.map(item => {
+    const normalizedType = normalizeItemType(item.type);
+    const { workType: legacyWorkType, ...itemWithoutLegacyWorkType } = item as RoadmapItem & { workType?: string };
     const normalizedImages = normalizeItemImages(item);
     return {
-      ...item,
+      ...itemWithoutLegacyWorkType,
+      type: normalizedType,
+      groupItemType: normalizedType === 'group'
+        ? normalizeGroupItemType(item.groupItemType ?? legacyWorkType)
+        : undefined,
       images: normalizedImages,
       ...toLegacyImageFields(normalizedImages),
       priority: normalizeItemPriority(item.priority),
@@ -105,8 +114,10 @@ export default function Home() {
   const [filterPriority, setFilterPriority] = useState<string[]>([]);
   const [filterPhase, setFilterPhase] = useState<string[]>([]);
   const [filterSubcategory, setFilterSubcategory] = useState<string[]>([]);
+  const [filterGroupItemType, setFilterGroupItemType] = useState<string[]>([]);
 
   // Column visibility
+  const [showWorkType, setShowWorkType] = useState(true);
   const [showPriority, setShowPriority] = useState(true);
   const [showPhase, setShowPhase] = useState(true);
   const [showStartDate, setShowStartDate] = useState(false);
@@ -137,6 +148,7 @@ export default function Home() {
         ...doc.settings,
         filterPriority: normalizePriorityFilterValues(doc.settings.filterPriority),
         filterPhase: normalizePhaseFilterValues(doc.settings.filterPhase),
+        filterGroupItemType: normalizeGroupItemTypeFilter(doc.settings.filterGroupItemType),
       }
       : doc.settings,
     items: recalculateRoadmap(normalizeItemTree(doc.items || [])),
@@ -210,6 +222,8 @@ export default function Home() {
           if (json.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(json.settings.filterPriority));
           if (json.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(json.settings.filterPhase));
           if (json.settings.filterSubcategory) setFilterSubcategory(json.settings.filterSubcategory);
+          if (json.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(json.settings.filterGroupItemType));
+          if (typeof json.settings.colWorkType === 'boolean') setShowWorkType(json.settings.colWorkType);
           if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
           if (typeof json.settings.colPhase === 'boolean') setShowPhase(json.settings.colPhase);
           if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
@@ -352,6 +366,8 @@ export default function Home() {
       filterPriority: normalizePriorityFilterValues(filterPriority),
       filterPhase: normalizePhaseFilterValues(filterPhase),
       filterSubcategory,
+      filterGroupItemType: normalizeGroupItemTypeFilter(filterGroupItemType),
+      colWorkType: showWorkType,
       colPriority: showPriority,
       colPhase: showPhase,
       colStartDate: showStartDate,
@@ -371,6 +387,8 @@ export default function Home() {
     filterPriority,
     filterPhase,
     filterSubcategory,
+    filterGroupItemType,
+    showWorkType,
     showPriority,
     showPhase,
     showStartDate,
@@ -447,13 +465,14 @@ export default function Home() {
     setShowMilestones(true);
   }, []);
 
-  const handleFilterChange = useCallback((type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory', values: string[]) => {
+  const handleFilterChange = useCallback((type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory' | 'groupItemType', values: string[]) => {
     if (type === 'category') setFilterCategory(values);
     else if (type === 'status') setFilterStatus(values);
     else if (type === 'team') setFilterTeam(values);
     else if (type === 'priority') setFilterPriority(normalizePriorityFilterValues(values));
     else if (type === 'phase') setFilterPhase(normalizePhaseFilterValues(values));
     else if (type === 'subcategory') setFilterSubcategory(values);
+    else if (type === 'groupItemType') setFilterGroupItemType(normalizeGroupItemTypeFilter(values));
   }, []);
 
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
@@ -492,6 +511,8 @@ export default function Home() {
       if (parsed.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(parsed.settings.filterPriority));
       if (parsed.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(parsed.settings.filterPhase));
       if (parsed.settings.filterSubcategory) setFilterSubcategory(parsed.settings.filterSubcategory);
+      if (parsed.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(parsed.settings.filterGroupItemType));
+      if (typeof parsed.settings.colWorkType === 'boolean') setShowWorkType(parsed.settings.colWorkType);
       if (typeof parsed.settings.colPhase === 'boolean') setShowPhase(parsed.settings.colPhase);
       if (typeof parsed.settings.colFeaturesWidth === 'number') {
         setFeaturesColWidth(clampFeaturesColWidth(parsed.settings.colFeaturesWidth));
@@ -624,6 +645,7 @@ export default function Home() {
           availablePhases={availablePhases}
           filterPhase={filterPhase}
           filterSubcategory={filterSubcategory}
+          filterGroupItemType={filterGroupItemType}
           onFilterChange={handleFilterChange}
           onSaveView={() => handleSave(data)}
         />
@@ -681,6 +703,7 @@ export default function Home() {
         filterPriority={filterPriority}
         filterPhase={filterPhase}
         filterSubcategory={filterSubcategory}
+        filterGroupItemType={filterGroupItemType}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
@@ -698,7 +721,9 @@ export default function Home() {
           filterPriority={filterPriority}
           filterPhase={filterPhase}
           filterSubcategory={filterSubcategory}
+          filterGroupItemType={filterGroupItemType}
           canEdit={isEditor}
+          showWorkType={showWorkType} setShowWorkType={setShowWorkType}
           showPriority={showPriority} setShowPriority={setShowPriority}
           showPhase={showPhase} setShowPhase={setShowPhase}
           showStartDate={showStartDate} setShowStartDate={setShowStartDate}

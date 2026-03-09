@@ -1,4 +1,4 @@
-export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'feature';
+export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'item';
 export type ItemStatus = 'Not Started' | 'PD In Progress' | 'Dev In Progress' | 'Done';
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
@@ -9,10 +9,38 @@ export type PriorityFilterValue = ItemPriority | typeof PRIORITY_FILTER_NONE;
 export const PHASE_FILTER_NONE = '__NONE__' as const;
 export type PhaseFilterValue = string | typeof PHASE_FILTER_NONE;
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
-export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE';
-export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE'];
+export type GroupItemType = 'Feature' | 'Improvement' | 'Bug' | 'Growth Camp';
+export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE' | 'QC';
+export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE', 'QC'];
 export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low', 'Reported'];
 export const STATUS_OPTIONS: ItemStatus[] = ['Not Started', 'PD In Progress', 'Dev In Progress', 'Done'];
+export const GROUP_ITEM_TYPE_OPTIONS: GroupItemType[] = ['Feature', 'Improvement', 'Bug', 'Growth Camp'];
+
+export function normalizeItemType(type: string | undefined | null): ItemType {
+  if (!type) return 'item';
+  if (type === 'feature') return 'item';
+  if (type === 'category' || type === 'subcategory' || type === 'group' || type === 'team' || type === 'item') {
+    return type;
+  }
+  return 'item';
+}
+
+export function normalizeGroupItemType(type: string | undefined | null): GroupItemType | undefined {
+  if (!type) return undefined;
+  if (type === 'Bugs') return 'Bug';
+  if (type === 'Feature' || type === 'Improvement' || type === 'Bug' || type === 'Growth Camp') {
+    return type;
+  }
+  return undefined;
+}
+
+export function normalizeGroupItemTypeFilter(types: string[] | undefined | null): GroupItemType[] {
+  if (!types || types.length === 0) return [];
+  const normalized = types
+    .map(normalizeGroupItemType)
+    .filter((type): type is GroupItemType => !!type);
+  return Array.from(new Set(normalized));
+}
 
 export interface PhaseOption {
   id: string;
@@ -192,6 +220,7 @@ export interface RoadmapItem {
   name: string;
   type: ItemType;
   subcategoryType?: SubcategoryType; // only meaningful when type === 'subcategory'
+  groupItemType?: GroupItemType; // only meaningful when type === 'group'
   teamRole?: TeamRole; // only meaningful when type === 'team'
   // status shown in UI (effective value after auto/manual resolution)
   status: ItemStatus;
@@ -236,6 +265,8 @@ export interface RoadmapDocument {
     filterPriority?: string[];
     filterPhase?: string[];
     filterSubcategory?: string[];
+    filterGroupItemType?: string[];
+    colWorkType?: boolean;
     colPriority?: boolean;
     colPhase?: boolean;
     colPct?: boolean;

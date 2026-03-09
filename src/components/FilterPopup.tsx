@@ -2,7 +2,7 @@
 
 import { Save } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
-import { PHASE_FILTER_NONE, PRIORITY_FILTER_NONE, PRIORITY_LEVELS, PhaseOption, STATUS_OPTIONS } from '@/types/roadmap';
+import { GROUP_ITEM_TYPE_OPTIONS, PHASE_FILTER_NONE, PRIORITY_FILTER_NONE, PRIORITY_LEVELS, PhaseOption, STATUS_OPTIONS } from '@/types/roadmap';
 
 interface FilterPopupProps {
     isOpen: boolean;
@@ -18,7 +18,8 @@ interface FilterPopupProps {
     filterPriority: string[];
     filterPhase: string[];
     filterSubcategory: string[];
-    onFilterChange: (type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory', values: string[]) => void;
+    filterGroupItemType: string[];
+    onFilterChange: (type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory' | 'groupItemType', values: string[]) => void;
     onSaveView: () => void;
 }
 
@@ -36,6 +37,7 @@ export default function FilterPopup({
     filterPriority,
     filterPhase,
     filterSubcategory,
+    filterGroupItemType,
     onFilterChange,
     onSaveView,
 }: FilterPopupProps) {
@@ -47,10 +49,11 @@ export default function FilterPopup({
         + filterPriority.length
         + filterPhase.length
         + filterSubcategory.length
+        + filterGroupItemType.length
     );
     const scopeFilterCount = filterCategory.length + filterSubcategory.length;
 
-    const toggleFilter = (type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory', value: string, current: string[]) => {
+    const toggleFilter = (type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory' | 'groupItemType', value: string, current: string[]) => {
         if (current.includes(value)) {
             onFilterChange(type, current.filter(item => item !== value));
         } else {
@@ -65,6 +68,7 @@ export default function FilterPopup({
         onFilterChange('priority', []);
         onFilterChange('phase', []);
         onFilterChange('subcategory', []);
+        onFilterChange('groupItemType', []);
     };
 
     return (
@@ -139,6 +143,23 @@ export default function FilterPopup({
                         )}
                     </div>
                 )}
+
+                <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">WorkType (Group)</p>
+                    <div className="flex flex-col gap-2">
+                        {GROUP_ITEM_TYPE_OPTIONS.map(itemType => (
+                            <label key={itemType} className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={filterGroupItemType.includes(itemType)}
+                                    onChange={() => toggleFilter('groupItemType', itemType, filterGroupItemType)}
+                                    className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">{itemType}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
 
                 <div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Phase</p>

@@ -58,14 +58,14 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                     type: 'subcategory' as const,
                     children: []
                 }));
-        } else if (childType === 'feature' && selectedTeams.size > 0) {
+        } else if (childType === 'item' && selectedTeams.size > 0) {
             children = Array.from(selectedTeams).map(role => createItem({
                 id: uuidv4().slice(0, 8),
                 name: role,
                 type: 'team' as const,
                 teamRole: role,
             }));
-        } else if (childType !== 'feature' && childType !== 'team') {
+        } else if (childType !== 'item' && childType !== 'team') {
             children = [];
         }
 
@@ -129,7 +129,7 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                     </div>
                 )}
 
-                {childType === 'feature' && (
+                {childType === 'item' && (
                     <div className="flex flex-col gap-1.5 mt-2">
                         <label className="text-xs font-semibold text-gray-600">Teams (Optional)</label>
                         <div className="flex flex-wrap gap-2">
