@@ -1,7 +1,20 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { RoadmapDocument, RoadmapItem, ItemType, Milestone, SubcategoryType, PRIORITY_LEVELS, ColumnWidthMode, TimelineMode, normalizeItemImages, normalizeItemPriority } from '@/types/roadmap';
+import {
+    ColumnWidthMode,
+    ItemType,
+    Milestone,
+    PhaseOption,
+    PRIORITY_LEVELS,
+    RoadmapDocument,
+    RoadmapItem,
+    SubcategoryType,
+    TimelineMode,
+    normalizeItemImages,
+    normalizeItemPriority,
+    normalizePhaseIds
+} from '@/types/roadmap';
 import {
     flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
@@ -24,13 +37,14 @@ interface GridProps {
     filterStatus: string[];
     filterTeam: string[];
     filterPriority: string[];
+    filterPhase: string[];
     filterSubcategory: string[];
     canEdit: boolean;
     // Column visibility (lifted to parent for persistence)
-    showPct: boolean;
-    setShowPct: (v: boolean) => void;
     showPriority: boolean;
     setShowPriority: (v: boolean) => void;
+    showPhase: boolean;
+    setShowPhase: (v: boolean) => void;
     showStartDate: boolean;
     setShowStartDate: (v: boolean) => void;
     showEndDate: boolean;
@@ -54,8 +68,10 @@ const MILESTONE_HEADER_H = 22;
 const COL_ID_W = 52;
 const COL_ACTIONS_W = 52;
 const COL_STATUS_DEFAULT = 110;
+const COL_PHASE_MIN = 90;
+const COL_PHASE_DEFAULT = 120;
+const COL_PHASE_MAX = 320;
 const COL_DATE_DEFAULT = 85;
-const COL_PCT_W = 56; // fixed, but can be hidden
 const GAP_H = 8;       // height of hidden-row gap indicator
 
 // Gap render entry type
@@ -151,10 +167,18 @@ function countWorkdays(start: Date, end: Date): number {
     return count;
 }
 
+function estimatePhaseCellWidth(labels: string[]): number {
+    if (labels.length === 0) return 28;
+    return labels.reduce((sum, label) => {
+        const chipW = Math.min(120, Math.max(30, label.length * 6 + 14));
+        return sum + chipW;
+    }, 0) + Math.max(0, labels.length - 1) * 4 + 12;
+}
+
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     timelineMode,
-    filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory, canEdit,
-    showPct, setShowPct, showPriority, setShowPriority, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
+    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, canEdit,
+    showPriority, setShowPriority, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
     expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds
 }: GridProps) {
@@ -163,11 +187,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // ── Column widths (resizable) ──
     const [statusW, setStatusW] = useState(COL_STATUS_DEFAULT);
+    const [phaseW, setPhaseW] = useState(COL_PHASE_DEFAULT);
     const [startDateW, setStartDateW] = useState(COL_DATE_DEFAULT);
     const [endDateW, setEndDateW] = useState(COL_DATE_DEFAULT);
 
     // ── Priority dropdown open state ──
     const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
+    const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
 
     // ── CRUD states ──
@@ -188,11 +214,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
         if (openPriorityId) setOpenPriorityId(null);
+        if (openPhaseId) setOpenPhaseId(null);
     };
     const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
         if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
         if (openPriorityId) setOpenPriorityId(null);
+        if (openPhaseId) setOpenPhaseId(null);
     };
 
     const handleNameMouseEnter = (e: React.MouseEvent<HTMLSpanElement>, fullName: string) => {
@@ -226,8 +254,59 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         status: filterStatus,
         team: filterTeam,
         priority: filterPriority,
+        phase: filterPhase,
         subcategory: filterSubcategory,
-    }), [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory]);
+    }), [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory]);
+
+    const phaseOptions: PhaseOption[] = useMemo(() => {
+        const milestones = data.milestones || [];
+        return milestones.map((phase, index) => {
+            const id = (phase.id || '').trim() || `phase_${index + 1}`;
+            const label = (phase.label || '').trim() || `Phase ${index + 1}`;
+            const hasSchedule = !!((phase.startDate || '').trim() && (phase.endDate || '').trim());
+            return { id, label, hasSchedule };
+        });
+    }, [data.milestones]);
+
+    const phaseLabelById = useMemo(() => {
+        const labelMap = new Map<string, string>();
+        phaseOptions.forEach(phase => labelMap.set(phase.id, phase.label));
+        return labelMap;
+    }, [phaseOptions]);
+
+    const phaseShortById = useMemo(() => {
+        const shortMap = new Map<string, string>();
+        phaseOptions.forEach((phase, index) => shortMap.set(phase.id, `P${index + 1}`));
+        return shortMap;
+    }, [phaseOptions]);
+
+    const groupInlinePhaseIdsById = useMemo(() => {
+        const result = new Map<string, string[]>();
+        const walk = (item: RoadmapItem): string[] => {
+            const ownPhaseIds = normalizePhaseIds(item.phaseIds);
+            const descendantPhaseSet = new Set<string>();
+
+            if (item.children && item.children.length > 0) {
+                item.children.forEach(child => {
+                    const childPhaseIds = walk(child);
+                    childPhaseIds.forEach(phaseId => descendantPhaseSet.add(phaseId));
+                });
+            }
+
+            if (item.type === 'group') {
+                result.set(item.id, ownPhaseIds.length > 0 ? ownPhaseIds : Array.from(descendantPhaseSet));
+            }
+
+            ownPhaseIds.forEach(phaseId => descendantPhaseSet.add(phaseId));
+            return Array.from(descendantPhaseSet);
+        };
+
+        data.items.forEach(item => {
+            walk(item);
+        });
+
+        return result;
+    }, [data.items]);
 
     const flattened: FlattenedItem[] = useMemo(() => {
         const raw = flattenRoadmap(visibleItems);
@@ -342,6 +421,25 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         };
     }, [openPriorityId]);
 
+    useEffect(() => {
+        if (!openPhaseId) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('[data-phase-dropdown="true"]')) return;
+            if (target.closest('[data-phase-trigger="true"]')) return;
+            setOpenPhaseId(null);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOpenPhaseId(null);
+        };
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [openPhaseId]);
+
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
         if (nameWMode !== 'auto') return;
@@ -360,6 +458,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (maxW > 450) maxW = 450; // Cap tối đa 450px
         setNameW(maxW);
     }, [flattened, nameWMode, setNameW]);
+
+    useEffect(() => {
+        if (!showPhase) return;
+        let next = COL_PHASE_MIN;
+        for (const row of flattened) {
+            const labels = normalizePhaseIds(row.phaseIds).map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
+            next = Math.max(next, estimatePhaseCellWidth(labels));
+        }
+        setPhaseW(Math.max(COL_PHASE_MIN, Math.min(COL_PHASE_MAX, next)));
+    }, [flattened, phaseLabelById, showPhase]);
 
     // Build render list: group consecutive hidden leaf rows into gap entries
     const renderList: RenderEntry[] = useMemo(() => {
@@ -707,9 +815,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const totalLeftW = COL_ID_W + nameW
         + (showPriority ? COL_PRIORITY_W : 0)
         + statusW
+        + (showPhase ? phaseW : 0)
         + (showStartDate ? startDateW : 0)
         + (showEndDate ? endDateW : 0)
-        + (showPct ? COL_PCT_W : 0)
         + COL_ACTIONS_W;
     const TOTAL_HEADER_H = MILESTONE_HEADER_H + ROW_HEIGHT + ROW_HEIGHT;
 
@@ -717,14 +825,21 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const gridTemplate = `${COL_ID_W}px ${nameW}px`
         + (showPriority ? ` ${COL_PRIORITY_W}px` : '')
         + ` ${statusW}px`
+        + (showPhase ? ` ${phaseW}px` : '')
         + (showStartDate ? ` ${startDateW}px` : '')
         + (showEndDate ? ` ${endDateW}px` : '')
-        + (showPct ? ` ${COL_PCT_W}px` : '')
         + ` ${COL_ACTIONS_W}px`;
 
     return (
         <div className="flex h-full w-full bg-white overflow-hidden text-[12px] text-gray-900 font-sans">
-            {canEdit && editingItem && <EditPopup item={editingItem} onSave={handleEditSave} onClose={() => setEditingItem(null)} />}
+            {canEdit && editingItem && (
+                <EditPopup
+                    item={editingItem}
+                    phases={phaseOptions}
+                    onSave={handleEditSave}
+                    onClose={() => setEditingItem(null)}
+                />
+            )}
             {canEdit && addingToParent && (
                 <AddNodePopup parentId={addingToParent.id} parentName={addingToParent.name} childType={addingToParent.childType}
                     onAdd={handleAddChild} onClose={() => setAddingToParent(null)} />
@@ -774,6 +889,18 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         />
                     </div>
 
+                    {/* PHASE header – click to hide */}
+                    {showPhase && (
+                        <div
+                            className="flex items-center justify-center border-r border-gray-400 cursor-pointer hover:bg-indigo-100 transition-colors select-none"
+                            title="Click để ẩn cột Phase"
+                            onClick={() => setShowPhase(false)}
+                            style={{ minWidth: phaseW, width: phaseW }}
+                        >
+                            <span className="text-indigo-700">PHASE</span>
+                        </div>
+                    )}
+
                     {/* START DATE */}
                     {showStartDate && (
                         <div className="flex items-center justify-center border-r border-gray-400 relative group/col cursor-pointer hover:bg-indigo-100 transition-colors"
@@ -802,23 +929,18 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         </div>
                     )}
 
-                    {/* % column – click header to hide */}
-                    {showPct && (
-                        <div
-                            className="flex items-center justify-center border-r border-gray-400 cursor-pointer hover:bg-indigo-100 transition-colors select-none"
-                            title="Click để ẩn cột %"
-                            onClick={() => setShowPct(false)}
-                        >
-                            <span className="text-indigo-700">%</span>
-                        </div>
-                    )}
-
                     {/* Actions column header – shows restore buttons when hidden */}
                     <div className="flex items-center flex-wrap justify-center gap-0.5 px-0.5">
                         {!showPriority && (
                             <button title="Hiện cột Priority" onClick={() => setShowPriority(true)}
                                 className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
                                 P
+                            </button>
+                        )}
+                        {!showPhase && (
+                            <button title="Hiện cột Phase" onClick={() => setShowPhase(true)}
+                                className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
+                                Ph
                             </button>
                         )}
                         {!showStartDate && (
@@ -831,12 +953,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             <button title="Hiện cột Kết thúc" onClick={() => setShowEndDate(true)}
                                 className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
                                 E
-                            </button>
-                        )}
-                        {!showPct && (
-                            <button title="Hiện lại cột %" onClick={() => setShowPct(true)}
-                                className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
-                                %
                             </button>
                         )}
                     </div>
@@ -880,6 +996,23 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const hasQuickImage = quickImageCount > 0;
                         const isImagePreviewActive = activeImagePreviewId === row.id;
                         const normalizedRowPriority = normalizeItemPriority(row.priority);
+                        const rowPhaseIds = normalizePhaseIds(row.phaseIds);
+                        const rowPhaseIdSet = new Set(rowPhaseIds);
+                        const rowPhaseLabels = rowPhaseIds.map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
+                        const rowPhaseTitle = rowPhaseLabels.join(', ');
+                        const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
+                        const groupInlinePhaseTags = groupInlinePhaseIds.map(phaseId => ({
+                            id: phaseId,
+                            short: phaseShortById.get(phaseId) || 'P?',
+                            full: phaseLabelById.get(phaseId) || 'Unknown',
+                        }));
+                        const groupInlinePhaseVisible = groupInlinePhaseTags.slice(0, 2);
+                        const groupInlinePhaseMore = Math.max(0, groupInlinePhaseTags.length - groupInlinePhaseVisible.length);
+                        const groupInlinePhaseMoreTitle = groupInlinePhaseTags
+                            .slice(2)
+                            .map(tag => `${tag.short}: ${tag.full}`)
+                            .join(', ');
+                        const shouldShowGroupInlinePhase = row.type === 'group' && groupInlinePhaseTags.length > 0;
 
                         const canDragRow = canEdit;
                         const isDragged = draggedId === row.id;
@@ -935,6 +1068,27 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     {hasChildren
                                         ? (isExpanded ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />)
                                         : <span className="w-[14px] shrink-0" />}
+                                    {shouldShowGroupInlinePhase && (
+                                        <div className="mr-0.5 flex shrink-0 items-center gap-1">
+                                            {groupInlinePhaseVisible.map(tag => (
+                                                <span
+                                                    key={`${row.id}-${tag.id}`}
+                                                    className="rounded bg-indigo-100 px-1 py-0 text-[9px] font-semibold text-indigo-700"
+                                                    title={`${tag.short}: ${tag.full}`}
+                                                >
+                                                    {tag.short}
+                                                </span>
+                                            ))}
+                                            {groupInlinePhaseMore > 0 && (
+                                                <span
+                                                    className="rounded bg-indigo-50 px-1 py-0 text-[9px] font-semibold text-indigo-600"
+                                                    title={groupInlinePhaseMoreTitle || `${groupInlinePhaseMore} more phase(s)`}
+                                                >
+                                                    +{groupInlinePhaseMore}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                     <span
                                         className="min-w-0 flex-1 truncate"
                                         onMouseEnter={(e) => handleNameMouseEnter(e, row.name)}
@@ -983,7 +1137,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors relative"
                                             style={{ width: COL_PRIORITY_W }}
                                             title="Click để đổi priority"
-                                            onClick={e => { if (!canEdit) return; e.stopPropagation(); setOpenPriorityId(openPriorityId === row.id ? null : row.id); }}
+                                            onClick={e => {
+                                                if (!canEdit) return;
+                                                e.stopPropagation();
+                                                setOpenPhaseId(null);
+                                                setOpenPriorityId(openPriorityId === row.id ? null : row.id);
+                                            }}
                                         >
                                             <span
                                                 className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
@@ -1046,6 +1205,89 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     </span>
                                 </div>
 
+                                {/* Phase tags */}
+                                {showPhase && (
+                                    <div
+                                        data-phase-trigger="true"
+                                        className={`flex items-center border-r border-gray-300 px-1 relative ${canEdit && phaseOptions.length > 0 ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                        title={rowPhaseTitle || 'Chưa gán phase'}
+                                        onClick={e => {
+                                            if (!canEdit || phaseOptions.length === 0) return;
+                                            e.stopPropagation();
+                                            setOpenPriorityId(null);
+                                            setOpenPhaseId(openPhaseId === row.id ? null : row.id);
+                                        }}
+                                    >
+                                        {rowPhaseLabels.length === 0 ? (
+                                            <span className="mx-auto text-[10px] text-gray-400">—</span>
+                                        ) : (
+                                            <div className="flex w-full items-center justify-center gap-1 overflow-hidden">
+                                                {rowPhaseLabels.map((label, idx) => (
+                                                    <span
+                                                        key={`${row.id}-${label}-${idx}`}
+                                                        className="truncate rounded-full bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-center text-indigo-700"
+                                                    >
+                                                        {label}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {canEdit && openPhaseId === row.id && phaseOptions.length > 0 && (
+                                            <div
+                                                data-phase-dropdown="true"
+                                                className="absolute bottom-full left-0 z-50 mb-1 min-w-[200px] max-w-[260px] rounded border border-gray-200 bg-white shadow-lg"
+                                            >
+                                                <div className="max-h-52 overflow-auto py-1">
+                                                    {phaseOptions.map(phase => {
+                                                        const isSelected = rowPhaseIdSet.has(phase.id);
+                                                        return (
+                                                            <button
+                                                                key={phase.id}
+                                                                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors ${isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                                onMouseDown={e => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateFromSource(row.id, source => {
+                                                                        const current = new Set(normalizePhaseIds(source.phaseIds));
+                                                                        if (current.has(phase.id)) current.delete(phase.id);
+                                                                        else current.add(phase.id);
+                                                                        const next = { ...source };
+                                                                        const nextPhaseIds = Array.from(current);
+                                                                        if (nextPhaseIds.length > 0) next.phaseIds = nextPhaseIds;
+                                                                        else delete next.phaseIds;
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                            >
+                                                                <span className={`h-3.5 w-3.5 rounded border text-[10px] leading-[13px] text-center ${isSelected ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
+                                                                <span className="truncate">{phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div className="border-t border-gray-100">
+                                                    <button
+                                                        className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
+                                                        onMouseDown={e => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            updateFromSource(row.id, source => {
+                                                                const next = { ...source };
+                                                                delete next.phaseIds;
+                                                                return next;
+                                                            });
+                                                            setOpenPhaseId(null);
+                                                        }}
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Start Date */}
                                 {showStartDate && (
                                     <div className="flex items-center justify-center border-r border-gray-300 px-1 text-[10px] text-gray-500 font-mono">
@@ -1057,17 +1299,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {showEndDate && (
                                     <div className="flex items-center justify-center border-r border-gray-300 px-1 text-[10px] text-gray-500 font-mono">
                                         {row.endDate ? format(parseISO(row.endDate), 'dd/MM/yy') : '-'}
-                                    </div>
-                                )}
-
-                                {/* Progress */}
-                                {showPct && (
-                                    <div className="flex items-center justify-center font-bold text-[11px] border-r border-gray-300 cursor-pointer hover:brightness-95 transition-all"
-                                        style={{ backgroundColor: row.progress === 100 ? '#bbf7d0' : row.progress > 0 ? '#fef08a' : 'transparent' }}
-                                        onClick={() => canEdit && openEditor(row.id)}
-                                        title="Click để sửa"
-                                    >
-                                        {row.progress}%
                                     </div>
                                 )}
 

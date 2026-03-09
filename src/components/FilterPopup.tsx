@@ -2,7 +2,7 @@
 
 import { Save } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
-import { PRIORITY_FILTER_NONE, PRIORITY_LEVELS, STATUS_OPTIONS } from '@/types/roadmap';
+import { PHASE_FILTER_NONE, PRIORITY_FILTER_NONE, PRIORITY_LEVELS, PhaseOption, STATUS_OPTIONS } from '@/types/roadmap';
 
 interface FilterPopupProps {
     isOpen: boolean;
@@ -10,13 +10,15 @@ interface FilterPopupProps {
     canEdit: boolean;
     availableCategories: string[];
     availableTeams: string[];
+    availablePhases: PhaseOption[];
     availableSubcategories: string[];
     filterCategory: string[];
     filterStatus: string[];
     filterTeam: string[];
     filterPriority: string[];
+    filterPhase: string[];
     filterSubcategory: string[];
-    onFilterChange: (type: 'category' | 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => void;
+    onFilterChange: (type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory', values: string[]) => void;
     onSaveView: () => void;
 }
 
@@ -26,20 +28,29 @@ export default function FilterPopup({
     canEdit,
     availableCategories,
     availableTeams,
+    availablePhases,
     availableSubcategories,
     filterCategory,
     filterStatus,
     filterTeam,
     filterPriority,
+    filterPhase,
     filterSubcategory,
     onFilterChange,
     onSaveView,
 }: FilterPopupProps) {
     const priorityFilterOptions = [...PRIORITY_LEVELS, PRIORITY_FILTER_NONE];
-    const activeFilterCount = filterCategory.length + filterStatus.length + filterTeam.length + filterPriority.length + filterSubcategory.length;
+    const activeFilterCount = (
+        filterCategory.length
+        + filterStatus.length
+        + filterTeam.length
+        + filterPriority.length
+        + filterPhase.length
+        + filterSubcategory.length
+    );
     const scopeFilterCount = filterCategory.length + filterSubcategory.length;
 
-    const toggleFilter = (type: 'category' | 'status' | 'team' | 'priority' | 'subcategory', value: string, current: string[]) => {
+    const toggleFilter = (type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory', value: string, current: string[]) => {
         if (current.includes(value)) {
             onFilterChange(type, current.filter(item => item !== value));
         } else {
@@ -52,6 +63,7 @@ export default function FilterPopup({
         onFilterChange('status', []);
         onFilterChange('team', []);
         onFilterChange('priority', []);
+        onFilterChange('phase', []);
         onFilterChange('subcategory', []);
     };
 
@@ -127,6 +139,40 @@ export default function FilterPopup({
                         )}
                     </div>
                 )}
+
+                <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Phase</p>
+                    {availablePhases.length === 0 ? (
+                        <div className="rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-[11px] text-gray-500">
+                            Chưa có phase. Hãy tạo phase trong panel Phases.
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            {availablePhases.map(phase => (
+                                <label key={phase.id} className="flex items-center gap-2 cursor-pointer group">
+                                    <input
+                                        type="checkbox"
+                                        checked={filterPhase.includes(phase.id)}
+                                        onChange={() => toggleFilter('phase', phase.id, filterPhase)}
+                                        className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700 truncate">
+                                        {phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}
+                                    </span>
+                                </label>
+                            ))}
+                            <label className="flex items-center gap-2 cursor-pointer group border-t border-gray-100 pt-2">
+                                <input
+                                    type="checkbox"
+                                    checked={filterPhase.includes(PHASE_FILTER_NONE)}
+                                    onChange={() => toggleFilter('phase', PHASE_FILTER_NONE, filterPhase)}
+                                    className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-xs text-gray-700 font-medium group-hover:text-indigo-700">None (chưa gán phase)</span>
+                            </label>
+                        </div>
+                    )}
+                </div>
 
                 <div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 border-t border-gray-100 pt-3">Status</p>

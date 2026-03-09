@@ -10,7 +10,21 @@ import TimelineModeFab from '@/components/TimelineModeFab';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useToast } from '@/hooks/useToast';
-import { RoadmapDocument, RoadmapItem, Milestone, ColumnWidthMode, TimelineMode, normalizeItemImages, normalizeItemPriority, normalizePriorityFilterValues, normalizeStatusFilter, toLegacyImageFields } from '@/types/roadmap';
+import {
+  ColumnWidthMode,
+  Milestone,
+  PhaseOption,
+  RoadmapDocument,
+  RoadmapItem,
+  TimelineMode,
+  normalizeItemImages,
+  normalizeItemPriority,
+  normalizePhaseFilterValues,
+  normalizePhaseIds,
+  normalizePriorityFilterValues,
+  normalizeStatusFilter,
+  toLegacyImageFields
+} from '@/types/roadmap';
 import { exportRoadmapToExcel } from '@/utils/exportToExcel';
 import { recalculateRoadmap } from '@/utils/roadmapHelpers';
 
@@ -24,6 +38,36 @@ function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
 }
 
+function normalizeDateValue(value: string | undefined): string {
+  return (value || '').trim();
+}
+
+function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] | undefined {
+  if (!milestones) return milestones;
+  return milestones.map((milestone, index) => {
+    const id = (milestone.id || '').trim() || `phase_${index + 1}`;
+    const label = (milestone.label || '').trim() || `Phase ${index + 1}`;
+    const color = (milestone.color || '').trim() || '#3b82f6';
+    let startDate = normalizeDateValue(milestone.startDate);
+    let endDate = normalizeDateValue(milestone.endDate);
+
+    if (startDate && !endDate) {
+      endDate = startDate;
+    } else if (!startDate && endDate) {
+      startDate = endDate;
+    }
+
+    return {
+      ...milestone,
+      id,
+      label,
+      color,
+      startDate,
+      endDate,
+    };
+  });
+}
+
 function normalizeItemTree(items: RoadmapItem[]): RoadmapItem[] {
   return items.map(item => {
     const normalizedImages = normalizeItemImages(item);
@@ -32,6 +76,7 @@ function normalizeItemTree(items: RoadmapItem[]): RoadmapItem[] {
       images: normalizedImages,
       ...toLegacyImageFields(normalizedImages),
       priority: normalizeItemPriority(item.priority),
+      phaseIds: normalizePhaseIds(item.phaseIds),
       children: item.children ? normalizeItemTree(item.children) : item.children,
     };
   });
@@ -58,11 +103,12 @@ export default function Home() {
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
   const [filterTeam, setFilterTeam] = useState<string[]>([]);
   const [filterPriority, setFilterPriority] = useState<string[]>([]);
+  const [filterPhase, setFilterPhase] = useState<string[]>([]);
   const [filterSubcategory, setFilterSubcategory] = useState<string[]>([]);
 
   // Column visibility
-  const [showPct, setShowPct] = useState(true);
   const [showPriority, setShowPriority] = useState(true);
+  const [showPhase, setShowPhase] = useState(true);
   const [showStartDate, setShowStartDate] = useState(false);
   const [showEndDate, setShowEndDate] = useState(false);
   const [featuresColWidth, setFeaturesColWidth] = useState(DEFAULT_FEATURES_COL_WIDTH);
@@ -85,8 +131,13 @@ export default function Home() {
 
   const normalizeDocument = useCallback((doc: RoadmapDocument): RoadmapDocument => ({
     ...doc,
+    milestones: normalizeMilestones(doc.milestones),
     settings: doc.settings
-      ? { ...doc.settings, filterPriority: normalizePriorityFilterValues(doc.settings.filterPriority) }
+      ? {
+        ...doc.settings,
+        filterPriority: normalizePriorityFilterValues(doc.settings.filterPriority),
+        filterPhase: normalizePhaseFilterValues(doc.settings.filterPhase),
+      }
       : doc.settings,
     items: recalculateRoadmap(normalizeItemTree(doc.items || [])),
   }), []);
@@ -157,9 +208,10 @@ export default function Home() {
           if (json.settings.filterStatus) setFilterStatus(normalizeStatusFilter(json.settings.filterStatus));
           if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
           if (json.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(json.settings.filterPriority));
+          if (json.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(json.settings.filterPhase));
           if (json.settings.filterSubcategory) setFilterSubcategory(json.settings.filterSubcategory);
-          if (typeof json.settings.colPct === 'boolean') setShowPct(json.settings.colPct);
           if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
+          if (typeof json.settings.colPhase === 'boolean') setShowPhase(json.settings.colPhase);
           if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
           if (typeof json.settings.colEndDate === 'boolean') setShowEndDate(json.settings.colEndDate);
           if (typeof json.settings.colFeaturesWidth === 'number') {
@@ -298,9 +350,10 @@ export default function Home() {
       filterStatus: normalizeStatusFilter(filterStatus),
       filterTeam,
       filterPriority: normalizePriorityFilterValues(filterPriority),
+      filterPhase: normalizePhaseFilterValues(filterPhase),
       filterSubcategory,
-      colPct: showPct,
       colPriority: showPriority,
+      colPhase: showPhase,
       colStartDate: showStartDate,
       colEndDate: showEndDate,
       colFeaturesWidth: clampFeaturesColWidth(featuresColWidth),
@@ -316,9 +369,10 @@ export default function Home() {
     filterStatus,
     filterTeam,
     filterPriority,
+    filterPhase,
     filterSubcategory,
-    showPct,
     showPriority,
+    showPhase,
     showStartDate,
     showEndDate,
     featuresColWidth,
@@ -393,11 +447,12 @@ export default function Home() {
     setShowMilestones(true);
   }, []);
 
-  const handleFilterChange = useCallback((type: 'category' | 'status' | 'team' | 'priority' | 'subcategory', values: string[]) => {
+  const handleFilterChange = useCallback((type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory', values: string[]) => {
     if (type === 'category') setFilterCategory(values);
     else if (type === 'status') setFilterStatus(values);
     else if (type === 'team') setFilterTeam(values);
     else if (type === 'priority') setFilterPriority(normalizePriorityFilterValues(values));
+    else if (type === 'phase') setFilterPhase(normalizePhaseFilterValues(values));
     else if (type === 'subcategory') setFilterSubcategory(values);
   }, []);
 
@@ -435,7 +490,9 @@ export default function Home() {
       if (parsed.settings.filterStatus) setFilterStatus(normalizeStatusFilter(parsed.settings.filterStatus));
       if (parsed.settings.filterTeam) setFilterTeam(parsed.settings.filterTeam);
       if (parsed.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(parsed.settings.filterPriority));
+      if (parsed.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(parsed.settings.filterPhase));
       if (parsed.settings.filterSubcategory) setFilterSubcategory(parsed.settings.filterSubcategory);
+      if (typeof parsed.settings.colPhase === 'boolean') setShowPhase(parsed.settings.colPhase);
       if (typeof parsed.settings.colFeaturesWidth === 'number') {
         setFeaturesColWidth(clampFeaturesColWidth(parsed.settings.colFeaturesWidth));
       }
@@ -505,6 +562,16 @@ export default function Home() {
     return Array.from(categories).sort((a, b) => a.localeCompare(b));
   }, [data]);
 
+  const availablePhases: PhaseOption[] = useMemo(() => {
+    if (!data?.milestones) return [];
+    return data.milestones.map((milestone, index) => {
+      const id = (milestone.id || '').trim() || `phase_${index + 1}`;
+      const label = (milestone.label || '').trim() || `Phase ${index + 1}`;
+      const hasSchedule = !!(normalizeDateValue(milestone.startDate) && normalizeDateValue(milestone.endDate));
+      return { id, label, hasSchedule };
+    });
+  }, [data]);
+
   const dismissVersionNotice = useCallback(() => {
     if (pendingRemoteVersion) setDismissedVersion(pendingRemoteVersion);
     setPendingRemoteVersion(null);
@@ -554,6 +621,8 @@ export default function Home() {
           filterStatus={filterStatus}
           filterTeam={filterTeam}
           filterPriority={filterPriority}
+          availablePhases={availablePhases}
+          filterPhase={filterPhase}
           filterSubcategory={filterSubcategory}
           onFilterChange={handleFilterChange}
           onSaveView={() => handleSave(data)}
@@ -610,6 +679,7 @@ export default function Home() {
         filterStatus={filterStatus}
         filterTeam={filterTeam}
         filterPriority={filterPriority}
+        filterPhase={filterPhase}
         filterSubcategory={filterSubcategory}
       />
       <div className="flex-1 overflow-hidden">
@@ -626,10 +696,11 @@ export default function Home() {
           filterStatus={filterStatus}
           filterTeam={filterTeam}
           filterPriority={filterPriority}
+          filterPhase={filterPhase}
           filterSubcategory={filterSubcategory}
           canEdit={isEditor}
-          showPct={showPct} setShowPct={setShowPct}
           showPriority={showPriority} setShowPriority={setShowPriority}
+          showPhase={showPhase} setShowPhase={setShowPhase}
           showStartDate={showStartDate} setShowStartDate={setShowStartDate}
           showEndDate={showEndDate} setShowEndDate={setShowEndDate}
           nameW={featuresColWidth}

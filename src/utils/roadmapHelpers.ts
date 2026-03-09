@@ -1,4 +1,17 @@
-import { ItemPriority, ItemStatus, PRIORITY_FILTER_NONE, RoadmapItem, StatusMode, normalizeItemPriority, normalizeItemStatus, normalizePriorityFilterValues, normalizeStatusFilter } from '../types/roadmap';
+import {
+    ItemPriority,
+    ItemStatus,
+    PHASE_FILTER_NONE,
+    PRIORITY_FILTER_NONE,
+    RoadmapItem,
+    StatusMode,
+    normalizeItemPriority,
+    normalizeItemStatus,
+    normalizePhaseFilterValues,
+    normalizePhaseIds,
+    normalizePriorityFilterValues,
+    normalizeStatusFilter
+} from '../types/roadmap';
 import { addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
 export interface FlattenedItem extends RoadmapItem {
@@ -201,15 +214,25 @@ export const reorderItems = (items: RoadmapItem[], fromId: string, toId: string)
 
 export const filterRoadmapTree = (
     items: RoadmapItem[],
-    filters: { category?: string[]; status?: string[]; team?: string[]; priority?: string[]; subcategory?: string[] }
+    filters: {
+        category?: string[];
+        status?: string[];
+        team?: string[];
+        priority?: string[];
+        phase?: string[];
+        subcategory?: string[]
+    }
 ): RoadmapItem[] => {
     const hasCategoryFilter = filters.category && filters.category.length > 0;
     const hasStatusFilter = filters.status && filters.status.length > 0;
     const hasTeamFilter = filters.team && filters.team.length > 0;
     const hasPriorityFilter = filters.priority && filters.priority.length > 0;
+    const hasPhaseFilter = filters.phase && filters.phase.length > 0;
     const hasSubcategoryFilter = filters.subcategory && filters.subcategory.length > 0;
 
-    if (!hasCategoryFilter && !hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasSubcategoryFilter) return items;
+    if (!hasCategoryFilter && !hasStatusFilter && !hasTeamFilter && !hasPriorityFilter && !hasPhaseFilter && !hasSubcategoryFilter) {
+        return items;
+    }
 
     const selectedCategories = new Set(filters.category || []);
     const selectedStatuses = new Set(normalizeStatusFilter(filters.status));
@@ -218,6 +241,11 @@ export const filterRoadmapTree = (
     const wantsNonePriority = selectedPriorityFilters.has(PRIORITY_FILTER_NONE);
     const selectedPriorities = new Set<ItemPriority>(
         Array.from(selectedPriorityFilters).filter((value): value is ItemPriority => value !== PRIORITY_FILTER_NONE)
+    );
+    const selectedPhaseFilters = new Set(normalizePhaseFilterValues(filters.phase));
+    const wantsNonePhase = selectedPhaseFilters.has(PHASE_FILTER_NONE);
+    const selectedPhaseIds = new Set<string>(
+        Array.from(selectedPhaseFilters).filter((value): value is string => value !== PHASE_FILTER_NONE)
     );
     const selectedSubcategories = new Set(filters.subcategory || []);
 
@@ -266,6 +294,7 @@ export const filterRoadmapTree = (
         let matchesStatus = true;
         let matchesTeam = true;
         let matchesPriority = true;
+        let matchesPhase = true;
         let matchesSubcategory = true;
 
         if (hasCategoryFilter) {
@@ -304,6 +333,13 @@ export const filterRoadmapTree = (
             }
         }
 
+        if (hasPhaseFilter) {
+            const phaseIds = normalizePhaseIds(item.phaseIds);
+            const hasPhaseMatch = phaseIds.some(phaseId => selectedPhaseIds.has(phaseId));
+            const hasNonePhaseMatch = phaseIds.length === 0 && wantsNonePhase;
+            matchesPhase = hasPhaseMatch || hasNonePhaseMatch;
+        }
+
         if (hasSubcategoryFilter) {
             if (item.type === 'subcategory') {
                 matchesSubcategory = isSelectedSubcategory;
@@ -312,7 +348,7 @@ export const filterRoadmapTree = (
             }
         }
 
-        const isMatch = matchesCategory && matchesStatus && matchesTeam && matchesPriority && matchesSubcategory;
+        const isMatch = matchesCategory && matchesStatus && matchesTeam && matchesPriority && matchesPhase && matchesSubcategory;
         const node = (isMatch || filteredChildren.length > 0)
             ? { ...item, children: filteredChildren }
             : null;

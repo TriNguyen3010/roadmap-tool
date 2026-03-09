@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Eye, ImagePlus, Trash2, X } from 'lucide-rea
 import {
     ItemImage,
     ItemStatus,
+    PhaseOption,
     RoadmapItem,
     StatusMode,
     SubcategoryType,
@@ -12,6 +13,7 @@ import {
     TEAM_ROLES,
     STATUS_OPTIONS,
     normalizeItemImages,
+    normalizePhaseIds,
     normalizeItemStatus,
     toLegacyImageFields,
 } from '@/types/roadmap';
@@ -20,6 +22,7 @@ import SidePanelShell from './SidePanelShell';
 
 interface EditPopupProps {
     item: RoadmapItem;
+    phases: PhaseOption[];
     onSave: (updated: RoadmapItem) => void;
     onClose: () => void;
 }
@@ -53,7 +56,7 @@ const normalizeLocalImages = (images: ItemImage[]): ItemImage[] => {
     }, []);
 };
 
-export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
+export default function EditPopup({ item, phases, onSave, onClose }: EditPopupProps) {
     const hasChildren = !!(item.children && item.children.length > 0);
     const initialStatusMode: StatusMode = hasChildren ? (item.statusMode ?? 'auto') : 'manual';
     const initialImages = useMemo(() => normalizeItemImages(item), [item]);
@@ -66,6 +69,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
     const [startDate, setStartDate] = useState(item.startDate || '');
     const [endDate, setEndDate] = useState(item.endDate || '');
     const [quickNote, setQuickNote] = useState(item.quickNote || '');
+    const [selectedPhaseIds, setSelectedPhaseIds] = useState<Set<string>>(() => new Set(normalizePhaseIds(item.phaseIds)));
     const [subcategoryType, setSubcategoryType] = useState<SubcategoryType | undefined>(item.subcategoryType);
     const [images, setImages] = useState<ItemImage[]>(initialImages);
     const [selectedImageIndex, setSelectedImageIndex] = useState(initialImages.length > 0 ? 0 : -1);
@@ -126,6 +130,13 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
         if (next.has(role)) next.delete(role);
         else next.add(role);
         setSelectedTeams(next);
+    };
+
+    const togglePhase = (phaseId: string) => {
+        const next = new Set(selectedPhaseIds);
+        if (next.has(phaseId)) next.delete(phaseId);
+        else next.add(phaseId);
+        setSelectedPhaseIds(next);
     };
 
     const deleteImageById = async (targetImageId: string): Promise<void> => {
@@ -353,6 +364,7 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
             images: normalizedImages.length > 0 ? normalizedImages : undefined,
             ...toLegacyImageFields(normalizedImages),
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
+            phaseIds: selectedPhaseIds.size > 0 ? Array.from(selectedPhaseIds) : undefined,
             children: updatedChildren
         });
 
@@ -638,6 +650,35 @@ export default function EditPopup({ item, onSave, onClose }: EditPopupProps) {
                         </div>
                     </div>
                 )}
+
+                {/* Phases */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600">Phases (Optional)</label>
+                    {phases.length === 0 ? (
+                        <div className="rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-2 text-[11px] text-gray-500">
+                            Chưa có phase. Vào panel Phases để tạo phase trước khi gán.
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            {phases.map(phase => {
+                                const isSelected = selectedPhaseIds.has(phase.id);
+                                return (
+                                    <label key={phase.id} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => togglePhase(phase.id)}
+                                            className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <span className={isSelected ? 'font-medium text-gray-900' : 'text-gray-600'}>
+                                            {phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
 
                 {/* Auto rollup notice */}
                 {isDateLocked && (

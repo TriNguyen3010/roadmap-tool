@@ -6,11 +6,19 @@ export type TimelineMode = 'day' | 'week' | 'month';
 export type ItemPriority = 'High' | 'Medium' | 'Low' | 'Reported';
 export const PRIORITY_FILTER_NONE = 'None' as const;
 export type PriorityFilterValue = ItemPriority | typeof PRIORITY_FILTER_NONE;
+export const PHASE_FILTER_NONE = '__NONE__' as const;
+export type PhaseFilterValue = string | typeof PHASE_FILTER_NONE;
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
 export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE';
 export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE'];
 export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low', 'Reported'];
 export const STATUS_OPTIONS: ItemStatus[] = ['Not Started', 'PD In Progress', 'Dev In Progress', 'Done'];
+
+export interface PhaseOption {
+  id: string;
+  label: string;
+  hasSchedule: boolean;
+}
 
 export interface ItemImage {
   id: string;
@@ -61,6 +69,23 @@ export function normalizePriorityFilterValues(priorities: string[] | undefined |
   const normalized = priorities
     .map(normalizePriorityFilterValue)
     .filter((p): p is PriorityFilterValue => !!p);
+  return Array.from(new Set(normalized));
+}
+
+export function normalizePhaseIds(phaseIds: string[] | undefined | null): string[] {
+  if (!phaseIds || phaseIds.length === 0) return [];
+  const normalized = phaseIds
+    .map(id => typeof id === 'string' ? id.trim() : '')
+    .filter((id): id is string => !!id);
+  return Array.from(new Set(normalized));
+}
+
+export function normalizePhaseFilterValues(phases: string[] | undefined | null): PhaseFilterValue[] {
+  if (!phases || phases.length === 0) return [];
+  const normalized = phases
+    .map(value => typeof value === 'string' ? value.trim() : '')
+    .filter((value): value is string => !!value)
+    .map(value => value === PHASE_FILTER_NONE ? PHASE_FILTER_NONE : value);
   return Array.from(new Set(normalized));
 }
 
@@ -177,6 +202,7 @@ export interface RoadmapItem {
   startDate?: string;
   endDate?: string;
   priority?: ItemPriority;
+  phaseIds?: string[];
   quickNote?: string;
   images?: ItemImage[];
   // Legacy single-image fields kept for backward compatibility.
@@ -208,8 +234,10 @@ export interface RoadmapDocument {
     filterStatus?: string[];
     filterTeam?: string[];
     filterPriority?: string[];
+    filterPhase?: string[];
     filterSubcategory?: string[];
     colPriority?: boolean;
+    colPhase?: boolean;
     colPct?: boolean;
     colStartDate?: boolean;
     colEndDate?: boolean;

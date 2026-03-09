@@ -51,6 +51,7 @@ interface ToolbarProps {
     filterStatus: string[];
     filterTeam: string[];
     filterPriority: string[];
+    filterPhase: string[];
     filterSubcategory: string[];
 }
 
@@ -59,7 +60,7 @@ export default function Toolbar({
     onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
-    filterCategory, filterStatus, filterTeam, filterPriority, filterSubcategory
+    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -96,7 +97,14 @@ export default function Toolbar({
         return () => clearTimeout(timer);
     }, [authOpen]);
 
-    const activeFilterCount = filterCategory.length + filterStatus.length + filterTeam.length + filterPriority.length + filterSubcategory.length;
+    const activeFilterCount = (
+        filterCategory.length
+        + filterStatus.length
+        + filterTeam.length
+        + filterPriority.length
+        + filterPhase.length
+        + filterSubcategory.length
+    );
 
     const startEdit = () => {
         if (!canEdit) return;
@@ -254,15 +262,15 @@ export default function Toolbar({
                     </button>
                 )}
 
-                {/* Milestones */}
+                {/* Phases */}
                 <button
                     onClick={() => canEdit && onOpenMilestonesPopup()}
                     disabled={!canEdit}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 text-white rounded text-xs font-semibold transition-colors disabled:bg-amber-300 ${isMilestonesPopupOpen ? 'bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'}`}
-                    title={canEdit ? 'Mở side panel Milestones' : 'Viewer mode: không thể chỉnh milestone'}
+                    title={canEdit ? 'Mở side panel Phases' : 'Viewer mode: không thể chỉnh phase'}
                 >
                     <Flag size={13} />
-                    <span>Milestones</span>
+                    <span>Phases</span>
                 </button>
 
                 {/* Save — icon only */}
