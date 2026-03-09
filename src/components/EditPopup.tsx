@@ -4,8 +4,10 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Eye, ImagePlus, Trash2, X } from 'lucide-react';
 import {
     ItemImage,
+    ItemPriority,
     ItemStatus,
     PhaseOption,
+    PRIORITY_LEVELS,
     RoadmapItem,
     StatusMode,
     SubcategoryType,
@@ -13,6 +15,7 @@ import {
     TEAM_ROLES,
     STATUS_OPTIONS,
     normalizeItemImages,
+    normalizeItemPriority,
     normalizePhaseIds,
     normalizeItemStatus,
     toLegacyImageFields,
@@ -65,6 +68,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
     const [name, setName] = useState(item.name);
     const [statusMode, setStatusMode] = useState<StatusMode>(initialStatusMode);
     const [status, setStatus] = useState<ItemStatus>(normalizeItemStatus(item.manualStatus ?? item.status));
+    const [priority, setPriority] = useState<ItemPriority | ''>(() => normalizeItemPriority(item.priority) || '');
     const [progress, setProgress] = useState(item.progress ?? 0);
     const [startDate, setStartDate] = useState(item.startDate || '');
     const [endDate, setEndDate] = useState(item.endDate || '');
@@ -351,7 +355,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
         const hasChildrenAfterUpdate = !!(updatedChildren && updatedChildren.length > 0);
         const nextStatusMode: StatusMode = hasChildrenAfterUpdate ? statusMode : 'manual';
 
-        onSave({
+        const updatedItem: RoadmapItem = {
             ...item,
             name,
             startDate: startDate || undefined,
@@ -366,7 +370,14 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
             phaseIds: selectedPhaseIds.size > 0 ? Array.from(selectedPhaseIds) : undefined,
             children: updatedChildren
-        });
+        };
+
+        if (item.type === 'feature' || item.type === 'group') {
+            if (priority) updatedItem.priority = priority;
+            else delete updatedItem.priority;
+        }
+
+        onSave(updatedItem);
 
         removedExistingImageIds.forEach((imageId) => {
             void deleteImageById(imageId);
@@ -648,6 +659,33 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                                 );
                             })}
                         </div>
+                    </div>
+                )}
+
+                {(item.type === 'feature' || item.type === 'group') && (
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-gray-600">Priority</label>
+                            {priority && (
+                                <button
+                                    type="button"
+                                    className="text-[10px] font-semibold text-gray-500 hover:text-gray-700"
+                                    onClick={() => setPriority('')}
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        <select
+                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={priority}
+                            onChange={(e) => setPriority((e.target.value || '') as ItemPriority | '')}
+                        >
+                            <option value="">None</option>
+                            {PRIORITY_LEVELS.map(level => (
+                                <option key={level} value={level}>{level}</option>
+                            ))}
+                        </select>
                     </div>
                 )}
 
