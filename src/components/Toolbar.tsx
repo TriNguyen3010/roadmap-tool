@@ -9,6 +9,8 @@ import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import SidePanelShell from './SidePanelShell';
 
+export type QuickViewMode = 'feature' | 'improvement' | 'bug' | 'web' | 'app' | 'reported';
+
 // ── Before options: weeks (negative offset from today)
 export const BEFORE_OPTIONS: { label: string; weeks: number }[] = [
     { label: '2T', weeks: 2 },
@@ -54,6 +56,7 @@ interface ToolbarProps {
     filterPhase: string[];
     filterSubcategory: string[];
     filterGroupItemType: string[];
+    onToggleQuickViewMode: (mode: QuickViewMode) => void;
 }
 
 export default function Toolbar({
@@ -61,7 +64,7 @@ export default function Toolbar({
     onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
-    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType
+    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, onToggleQuickViewMode
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -107,6 +110,15 @@ export default function Toolbar({
         + filterSubcategory.length
         + filterGroupItemType.length
     );
+    const hasSubcategoryQuick = (value: string) => filterSubcategory.includes(value) && filterSubcategory.includes('Core');
+    const quickViewButtons: { mode: QuickViewMode; label: string; active: boolean }[] = [
+        { mode: 'feature', label: 'Feature', active: filterGroupItemType.includes('Feature') },
+        { mode: 'improvement', label: 'Improvement', active: filterGroupItemType.includes('Improvement') },
+        { mode: 'bug', label: 'Bug', active: filterGroupItemType.includes('Bug') },
+        { mode: 'web', label: 'Web', active: hasSubcategoryQuick('Web') },
+        { mode: 'app', label: 'App', active: hasSubcategoryQuick('App') },
+        { mode: 'reported', label: 'Reported', active: filterPriority.includes('Reported') },
+    ];
 
     const startEdit = () => {
         if (!canEdit) return;
@@ -201,30 +213,48 @@ export default function Toolbar({
                 </SidePanelShell>
             )}
 
-            {/* LEFT: logo + doc name */}
-            <div className="flex items-center gap-2 min-w-0" style={{ flex: '0 0 auto', maxWidth: 280 }}>
-                <span className="text-base shrink-0">📋</span>
-                {isEditingName ? (
-                    <div className="flex items-center gap-1 flex-1">
-                        <input
-                            ref={inputRef}
-                            autoFocus
-                            className="flex-1 border border-blue-400 rounded px-2 py-0.5 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-0"
-                            value={draft}
-                            onChange={e => setDraft(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
-                            onBlur={commitEdit}
-                        />
-                        <button onClick={commitEdit} className="text-green-600 hover:text-green-800 shrink-0">
-                            <Check size={15} />
+            {/* LEFT: logo + doc name + quick view */}
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0 shrink-0" style={{ maxWidth: 300 }}>
+                    <span className="text-base shrink-0">📋</span>
+                    {isEditingName ? (
+                        <div className="flex items-center gap-1 flex-1">
+                            <input
+                                ref={inputRef}
+                                autoFocus
+                                className="flex-1 border border-blue-400 rounded px-2 py-0.5 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-0"
+                                value={draft}
+                                onChange={e => setDraft(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
+                                onBlur={commitEdit}
+                            />
+                            <button onClick={commitEdit} className="text-green-600 hover:text-green-800 shrink-0">
+                                <Check size={15} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className={`flex items-center gap-1 min-w-0 ${canEdit ? 'group cursor-pointer' : 'cursor-default'}`} onClick={startEdit}>
+                            <span className="font-bold text-gray-800 text-sm truncate">{documentName}</span>
+                            {canEdit && <Pencil size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />}
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-1 min-w-0 overflow-x-auto">
+                    {quickViewButtons.map(button => (
+                        <button
+                            key={button.mode}
+                            onClick={() => onToggleQuickViewMode(button.mode)}
+                            title="Quick filter: kết hợp AND với các filter khác"
+                            className={`shrink-0 rounded border px-1.5 py-1 text-[10px] font-semibold transition-colors ${button.active
+                                ? 'border-indigo-600 bg-indigo-600 text-white'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                                }`}
+                        >
+                            {button.label}
                         </button>
-                    </div>
-                ) : (
-                    <div className={`flex items-center gap-1 min-w-0 ${canEdit ? 'group cursor-pointer' : 'cursor-default'}`} onClick={startEdit}>
-                        <span className="font-bold text-gray-800 text-sm truncate">{documentName}</span>
-                        {canEdit && <Pencil size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />}
-                    </div>
-                )}
+                    ))}
+                </div>
             </div>
 
             {/* CENTER: Live clock */}
@@ -275,6 +305,15 @@ export default function Toolbar({
                     <span>Phases</span>
                 </button>
 
+                <button
+                    onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); }}
+                    title="Mở side panel Filter"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white text-xs ${isFilterPopupOpen ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
+                >
+                    <Filter size={13} />
+                    <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
+                </button>
+
                 {/* Save — icon only */}
                 <button
                     onClick={() => canEdit && onSave()}
@@ -283,15 +322,6 @@ export default function Toolbar({
                     className="flex items-center justify-center w-8 h-8 rounded bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white transition-colors shadow-sm"
                 >
                     {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                </button>
-
-                <button
-                    onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); }}
-                    title="Mở side panel Filter"
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white text-xs ${isFilterPopupOpen ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
-                >
-                    <Filter size={13} />
-                    <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
                 </button>
 
                 {/* ⚙ Settings — icon only, opens dropdown */}

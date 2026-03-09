@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { startOfDay, subWeeks, addMonths, endOfMonth, format } from 'date-fns';
-import Toolbar from '@/components/Toolbar';
+import Toolbar, { type QuickViewMode } from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
 import MilestoneEditor from '@/components/MilestoneEditor';
 import FilterPopup from '@/components/FilterPopup';
@@ -475,6 +475,41 @@ export default function Home() {
     else if (type === 'groupItemType') setFilterGroupItemType(normalizeGroupItemTypeFilter(values));
   }, []);
 
+  const handleToggleQuickViewMode = useCallback((mode: QuickViewMode) => {
+    const toggleValue = (source: string[], value: string): string[] => (
+      source.includes(value) ? source.filter(item => item !== value) : [...source, value]
+    );
+
+    if (mode === 'feature' || mode === 'improvement' || mode === 'bug') {
+      const target = mode === 'feature' ? 'Feature' : mode === 'improvement' ? 'Improvement' : 'Bug';
+      setFilterGroupItemType(prev => normalizeGroupItemTypeFilter(toggleValue(prev, target)));
+      return;
+    }
+
+    if (mode === 'reported') {
+      setFilterPriority(prev => normalizePriorityFilterValues(toggleValue(prev, 'Reported')));
+      return;
+    }
+
+    setFilterSubcategory(prev => {
+      const next = new Set(prev);
+      const target = mode === 'web' ? 'Web' : 'App';
+      const other = mode === 'web' ? 'App' : 'Web';
+      const isActive = next.has(target) && next.has('Core');
+      const otherActive = next.has(other) && next.has('Core');
+
+      if (isActive) {
+        next.delete(target);
+        if (!otherActive) next.delete('Core');
+      } else {
+        next.add(target);
+        next.add('Core');
+      }
+
+      return Array.from(next);
+    });
+  }, []);
+
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
     if (!isEditor) return;
     const normalized = normalizeDocument(newData);
@@ -503,27 +538,41 @@ export default function Home() {
     const normalized = normalizeDocument(parsed as RoadmapDocument);
     setData(normalized);
     if (parsed.settings) {
-      if (typeof parsed.settings.beforeWeeks === 'number') setBeforeWeeks(parsed.settings.beforeWeeks);
-      if (typeof parsed.settings.afterMonths === 'number') setAfterMonths(parsed.settings.afterMonths);
-      if (parsed.settings.filterCategory) setFilterCategory(parsed.settings.filterCategory);
-      if (parsed.settings.filterStatus) setFilterStatus(normalizeStatusFilter(parsed.settings.filterStatus));
-      if (parsed.settings.filterTeam) setFilterTeam(parsed.settings.filterTeam);
-      if (parsed.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(parsed.settings.filterPriority));
-      if (parsed.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(parsed.settings.filterPhase));
-      if (parsed.settings.filterSubcategory) setFilterSubcategory(parsed.settings.filterSubcategory);
-      if (parsed.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(parsed.settings.filterGroupItemType));
-      if (typeof parsed.settings.colWorkType === 'boolean') setShowWorkType(parsed.settings.colWorkType);
-      if (typeof parsed.settings.colPhase === 'boolean') setShowPhase(parsed.settings.colPhase);
-      if (typeof parsed.settings.colFeaturesWidth === 'number') {
-        setFeaturesColWidth(clampFeaturesColWidth(parsed.settings.colFeaturesWidth));
+      const settings = parsed.settings as Record<string, unknown>;
+      const toStringArray = (value: unknown): string[] => (
+        Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+      );
+      if (typeof settings.beforeWeeks === 'number') setBeforeWeeks(settings.beforeWeeks);
+      if (typeof settings.afterMonths === 'number') setAfterMonths(settings.afterMonths);
+      if (Array.isArray(settings.filterCategory)) setFilterCategory(toStringArray(settings.filterCategory));
+      if (Array.isArray(settings.filterStatus)) setFilterStatus(normalizeStatusFilter(toStringArray(settings.filterStatus)));
+      if (Array.isArray(settings.filterTeam)) setFilterTeam(toStringArray(settings.filterTeam));
+      if (Array.isArray(settings.filterPriority)) setFilterPriority(normalizePriorityFilterValues(toStringArray(settings.filterPriority)));
+      if (Array.isArray(settings.filterPhase)) setFilterPhase(normalizePhaseFilterValues(toStringArray(settings.filterPhase)));
+      if (Array.isArray(settings.filterSubcategory)) setFilterSubcategory(toStringArray(settings.filterSubcategory));
+      if (Array.isArray(settings.filterGroupItemType)) setFilterGroupItemType(normalizeGroupItemTypeFilter(toStringArray(settings.filterGroupItemType)));
+      if (typeof settings.colWorkType === 'boolean') setShowWorkType(settings.colWorkType);
+      if (typeof settings.colPriority === 'boolean') setShowPriority(settings.colPriority);
+      if (typeof settings.colPhase === 'boolean') setShowPhase(settings.colPhase);
+      if (typeof settings.colStartDate === 'boolean') setShowStartDate(settings.colStartDate);
+      if (typeof settings.colEndDate === 'boolean') setShowEndDate(settings.colEndDate);
+      if (typeof settings.colFeaturesWidth === 'number') {
+        setFeaturesColWidth(clampFeaturesColWidth(settings.colFeaturesWidth));
       }
-      if (parsed.settings.colFeaturesWidthMode === 'auto' || parsed.settings.colFeaturesWidthMode === 'manual') {
-        setFeaturesColWidthMode(parsed.settings.colFeaturesWidthMode);
-      } else if (typeof parsed.settings.colFeaturesWidth === 'number') {
+      if (settings.colFeaturesWidthMode === 'auto' || settings.colFeaturesWidthMode === 'manual') {
+        setFeaturesColWidthMode(settings.colFeaturesWidthMode);
+      } else if (typeof settings.colFeaturesWidth === 'number') {
         setFeaturesColWidthMode('manual');
       }
-      if (parsed.settings.timelineMode === 'day' || parsed.settings.timelineMode === 'week' || parsed.settings.timelineMode === 'month') {
-        setTimelineMode(parsed.settings.timelineMode);
+      if (settings.timelineMode === 'day' || settings.timelineMode === 'week' || settings.timelineMode === 'month') {
+        setTimelineMode(settings.timelineMode);
+      }
+      if (Array.isArray(settings.expandedIds)) {
+        setExpandedIds(new Set(toStringArray(settings.expandedIds)));
+        hasInitializedExpansion.current = true;
+      }
+      if (Array.isArray(settings.hiddenRowIds)) {
+        setHiddenRowIds(new Set(toStringArray(settings.hiddenRowIds)));
       }
     }
     await handleSave(normalized);
@@ -532,7 +581,7 @@ export default function Home() {
   const handleDownloadJson = () => {
     if (!data) return;
     const snapshot = buildDocumentSnapshot(data);
-    const fileName = `${snapshot.releaseName.replace(/\s+/g, '_')}_backup_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    const fileName = `${snapshot.releaseName.replace(/\s+/g, '_')}_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
     const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -704,6 +753,7 @@ export default function Home() {
         filterPhase={filterPhase}
         filterSubcategory={filterSubcategory}
         filterGroupItemType={filterGroupItemType}
+        onToggleQuickViewMode={handleToggleQuickViewMode}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid

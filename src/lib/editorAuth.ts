@@ -3,7 +3,7 @@ import crypto from 'crypto';
 export const EDITOR_SESSION_COOKIE = 'roadmap_editor_session';
 export const EDITOR_SESSION_TTL_SECONDS = 60 * 60 * 12; // 12 hours
 
-const DEFAULT_EDITOR_PASSWORD = '889998';
+const DEFAULT_EDITOR_PASSWORD = '88999898';
 
 const getEditorPassword = (): string => {
     return process.env.EDITOR_PASSWORD || DEFAULT_EDITOR_PASSWORD;
