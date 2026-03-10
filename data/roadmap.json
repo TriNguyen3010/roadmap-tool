@@ -1,148 +1,1976 @@
 {
-  "releaseName": "Roadmap Ver1",
-  "startDate": "2026-01-24",
-  "endDate": "2026-04-10",
-  "milestones": [
-    {
-      "id": "m1",
-      "label": "Deadline Phase 1",
-      "startDate": "2026-03-16",
-      "endDate": "2026-03-31",
-      "color": "#ef4444"
-    },
-    {
-      "id": "m2",
-      "label": "Sprint Review",
-      "startDate": "2026-02-23",
-      "endDate": "2026-02-27",
-      "color": "#3b82f6"
-    }
-  ],
   "items": [
     {
-      "id": "category_1772073543985_1",
-      "name": "UNIVERSAL REG",
+      "id": "b6cda212",
+      "name": "Coin98 Home",
       "type": "category",
-      "status": "In Progress",
-      "progress": 55,
-      "startDate": "2026-02-24",
-      "endDate": "2026-02-26",
-      "children": [],
-      "depth": 0,
-      "parentIds": []
-    },
-    {
-      "id": "category_1772073543985_2",
-      "name": "ONEID",
-      "type": "category",
-      "status": "In Progress",
-      "progress": 85,
-      "startDate": "2026-02-15",
-      "endDate": "2026-03-10",
-      "children": [],
-      "depth": 0,
-      "parentIds": []
-    },
-    {
-      "id": "category_1772073543985_3",
-      "name": "VAULT",
-      "type": "category",
-      "status": "In Progress",
-      "progress": 70,
-      "startDate": "2026-02-20",
-      "endDate": "2026-03-25",
-      "children": [],
-      "depth": 0,
-      "parentIds": []
+      "images": [],
+      "status": "Dev In Progress",
+      "children": [
+        {
+          "id": "86642e3d",
+          "name": "Web",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "0adf4ca2",
+              "name": "New UI",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "quickNote": "Chỉ làm UI và Anim trước, chưa có tính năng\nCòn 14 bugs",
+              "startDate": "2026-02-09",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "1f0ba9e2",
+              "name": "Sai Convention text và lag khi scroll",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/1f0ba9e2/screenshot-2026-03-06-at-16-22-07-1772788941979",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788942/roadmap-tool/items/1f0ba9e2/screenshot-2026-03-06-at-16-22-07-1772788941979.png",
+                  "name": "Screenshot 2026-03-06 at 16.22.07.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:22:22.868Z"
+                }
+              ],
+              "status": "PD In Progress",
+              "imageId": "roadmap-tool/items/1f0ba9e2/screenshot-2026-03-06-at-16-22-07-1772788941979",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788942/roadmap-tool/items/1f0ba9e2/screenshot-2026-03-06-at-16-22-07-1772788941979.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.22.07.png",
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:22:22.868Z"
+            },
+            {
+              "id": "be36856c",
+              "name": "Khi bấm vào market đang k có action, => ưu tiên cho vào futures",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/be36856c/screenshot-2026-03-06-at-16-23-44-1772789041322",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789041/roadmap-tool/items/be36856c/screenshot-2026-03-06-at-16-23-44-1772789041322.png",
+                  "name": "Screenshot 2026-03-06 at 16.23.44.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:24:02.122Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/be36856c/screenshot-2026-03-06-at-16-23-44-1772789041322",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789041/roadmap-tool/items/be36856c/screenshot-2026-03-06-at-16-23-44-1772789041322.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.23.44.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:24:02.122Z"
+            },
+            {
+              "id": "37a06ec1",
+              "name": "Sai font size",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/37a06ec1/screenshot-2026-03-06-at-16-25-07-1772789120828",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789120/roadmap-tool/items/37a06ec1/screenshot-2026-03-06-at-16-25-07-1772789120828.png",
+                  "name": "Screenshot 2026-03-06 at 16.25.07.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:25:21.519Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/37a06ec1/screenshot-2026-03-06-at-16-25-07-1772789120828",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789120/roadmap-tool/items/37a06ec1/screenshot-2026-03-06-at-16-25-07-1772789120828.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.25.07.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:25:21.519Z"
+            },
+            {
+              "id": "0037e1ee",
+              "name": "Lỗi UI",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/0037e1ee/screenshot-2026-03-06-at-16-26-20-1772789192588",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789192/roadmap-tool/items/0037e1ee/screenshot-2026-03-06-at-16-26-20-1772789192588.png",
+                  "name": "Screenshot 2026-03-06 at 16.26.20.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:26:33.188Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/0037e1ee/screenshot-2026-03-06-at-16-26-20-1772789192588",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789192/roadmap-tool/items/0037e1ee/screenshot-2026-03-06-at-16-26-20-1772789192588.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.26.20.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:26:33.188Z"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 0,
+      "statusMode": "auto"
     },
     {
       "id": "category_1772073543985_4",
       "name": "ON/OFF RAMP",
       "type": "category",
-      "status": "In Progress",
-      "progress": 25,
-      "startDate": "2026-03-01",
-      "endDate": "2026-03-20",
-      "children": [],
-      "depth": 0,
-      "parentIds": []
+      "images": [],
+      "status": "Dev In Progress",
+      "children": [
+        {
+          "id": "67981ce0",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "b35b7f47",
+              "name": "Revamp UI (Moonpay)",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-03",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 0,
+      "statusMode": "auto"
+    },
+    {
+      "id": "4161d18e",
+      "name": "OneID",
+      "type": "category",
+      "images": [],
+      "status": "Not Started",
+      "children": [
+        {
+          "id": "0d412609",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "c98a6e8f",
+              "name": "Dynamic Banner -Cần Banner share ref",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-15-53-33-1772787267500",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772787267/roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-15-53-33-1772787267500.png",
+                  "name": "Screenshot 2026-03-06 at 15.53.33.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:54:29.882Z"
+                },
+                {
+                  "id": "roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-16-08-03-1772788114500",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788116/roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-16-08-03-1772788114500.png",
+                  "name": "Screenshot 2026-03-06 at 16.08.03.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:08:36.929Z"
+                }
+              ],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-20",
+              "imageId": "roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-15-53-33-1772787267500",
+              "children": [
+                {
+                  "id": "79912009",
+                  "name": "Thiết kế Banner",
+                  "type": "item",
+                  "images": [],
+                  "status": "PD In Progress",
+                  "children": [
+                    {
+                      "id": "9f3b85b5",
+                      "name": "PD",
+                      "type": "team",
+                      "images": [],
+                      "status": "PD In Progress",
+                      "phaseIds": [],
+                      "progress": 100,
+                      "teamRole": "PD",
+                      "statusMode": "manual",
+                      "manualStatus": "PD In Progress"
+                    }
+                  ],
+                  "phaseIds": [
+                    "m1"
+                  ],
+                  "progress": 100,
+                  "statusMode": "auto"
+                }
+              ],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772787267/roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-15-53-33-1772787267500.png",
+              "phaseIds": [
+                "m1"
+              ],
+              "priority": "Reported",
+              "progress": 100,
+              "imageName": "Screenshot 2026-03-06 at 15.53.33.png",
+              "startDate": "2026-03-16",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:54:29.882Z"
+            },
+            {
+              "id": "fd88e8b9",
+              "name": "Remove old Referral scheme",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/fd88e8b9/screenshot-2026-03-06-at-15-45-07-1772786721855",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786722/roadmap-tool/items/fd88e8b9/screenshot-2026-03-06-at-15-45-07-1772786721855.png",
+                  "name": "Screenshot 2026-03-06 at 15.45.07.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:45:24.299Z"
+                }
+              ],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-06",
+              "imageId": "roadmap-tool/items/fd88e8b9/screenshot-2026-03-06-at-15-45-07-1772786721855",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786722/roadmap-tool/items/fd88e8b9/screenshot-2026-03-06-at-15-45-07-1772786721855.png",
+              "phaseIds": [
+                "m1"
+              ],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 15.45.07.png",
+              "startDate": "2026-03-02",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:45:24.299Z"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 50,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        },
+        {
+          "id": "62ac18d2",
+          "name": "Web",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "022a1f08",
+              "name": "Remove old Referral scheme",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "priority": "Reported",
+              "progress": 0,
+              "startDate": "2026-03-09",
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        },
+        {
+          "id": "907ce601",
+          "name": "Core",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "7c5fbf74",
+              "name": "Add DID (.union, brother, anhem, viet, agape, lumia, krao, pi)",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "e5aa5f57",
+              "name": "Bảng fee OneID mới apply cho tất cả DID (bao gồm các DID cũ và DID tương lai)",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/e5aa5f57/screenshot-2026-03-06-at-15-52-29-1772787162641",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772787162/roadmap-tool/items/e5aa5f57/screenshot-2026-03-06-at-15-52-29-1772787162641.png",
+                  "name": "Screenshot 2026-03-06 at 15.52.29.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:52:45.898Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/e5aa5f57/screenshot-2026-03-06-at-15-52-29-1772787162641",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772787162/roadmap-tool/items/e5aa5f57/screenshot-2026-03-06-at-15-52-29-1772787162641.png",
+              "phaseIds": [
+                "m1"
+              ],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 15.52.29.png",
+              "quickNote": "Không ảnh hưởng đến ví partner của các DID cũ\n\n- Thêm fee cho 1 và 2 ký tự\n- Trên 9 ký tự\n   + Free năm đầu\n   + Mỗi năm sau thêm +$5\n- Mua 5 năm giảm 50%",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:52:45.898Z"
+            },
+            {
+              "id": "6266ba9b",
+              "name": "Ref của OneID share 20%",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/6266ba9b/screenshot-2026-03-06-at-15-49-45-1772786996477",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786996/roadmap-tool/items/6266ba9b/screenshot-2026-03-06-at-15-49-45-1772786996477.png",
+                  "name": "Screenshot 2026-03-06 at 15.49.45.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:49:58.968Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/6266ba9b/screenshot-2026-03-06-at-15-49-45-1772786996477",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786996/roadmap-tool/items/6266ba9b/screenshot-2026-03-06-at-15-49-45-1772786996477.png",
+              "phaseIds": [
+                "m1"
+              ],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 15.49.45.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:49:58.968Z"
+            },
+            {
+              "id": "ce825180",
+              "name": "Ref OneID chỉ chia cho đăng ký mới, renew ko dc nhe",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/ce825180/screenshot-2026-03-06-at-16-19-14-1772788768060",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788768/roadmap-tool/items/ce825180/screenshot-2026-03-06-at-16-19-14-1772788768060.png",
+                  "name": "Screenshot 2026-03-06 at 16.19.14.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:19:28.567Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/ce825180/screenshot-2026-03-06-at-16-19-14-1772788768060",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788768/roadmap-tool/items/ce825180/screenshot-2026-03-06-at-16-19-14-1772788768060.png",
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.19.14.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:19:28.567Z"
+            },
+            {
+              "id": "966ae32b",
+              "name": "Vibe code Dashboard tracking OneID",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/966ae32b/screenshot-2026-03-09-at-07-43-36-1773017085530",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773017085/roadmap-tool/items/966ae32b/screenshot-2026-03-09-at-07-43-36-1773017085530.png",
+                  "name": "Screenshot 2026-03-09 at 07.43.36.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-09T00:44:46.407Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/966ae32b/screenshot-2026-03-09-at-07-43-36-1773017085530",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773017085/roadmap-tool/items/966ae32b/screenshot-2026-03-09-at-07-43-36-1773017085530.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-09 at 07.43.36.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-09T00:44:46.407Z"
+            },
+            {
+              "id": "af63d697",
+              "name": "Pi Network Video + graphic hướng dẫn đăng kí cho web2",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/af63d697/screenshot-2026-03-09-at-07-44-30-1773017099215",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773017099/roadmap-tool/items/af63d697/screenshot-2026-03-09-at-07-44-30-1773017099215.png",
+                  "name": "Screenshot 2026-03-09 at 07.44.30.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-09T00:44:59.905Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/af63d697/screenshot-2026-03-09-at-07-44-30-1773017099215",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773017099/roadmap-tool/items/af63d697/screenshot-2026-03-09-at-07-44-30-1773017099215.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-09 at 07.44.30.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-09T00:44:59.905Z"
+            },
+            {
+              "id": "94f86c76",
+              "name": "Login with wallet",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/94f86c76/screenshot-2026-03-09-at-16-25-02-1773048444931",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773048445/roadmap-tool/items/94f86c76/screenshot-2026-03-09-at-16-25-02-1773048444931.png",
+                  "name": "Screenshot 2026-03-09 at 16.25.02.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-09T09:27:25.878Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/94f86c76/screenshot-2026-03-09-at-16-25-02-1773048444931",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773048445/roadmap-tool/items/94f86c76/screenshot-2026-03-09-at-16-25-02-1773048444931.png",
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-09 at 16.25.02.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-09T09:27:25.878Z"
+            },
+            {
+              "id": "bddb882a",
+              "name": "Add PI network",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "b382f74e",
+              "name": "Sort lúc Search ưu tiên (.C98) (Rule số và alphabet)",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "c111801b",
+              "name": "9 ký tự",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 17,
+      "statusMode": "auto"
+    },
+    {
+      "id": "b78aff4d",
+      "name": "Wallet",
+      "type": "category",
+      "images": [],
+      "status": "Not Started",
+      "children": [
+        {
+          "id": "d6890bd6",
+          "name": "Web",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "40c6e006",
+              "name": "Embedded Wallet",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "8f9ca263",
+              "name": "Extension Wallet",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "24be6725",
+              "name": "View Portfolio",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "644adac0",
+          "name": "Core",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "ea7b6a30",
+              "name": "Transfer vol quá 10k required biometric hoặc passcode",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/ea7b6a30/screenshot-2026-03-06-at-15-41-34-1772786526882",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786526/roadmap-tool/items/ea7b6a30/screenshot-2026-03-06-at-15-41-34-1772786526882.png",
+                  "name": "Screenshot 2026-03-06 at 15.41.34.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:42:09.576Z"
+                }
+              ],
+              "status": "Done",
+              "imageId": "roadmap-tool/items/ea7b6a30/screenshot-2026-03-06-at-15-41-34-1772786526882",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786526/roadmap-tool/items/ea7b6a30/screenshot-2026-03-06-at-15-41-34-1772786526882.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 100,
+              "imageName": "Screenshot 2026-03-06 at 15.41.34.png",
+              "quickNote": "- Nếu transfer vol quá 10k required biometric hoặc passcode (giống show key).\n\nPHẦN NÀY KO FIX, VÌ NÓ DEFAULT ĐÃ VẬY RỒI.",
+              "statusMode": "manual",
+              "manualStatus": "Done",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:42:09.576Z"
+            },
+            {
+              "id": "897b779a",
+              "name": "Update flow import ví",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/897b779a/screenshot-2026-03-06-at-15-36-59-1772786251318",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786251/roadmap-tool/items/897b779a/screenshot-2026-03-06-at-15-36-59-1772786251318.png",
+                  "name": "Screenshot 2026-03-06 at 15.36.59.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:37:34.688Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/897b779a/screenshot-2026-03-06-at-15-36-59-1772786251318",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786251/roadmap-tool/items/897b779a/screenshot-2026-03-06-at-15-36-59-1772786251318.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 15.36.59.png",
+              "quickNote": "update trong flow import ví\n=> thêm bước scan check ví vừa được import và báo kết quả cho user\n\ntạo ví mới thì ko cần",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:37:34.688Z"
+            },
+            {
+              "id": "c95cbbca",
+              "name": "Thỉnh thoảng load ví ở vị trí hình chụp khá lâu ko rõ nguyên nhân",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/c95cbbca/screenshot-2026-03-06-at-15-43-27-1772786669141",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786669/roadmap-tool/items/c95cbbca/screenshot-2026-03-06-at-15-43-27-1772786669141.png",
+                  "name": "Screenshot 2026-03-06 at 15.43.27.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:44:31.499Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/c95cbbca/screenshot-2026-03-06-at-15-43-27-1772786669141",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786669/roadmap-tool/items/c95cbbca/screenshot-2026-03-06-at-15-43-27-1772786669141.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 15.43.27.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:44:31.499Z"
+            },
+            {
+              "id": "8c43929c",
+              "name": "Update thêm tên ví nếu là ví của mình, thêm oneid nếu là gửi tới oneid",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/8c43929c/screenshot-2026-03-06-at-16-27-53-1772789286572",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789286/roadmap-tool/items/8c43929c/screenshot-2026-03-06-at-16-27-53-1772789286572.png",
+                  "name": "Screenshot 2026-03-06 at 16.27.53.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:28:07.187Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/8c43929c/screenshot-2026-03-06-at-16-27-53-1772789286572",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772789286/roadmap-tool/items/8c43929c/screenshot-2026-03-06-at-16-27-53-1772789286572.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.27.53.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:28:07.187Z"
+            },
+            {
+              "id": "a92585c7",
+              "name": "Xiaomi 15T swipe đc mà bấm ko được",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/a92585c7/screenshot-2026-03-06-at-16-41-14-1772790090359",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772790090/roadmap-tool/items/a92585c7/screenshot-2026-03-06-at-16-41-14-1772790090359.png",
+                  "name": "Screenshot 2026-03-06 at 16.41.14.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:41:30.969Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/a92585c7/screenshot-2026-03-06-at-16-41-14-1772790090359",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772790090/roadmap-tool/items/a92585c7/screenshot-2026-03-06-at-16-41-14-1772790090359.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.41.14.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:41:30.969Z"
+            },
+            {
+              "id": "bbb37d91",
+              "name": "Update Bottom Tab và Header ở Home (Menu Bar)",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/bbb37d91/screenshot-2026-03-09-at-16-25-02-1773048588106",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773048588/roadmap-tool/items/bbb37d91/screenshot-2026-03-09-at-16-25-02-1773048588106.png",
+                  "name": "Screenshot 2026-03-09 at 16.25.02.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-09T09:29:48.694Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/bbb37d91/screenshot-2026-03-09-at-16-25-02-1773048588106",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773048588/roadmap-tool/items/bbb37d91/screenshot-2026-03-09-at-16-25-02-1773048588106.png",
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-09 at 16.25.02.png",
+              "quickNote": "Đổi vị trí Menu Bar bên dưới., đổi wallet bên góc phải",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-09T09:29:48.694Z"
+            },
+            {
+              "id": "56b78f35",
+              "name": "Trading Bot",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "b13bc1ea",
+              "name": "Update Screen Notification Flow and API",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "9b190939",
+              "name": "SEC: Saved Password remove in Dapps",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 11,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        },
+        {
+          "id": "8b83242e",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "02443b49",
+              "name": "UI: View Future in Home",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "103add55",
+              "name": "UI : Wallet Card và more Sheet Update",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "f91b5536",
+              "name": "UI: Update Revamp Buy Crypto Flow",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 4,
+      "statusMode": "auto"
+    },
+    {
+      "id": "category_1772073543985_1",
+      "name": "UNIVERSAL REF",
+      "type": "category",
+      "images": [],
+      "status": "Dev In Progress",
+      "children": [
+        {
+          "id": "eba0e9ca",
+          "name": "Web",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "c4f3bf04",
+              "name": "New UI",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-10",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "22ed7c67",
+              "name": "[Referral] User views Referral Hub",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "1d0f8313",
+              "name": "[Referral] User views Commission",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "9423a34e",
+              "name": "[Referral] User harvests available earnings",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "2a0565dd",
+              "name": "[Referral] Inviter shares referral link",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "e07a8656",
+              "name": "[Referral] Invitee taps referral link",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "e49cc7a4",
+          "name": "Core",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "cbb1976c",
+              "name": "Chặn Invite - bắt buộc phải có F0, Prevent share code without Referrer",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "4ac66416",
+              "name": "API Return Ref tree",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "689e4980",
+              "name": "Swap X - Cộng điểm Ref",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "bde49c14",
+              "name": "Update anim promo Uni Ref",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/bde49c14/screenshot-2026-03-06-at-15-46-13-1772786907730",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786907/roadmap-tool/items/bde49c14/screenshot-2026-03-06-at-15-46-13-1772786907730.png",
+                  "name": "Screenshot 2026-03-06 at 15.46.13.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:48:30.107Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/bde49c14/screenshot-2026-03-06-at-15-46-13-1772786907730",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786907/roadmap-tool/items/bde49c14/screenshot-2026-03-06-at-15-46-13-1772786907730.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 15.46.13.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:48:30.107Z"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 0,
+      "statusMode": "manual",
+      "manualStatus": "Dev In Progress"
     },
     {
       "id": "category_1772073543985_5",
       "name": "FUSION CARD",
       "type": "category",
-      "status": "In Progress",
-      "progress": 60,
-      "startDate": "2026-03-15",
-      "endDate": "2026-03-28",
-      "children": [],
-      "depth": 0,
-      "parentIds": []
+      "images": [],
+      "status": "Not Started",
+      "children": [
+        {
+          "id": "809d0e48",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "512d5cd9",
+              "name": "Check country whitelist",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "237efa30",
+              "name": "Dynamic Banner",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-20",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-16",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 0,
+      "statusMode": "manual",
+      "manualStatus": "Not Started"
     },
     {
       "id": "2",
       "name": "SWAPX",
       "type": "category",
-      "status": "In Progress",
-      "progress": 65,
-      "startDate": "2026-02-15",
-      "endDate": "2026-03-30",
+      "images": [],
+      "status": "Dev In Progress",
       "children": [
         {
-          "id": "21",
-          "name": "SWAPX - App",
+          "id": "a75f7871",
+          "name": "Web",
           "type": "subcategory",
-          "status": "In Progress",
-          "progress": 60,
-          "startDate": "2026-02-15",
-          "endDate": "2026-03-15",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "0bfc22e9",
+              "name": "Provider - Houdini",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "2a9eb468",
+              "name": "New UI Private Send",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "435190d9",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "PD In Progress",
+          "children": [
+            {
+              "id": "c11440e4",
+              "name": "Provider - Houdini",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "605284d9",
+              "name": "Private send cho Swap (tương tự Houdini)",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/605284d9/screenshot-2026-03-06-at-16-15-46-1772788562965",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788563/roadmap-tool/items/605284d9/screenshot-2026-03-06-at-16-15-46-1772788562965.png",
+                  "name": "Screenshot 2026-03-06 at 16.15.46.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T09:16:03.712Z"
+                }
+              ],
+              "status": "PD In Progress",
+              "imageId": "roadmap-tool/items/605284d9/screenshot-2026-03-06-at-16-15-46-1772788562965",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788563/roadmap-tool/items/605284d9/screenshot-2026-03-06-at-16-15-46-1772788562965.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 16.15.46.png",
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T09:16:03.712Z"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "9793e83b",
+          "name": "Ex",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "d39444e1",
+              "name": "Provider - Houdini",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "3969213a",
+          "name": "Core",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "baf0db01",
+              "name": "Revenue Settlement Swap Bot ",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "quickNote": "Tuần này demo 13/03",
+              "startDate": "2026-02-23",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "175b8f82",
+          "name": "SwapX Camp",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
           "children": [],
-          "depth": 1,
-          "parentIds": [
-            "2"
-          ]
+          "phaseIds": [],
+          "progress": 100,
+          "statusMode": "manual",
+          "manualStatus": "Dev In Progress",
+          "subcategoryType": "Growth Camp",
+          "startDate": "2026-03-10",
+          "endDate": "2026-03-19"
         }
       ],
-      "depth": 0,
-      "parentIds": []
+      "phaseIds": [],
+      "progress": 20,
+      "statusMode": "manual",
+      "manualStatus": "Dev In Progress"
     },
     {
       "id": "1",
       "name": "FUTURES",
       "type": "category",
-      "status": "In Progress",
-      "progress": 60,
-      "startDate": "2026-02-20",
-      "endDate": "2026-03-31",
+      "images": [],
+      "status": "Dev In Progress",
       "children": [
         {
-          "id": "11",
-          "name": "FUTURES - App",
+          "id": "eb0b1bf9",
+          "name": "App",
           "type": "subcategory",
-          "status": "In Progress",
-          "progress": 60,
-          "startDate": "2026-02-20",
-          "endDate": "2026-03-15",
-          "children": []
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "f06c0457",
+              "name": "Partial TP/SL",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "460f7011",
+              "name": "Reverse Position",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "29b2c3a8",
+              "name": "Add Funds via Li.Fi provider",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-03",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "0a930a3a",
+              "name": "Near liquidation notification",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-02",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "ac01cf9f",
+              "name": "Open Limit Order for Open Position",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "b7185e03",
+              "name": "Improve Performance",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "341bf180",
+              "name": "Adjust a margin",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
         },
         {
-          "id": "12",
-          "name": "FUTURES - Web",
+          "id": "80a35a1c",
+          "name": "Web",
           "type": "subcategory",
-          "status": "In Progress",
-          "progress": 70,
-          "startDate": "2026-03-10",
-          "endDate": "2026-03-31",
-          "depth": 1,
-          "parentIds": [
-            "1"
-          ]
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "170e879b",
+              "name": "Partial TP/SL",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-09",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "startDate": "2026-02-24",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "ea3cf5bd",
+              "name": "Cross mode",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [
+                {
+                  "id": "f071d2bf",
+                  "name": "Thiết kế",
+                  "type": "item",
+                  "images": [],
+                  "status": "PD In Progress",
+                  "children": [
+                    {
+                      "id": "50d3ba9f",
+                      "name": "PD",
+                      "type": "team",
+                      "images": [],
+                      "status": "PD In Progress",
+                      "endDate": "2026-03-13",
+                      "phaseIds": [
+                        "m1"
+                      ],
+                      "progress": 0,
+                      "teamRole": "PD",
+                      "quickNote": "trong tuần này hand off cho dev",
+                      "startDate": "2026-03-09",
+                      "statusMode": "manual",
+                      "manualStatus": "PD In Progress"
+                    }
+                  ],
+                  "phaseIds": [],
+                  "progress": 0,
+                  "statusMode": "auto"
+                }
+              ],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "521034cf",
+              "name": "Pro mode: Stop market",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "dfd2a412",
+              "name": "Pro mode: Stop limit",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "ca61d300",
+              "name": "Pro mode: Take limit",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "12e91275",
+              "name": "Pro mode: Take market",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "9b2e4170",
+          "name": "Core",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [
+            {
+              "id": "06e4beb5",
+              "name": "Apply 10% Hyperliquid Referral code COIN98",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-02",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        },
+        {
+          "id": "a68c2ecf",
+          "name": "Perp camp ver2",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Dev In Progress",
+          "subcategoryType": "Growth Camp",
+          "startDate": "2026-03-06",
+          "endDate": "2026-03-19"
         }
-      ]
+      ],
+      "phaseIds": [],
+      "progress": 0,
+      "statusMode": "manual",
+      "manualStatus": "Dev In Progress"
+    },
+    {
+      "id": "9698e9d8",
+      "name": "Log in with wallet",
+      "type": "category",
+      "images": [],
+      "status": "Dev In Progress",
+      "children": [
+        {
+          "id": "1b93d023",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "0e688bca",
+              "name": "Buy OneID with Fiat",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "endDate": "2026-03-27",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-16",
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "a275d2be",
+              "name": "Wallet profile",
+              "type": "group",
+              "images": [],
+              "status": "Not Started",
+              "endDate": "2026-03-27",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-16",
+              "statusMode": "manual",
+              "manualStatus": "Not Started"
+            },
+            {
+              "id": "5bb72c6d",
+              "name": "Launch feature (use Wallet instead of OneID)",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-02",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            },
+            {
+              "id": "4e6a4cb7",
+              "name": "Migrate Chat",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-13",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "startDate": "2026-03-02",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 0,
+      "statusMode": "auto"
+    },
+    {
+      "id": "1e97ec22",
+      "name": "Wallet Health",
+      "type": "category",
+      "images": [],
+      "status": "PD In Progress",
+      "children": [
+        {
+          "id": "ff81229b",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "PD In Progress",
+          "children": [
+            {
+              "id": "5ef72979",
+              "name": "Scan Wallets",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "3ee5f080",
+              "name": "Scan Contacts",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "9e9adc3d",
+              "name": "Scan dApps Connections",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "63627c3b",
+              "name": "Scan Favorite dApps",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "8eaaf091",
+              "name": "Scan Favorite Tokens",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "f293d717",
+              "name": "Scan Token Approval",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "8b3f9d19",
+              "name": "Scan Cloud Backup",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "f60cdbf3",
+              "name": "Dust Sweeper",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "8490419e",
+              "name": "Recover SOL Fee",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "d64008f9",
+              "name": "Buy Subcription with Fiat",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "80e8c6e4",
+              "name": "Buy Subscription with Token",
+              "type": "group",
+              "images": [],
+              "status": "PD In Progress",
+              "children": [],
+              "phaseIds": [],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
+            },
+            {
+              "id": "23ae4092",
+              "name": "Seed phase recover",
+              "type": "group",
+              "images": [
+                {
+                  "id": "roadmap-tool/items/23ae4092/screenshot-2026-03-06-at-15-41-45-1772786546791",
+                  "url": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786546/roadmap-tool/items/23ae4092/screenshot-2026-03-06-at-15-41-45-1772786546791.png",
+                  "name": "Screenshot 2026-03-06 at 15.41.45.png",
+                  "provider": "cloudinary",
+                  "updatedAt": "2026-03-06T08:42:31.948Z"
+                }
+              ],
+              "status": "Not Started",
+              "imageId": "roadmap-tool/items/23ae4092/screenshot-2026-03-06-at-15-41-45-1772786546791",
+              "children": [],
+              "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786546/roadmap-tool/items/23ae4092/screenshot-2026-03-06-at-15-41-45-1772786546791.png",
+              "phaseIds": [],
+              "priority": "Reported",
+              "progress": 0,
+              "imageName": "Screenshot 2026-03-06 at 15.41.45.png",
+              "statusMode": "manual",
+              "manualStatus": "Not Started",
+              "imageProvider": "cloudinary",
+              "imageUpdatedAt": "2026-03-06T08:42:31.948Z"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        }
+      ],
+      "phaseIds": [
+        "m1"
+      ],
+      "progress": 0,
+      "statusMode": "auto"
+    },
+    {
+      "id": "29f528db",
+      "name": "Markets",
+      "type": "category",
+      "images": [],
+      "status": "Dev In Progress",
+      "children": [
+        {
+          "id": "008a829c",
+          "name": "Web",
+          "type": "subcategory",
+          "images": [],
+          "status": "Dev In Progress",
+          "children": [
+            {
+              "id": "cf84ce4f",
+              "name": "New UI",
+              "type": "group",
+              "images": [],
+              "status": "Dev In Progress",
+              "endDate": "2026-03-09",
+              "children": [],
+              "phaseIds": [
+                "m1"
+              ],
+              "progress": 0,
+              "startDate": "2026-02-24",
+              "statusMode": "manual",
+              "manualStatus": "Dev In Progress"
+            }
+          ],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "auto"
+        },
+        {
+          "id": "871e4bfb",
+          "name": "App",
+          "type": "subcategory",
+          "images": [],
+          "status": "Not Started",
+          "children": [],
+          "phaseIds": [],
+          "progress": 0,
+          "statusMode": "manual",
+          "manualStatus": "Not Started"
+        }
+      ],
+      "phaseIds": [],
+      "progress": 0,
+      "statusMode": "auto"
     }
   ],
+  "endDate": "2026-04-10",
   "settings": {
-    "beforeWeeks": 2,
-    "afterMonths": 2
-  }
+    "beforeWeeks": 4,
+    "afterMonths": 1,
+    "filterCategory": [],
+    "filterStatus": [],
+    "filterTeam": [],
+    "filterPriority": [],
+    "filterPhase": [],
+    "filterSubcategory": [],
+    "filterGroupItemType": [],
+    "colWorkType": false,
+    "colPriority": false,
+    "colPhase": true,
+    "colStartDate": true,
+    "colEndDate": true,
+    "colFeaturesWidth": 323,
+    "colFeaturesWidthMode": "manual",
+    "timelineMode": "day",
+    "expandedIds": [
+      "b6cda212",
+      "86642e3d",
+      "category_1772073543985_4",
+      "67981ce0",
+      "category_1772073543985_1",
+      "8be73ea8",
+      "category_1772073543985_5",
+      "2",
+      "a75f7871",
+      "435190d9",
+      "9793e83b",
+      "3969213a",
+      "1",
+      "eb0b1bf9",
+      "9698e9d8",
+      "1b93d023",
+      "1e97ec22",
+      "ff81229b",
+      "b78aff4d",
+      "d6890bd6",
+      "29f528db",
+      "008a829c",
+      "809d0e48",
+      "9b2e4170",
+      "e49cc7a4",
+      "5ef72979",
+      "3ee5f080",
+      "9e9adc3d",
+      "63627c3b",
+      "8eaaf091",
+      "f293d717",
+      "8b3f9d19",
+      "f60cdbf3",
+      "8490419e",
+      "d64008f9",
+      "80e8c6e4",
+      "80a35a1c",
+      "4161d18e",
+      "0d412609",
+      "6ca3f663",
+      "62ac18d2",
+      "644adac0",
+      "eba0e9ca",
+      "c98a6e8f",
+      "79912009",
+      "ea3cf5bd",
+      "f071d2bf",
+      "907ce601",
+      "8b83242e"
+    ],
+    "hiddenRowIds": []
+  },
+  "startDate": "2026-01-24",
+  "milestones": [
+    {
+      "id": "m1",
+      "color": "#ef4444",
+      "label": "Phase 1",
+      "endDate": "2026-03-13",
+      "startDate": "2026-03-09"
+    }
+  ],
+  "releaseName": "Roadmap Ver1"
 }

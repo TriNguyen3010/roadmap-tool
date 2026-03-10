@@ -11,6 +11,7 @@ import {
     PRIORITY_LEVELS,
     RoadmapDocument,
     RoadmapItem,
+    STATUS_OPTIONS,
     SubcategoryType,
     TimelineMode,
     normalizeItemImages,
@@ -208,6 +209,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     // ── Priority dropdown open state ──
     const [openWorkTypeId, setOpenWorkTypeId] = useState<string | null>(null);
     const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
+    const [openStatusId, setOpenStatusId] = useState<string | null>(null);
     const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
 
@@ -224,12 +226,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
     const [quickNoteDraft, setQuickNoteDraft] = useState('');
     const [quickNoteSaving, setQuickNoteSaving] = useState(false);
+    // Ephemeral review markers for groups only (UI helper, never persisted).
+    // Value is marker number shown inside the circle.
+    const [reviewedGroupNumberById, setReviewedGroupNumberById] = useState<Record<string, number>>({});
 
     const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => {
         if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
         if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
+        if (openStatusId) setOpenStatusId(null);
         if (openPhaseId) setOpenPhaseId(null);
     };
     const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
@@ -237,6 +243,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (activeNotePreview) void closeQuickNotePreview();
         if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
+        if (openStatusId) setOpenStatusId(null);
         if (openPhaseId) setOpenPhaseId(null);
     };
 
@@ -476,6 +483,25 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             window.removeEventListener('keydown', handleEscape);
         };
     }, [openPhaseId]);
+
+    useEffect(() => {
+        if (!openStatusId) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('[data-status-dropdown="true"]')) return;
+            if (target.closest('[data-status-trigger="true"]')) return;
+            setOpenStatusId(null);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOpenStatusId(null);
+        };
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [openStatusId]);
 
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
@@ -825,6 +851,22 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         onDataChange({ ...data, items: updateNodeById(data.items, id, mapper(source)) });
     };
 
+    const toggleReviewedGroup = (groupId: string) => {
+        setReviewedGroupNumberById(prev => {
+            const existing = prev[groupId];
+            if (typeof existing === 'number') {
+                const next = { ...prev };
+                delete next[groupId];
+                return next;
+            }
+            const nextNumber = Object.values(prev).reduce((max, value) => Math.max(max, value), 0) + 1;
+            return {
+                ...prev,
+                [groupId]: nextNumber,
+            };
+        });
+    };
+
     // ── Column resize via mouse drag ──
     const startResize = useCallback((
         e: React.MouseEvent,
@@ -1057,6 +1099,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const rowPhaseIdSet = new Set(rowPhaseIds);
                         const rowPhaseLabels = rowPhaseIds.map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
                         const rowPhaseTitle = rowPhaseLabels.join(', ');
+                        const isStatusInlineEditable = canEdit && row.statusMode !== 'auto';
                         const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
                         const groupInlinePhaseTags = groupInlinePhaseIds.map(phaseId => ({
                             id: phaseId,
@@ -1070,6 +1113,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             .map(tag => `${tag.short}: ${tag.full}`)
                             .join(', ');
                         const shouldShowGroupInlinePhase = row.type === 'group' && groupInlinePhaseTags.length > 0;
+                        const reviewedMarkerNumber = row.type === 'group' ? reviewedGroupNumberById[row.id] : undefined;
+                        const isGroupReviewed = typeof reviewedMarkerNumber === 'number';
 
                         const canDragRow = canEdit;
                         const isDragged = draggedId === row.id;
@@ -1122,6 +1167,26 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     }}
                                     onClick={() => openEditor(row.id)}
                                 >
+                                    {row.type === 'group' && (
+                                        <button
+                                            type="button"
+                                            className="mr-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded cursor-pointer"
+                                            title={isGroupReviewed ? `Bỏ đánh dấu rà soát (#${reviewedMarkerNumber})` : 'Đánh dấu rà soát'}
+                                            onMouseDown={(e) => {
+                                                e.stopPropagation();
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                toggleReviewedGroup(row.id);
+                                            }}
+                                        >
+                                            {isGroupReviewed ? (
+                                                <span className="inline-flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-emerald-500 px-[3px] text-[8px] font-bold leading-none text-white">
+                                                    {reviewedMarkerNumber}
+                                                </span>
+                                            ) : null}
+                                        </button>
+                                    )}
                                     {hasChildren
                                         ? (isExpanded ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />)
                                         : <span className="w-[14px] shrink-0" />}
@@ -1197,6 +1262,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             if (!canEdit || row.type !== 'group') return;
                                             e.stopPropagation();
                                             setOpenPriorityId(null);
+                                            setOpenStatusId(null);
                                             setOpenPhaseId(null);
                                             setOpenWorkTypeId(openWorkTypeId === row.id ? null : row.id);
                                         }}
@@ -1268,12 +1334,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             style={{ width: COL_PRIORITY_W }}
                                             title="Click để đổi priority"
                                             onClick={e => {
-                                                if (!canEdit) return;
-                                                e.stopPropagation();
-                                                setOpenWorkTypeId(null);
-                                                setOpenPhaseId(null);
-                                                setOpenPriorityId(openPriorityId === row.id ? null : row.id);
-                                            }}
+                                            if (!canEdit) return;
+                                            e.stopPropagation();
+                                            setOpenWorkTypeId(null);
+                                            setOpenStatusId(null);
+                                            setOpenPhaseId(null);
+                                            setOpenPriorityId(openPriorityId === row.id ? null : row.id);
+                                        }}
                                         >
                                             <span
                                                 className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
@@ -1326,14 +1393,51 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 )}
 
                                 {/* Status */}
-                                <div className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors"
-                                    onClick={() => canEdit && openEditor(row.id)}
-                                    title="Click để sửa"
+                                <div
+                                    data-status-trigger="true"
+                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                    onClick={e => {
+                                        if (!canEdit) return;
+                                        e.stopPropagation();
+                                        if (!isStatusInlineEditable) {
+                                            openEditor(row.id);
+                                            return;
+                                        }
+                                        setOpenWorkTypeId(null);
+                                        setOpenPriorityId(null);
+                                        setOpenPhaseId(null);
+                                        setOpenStatusId(openStatusId === row.id ? null : row.id);
+                                    }}
+                                    title={row.statusMode === 'auto' ? 'Status đang auto từ task con. Click để mở Edit.' : 'Click để đổi status'}
                                 >
                                     <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
                                         style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
                                         {row.status}
                                     </span>
+                                    {isStatusInlineEditable && openStatusId === row.id && (
+                                        <div data-status-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[140px]">
+                                            {STATUS_OPTIONS.map(statusOption => (
+                                                <button
+                                                    key={statusOption}
+                                                    className="text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors"
+                                                    style={{ color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
+                                                    onMouseDown={e => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        updateFromSource(row.id, source => ({
+                                                            ...source,
+                                                            statusMode: 'manual',
+                                                            manualStatus: statusOption,
+                                                            status: statusOption,
+                                                        }));
+                                                        setOpenStatusId(null);
+                                                    }}
+                                                >
+                                                    {statusOption}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Phase tags */}
@@ -1347,6 +1451,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             e.stopPropagation();
                                             setOpenWorkTypeId(null);
                                             setOpenPriorityId(null);
+                                            setOpenStatusId(null);
                                             setOpenPhaseId(openPhaseId === row.id ? null : row.id);
                                         }}
                                     >

@@ -417,7 +417,13 @@ export default function Home() {
         return;
       }
       if (!res.ok) throw new Error();
-      addToast('Đã lưu thành công vào roadmap.json!', 'success');
+      const payload = await res.json().catch(() => ({}));
+      if (payload?.fileWarning && typeof payload.fileWarning === 'string') {
+        addToast('Đã lưu thành công lên cloud.', 'success');
+        addToast(payload.fileWarning, 'info');
+      } else {
+        addToast('Đã lưu thành công vào roadmap.json!', 'success');
+      }
       const latestVersion = await fetchRoadmapVersion();
       if (latestVersion) {
         currentVersionRef.current = latestVersion;
