@@ -1099,7 +1099,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const rowPhaseIdSet = new Set(rowPhaseIds);
                         const rowPhaseLabels = rowPhaseIds.map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
                         const rowPhaseTitle = rowPhaseLabels.join(', ');
-                        const isStatusInlineEditable = canEdit && row.statusMode !== 'auto';
+                        const isCategoryOrSubcategory = row.type === 'category' || row.type === 'subcategory';
+                        const isStatusInlineEditable = canEdit && !isCategoryOrSubcategory && row.statusMode !== 'auto';
                         const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
                         const groupInlinePhaseTags = groupInlinePhaseIds.map(phaseId => ({
                             id: phaseId,
@@ -1395,9 +1396,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {/* Status */}
                                 <div
                                     data-status-trigger="true"
-                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit && !isCategoryOrSubcategory ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
                                     onClick={e => {
                                         if (!canEdit) return;
+                                        if (isCategoryOrSubcategory) return;
                                         e.stopPropagation();
                                         if (!isStatusInlineEditable) {
                                             openEditor(row.id);
@@ -1408,12 +1410,20 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         setOpenPhaseId(null);
                                         setOpenStatusId(openStatusId === row.id ? null : row.id);
                                     }}
-                                    title={row.statusMode === 'auto' ? 'Status đang auto từ task con. Click để mở Edit.' : 'Click để đổi status'}
+                                    title={isCategoryOrSubcategory
+                                        ? 'Status ẩn ở level này'
+                                        : row.statusMode === 'auto'
+                                            ? 'Status đang auto từ task con. Click để mở Edit.'
+                                            : 'Click để đổi status'}
                                 >
-                                    <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
-                                        style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
-                                        {row.status}
-                                    </span>
+                                    {isCategoryOrSubcategory ? (
+                                        <span className="mx-auto text-[10px] text-gray-300"> </span>
+                                    ) : (
+                                        <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
+                                            style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
+                                            {row.status}
+                                        </span>
+                                    )}
                                     {isStatusInlineEditable && openStatusId === row.id && (
                                         <div data-status-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[140px]">
                                             {STATUS_OPTIONS.map(statusOption => (
@@ -1723,7 +1733,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 <div className="absolute z-20 bottom-full mb-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
                                                     <div>{row.name}</div>
                                                     <div>{row.startDate} → {row.endDate}</div>
-                                                    <div>{sprintStr} sprint · {workdays} ngày · {row.status} {row.progress}%</div>
+                                                    <div>
+                                                        {sprintStr} sprint · {workdays} ngày · {row.progress}%
+                                                        {row.type === 'category' || row.type === 'subcategory' ? '' : ` · ${row.status}`}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>

@@ -339,14 +339,14 @@
               "name": "Add DID (.union, brother, anhem, viet, agape, lumia, krao, pi)",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             },
             {
               "id": "e5aa5f57",
@@ -361,7 +361,7 @@
                   "updatedAt": "2026-03-06T08:52:45.898Z"
                 }
               ],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "imageId": "roadmap-tool/items/e5aa5f57/screenshot-2026-03-06-at-15-52-29-1772787162641",
               "children": [],
               "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772787162/roadmap-tool/items/e5aa5f57/screenshot-2026-03-06-at-15-52-29-1772787162641.png",
@@ -373,7 +373,7 @@
               "imageName": "Screenshot 2026-03-06 at 15.52.29.png",
               "quickNote": "Không ảnh hưởng đến ví partner của các DID cũ\n\n- Thêm fee cho 1 và 2 ký tự\n- Trên 9 ký tự\n   + Free năm đầu\n   + Mỗi năm sau thêm +$5\n- Mua 5 năm giảm 50%",
               "statusMode": "manual",
-              "manualStatus": "Not Started",
+              "manualStatus": "Dev In Progress",
               "imageProvider": "cloudinary",
               "imageUpdatedAt": "2026-03-06T08:52:45.898Z"
             },
@@ -390,7 +390,7 @@
                   "updatedAt": "2026-03-06T08:49:58.968Z"
                 }
               ],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "imageId": "roadmap-tool/items/6266ba9b/screenshot-2026-03-06-at-15-49-45-1772786996477",
               "children": [],
               "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772786996/roadmap-tool/items/6266ba9b/screenshot-2026-03-06-at-15-49-45-1772786996477.png",
@@ -401,7 +401,7 @@
               "progress": 0,
               "imageName": "Screenshot 2026-03-06 at 15.49.45.png",
               "statusMode": "manual",
-              "manualStatus": "Not Started",
+              "manualStatus": "Dev In Progress",
               "imageProvider": "cloudinary",
               "imageUpdatedAt": "2026-03-06T08:49:58.968Z"
             },
@@ -418,7 +418,7 @@
                   "updatedAt": "2026-03-06T09:19:28.567Z"
                 }
               ],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "imageId": "roadmap-tool/items/ce825180/screenshot-2026-03-06-at-16-19-14-1772788768060",
               "children": [],
               "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772788768/roadmap-tool/items/ce825180/screenshot-2026-03-06-at-16-19-14-1772788768060.png",
@@ -428,7 +428,7 @@
               "progress": 0,
               "imageName": "Screenshot 2026-03-06 at 16.19.14.png",
               "statusMode": "manual",
-              "manualStatus": "Not Started",
+              "manualStatus": "Dev In Progress",
               "imageProvider": "cloudinary",
               "imageUpdatedAt": "2026-03-06T09:19:28.567Z"
             },
@@ -497,7 +497,7 @@
                   "updatedAt": "2026-03-09T09:27:25.878Z"
                 }
               ],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "imageId": "roadmap-tool/items/94f86c76/screenshot-2026-03-09-at-16-25-02-1773048444931",
               "children": [],
               "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773048445/roadmap-tool/items/94f86c76/screenshot-2026-03-09-at-16-25-02-1773048444931.png",
@@ -507,7 +507,7 @@
               "progress": 0,
               "imageName": "Screenshot 2026-03-09 at 16.25.02.png",
               "statusMode": "manual",
-              "manualStatus": "Not Started",
+              "manualStatus": "Dev In Progress",
               "imageProvider": "cloudinary",
               "imageUpdatedAt": "2026-03-09T09:27:25.878Z"
             },
@@ -516,42 +516,42 @@
               "name": "Add PI network",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             },
             {
               "id": "b382f74e",
               "name": "Sort lúc Search ưu tiên (.C98) (Rule số và alphabet)",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             },
             {
               "id": "c111801b",
               "name": "9 ký tự",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             }
           ],
           "phaseIds": [],
@@ -771,7 +771,7 @@
                   "updatedAt": "2026-03-09T09:29:48.694Z"
                 }
               ],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "imageId": "roadmap-tool/items/bbb37d91/screenshot-2026-03-09-at-16-25-02-1773048588106",
               "children": [],
               "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1773048588/roadmap-tool/items/bbb37d91/screenshot-2026-03-09-at-16-25-02-1773048588106.png",
@@ -782,7 +782,7 @@
               "imageName": "Screenshot 2026-03-09 at 16.25.02.png",
               "quickNote": "Đổi vị trí Menu Bar bên dưới., đổi wallet bên góc phải",
               "statusMode": "manual",
-              "manualStatus": "Not Started",
+              "manualStatus": "Dev In Progress",
               "imageProvider": "cloudinary",
               "imageUpdatedAt": "2026-03-09T09:29:48.694Z"
             },
@@ -805,28 +805,28 @@
               "name": "Update Screen Notification Flow and API",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             },
             {
               "id": "9b190939",
               "name": "SEC: Saved Password remove in Dapps",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             }
           ],
           "phaseIds": [],
@@ -846,42 +846,42 @@
               "name": "UI: View Future in Home",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             },
             {
               "id": "103add55",
               "name": "UI : Wallet Card và more Sheet Update",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             },
             {
               "id": "f91b5536",
               "name": "UI: Update Revamp Buy Crypto Flow",
               "type": "group",
               "images": [],
-              "status": "Not Started",
+              "status": "Dev In Progress",
               "children": [],
               "phaseIds": [
                 "m1"
               ],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "Dev In Progress"
             }
           ],
           "phaseIds": [],
@@ -1277,14 +1277,14 @@
           "type": "subcategory",
           "images": [],
           "status": "Dev In Progress",
+          "endDate": "2026-03-19",
           "children": [],
           "phaseIds": [],
           "progress": 100,
+          "startDate": "2026-03-10",
           "statusMode": "manual",
           "manualStatus": "Dev In Progress",
-          "subcategoryType": "Growth Camp",
-          "startDate": "2026-03-10",
-          "endDate": "2026-03-19"
+          "subcategoryType": "Growth Camp"
         }
       ],
       "phaseIds": [],
@@ -1558,14 +1558,14 @@
           "type": "subcategory",
           "images": [],
           "status": "Dev In Progress",
+          "endDate": "2026-03-19",
           "children": [],
           "phaseIds": [],
           "progress": 0,
+          "startDate": "2026-03-06",
           "statusMode": "manual",
           "manualStatus": "Dev In Progress",
-          "subcategoryType": "Growth Camp",
-          "startDate": "2026-03-06",
-          "endDate": "2026-03-19"
+          "subcategoryType": "Growth Camp"
         }
       ],
       "phaseIds": [],
@@ -1892,14 +1892,20 @@
   ],
   "endDate": "2026-04-10",
   "settings": {
-    "beforeWeeks": 4,
+    "beforeWeeks": 2,
     "afterMonths": 1,
     "filterCategory": [],
     "filterStatus": [],
     "filterTeam": [],
     "filterPriority": [],
-    "filterPhase": [],
-    "filterSubcategory": [],
+    "filterPhase": [
+      "m1"
+    ],
+    "filterSubcategory": [
+      "App",
+      "Core",
+      "Web"
+    ],
     "filterGroupItemType": [],
     "colWorkType": false,
     "colPriority": false,
