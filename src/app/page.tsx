@@ -28,8 +28,8 @@ import {
   normalizeStatusFilter,
   toLegacyImageFields
 } from '@/types/roadmap';
-import { exportRoadmapToExcel } from '@/utils/exportToExcel';
-import { recalculateRoadmap } from '@/utils/roadmapHelpers';
+import { exportRoadmapToExcel, type ExcelExportColumn } from '@/utils/exportToExcel';
+import { getVisibleFlattenedRows, recalculateRoadmap } from '@/utils/roadmapHelpers';
 
 const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
@@ -400,6 +400,49 @@ export default function Home() {
     hiddenRowIds,
   ]);
 
+  const exportVisibleRows = useMemo(() => {
+    if (!data) return [];
+    return getVisibleFlattenedRows(
+      data.items,
+      {
+        category: filterCategory,
+        status: filterStatus,
+        team: filterTeam,
+        priority: filterPriority,
+        phase: filterPhase,
+        subcategory: filterSubcategory,
+        groupItemType: filterGroupItemType,
+      },
+      expandedIds,
+      hiddenRowIds
+    );
+  }, [
+    data,
+    filterCategory,
+    filterStatus,
+    filterTeam,
+    filterPriority,
+    filterPhase,
+    filterSubcategory,
+    filterGroupItemType,
+    expandedIds,
+    hiddenRowIds,
+  ]);
+
+  const exportVisibleColumns = useMemo<ExcelExportColumn[]>(() => {
+    const cols: ExcelExportColumn[] = [
+      { id: 'id', header: 'ID' },
+      { id: 'name', header: 'Tên' },
+    ];
+    if (showWorkType) cols.push({ id: 'workType', header: 'WorkType' });
+    if (showPriority) cols.push({ id: 'priority', header: 'Priority' });
+    cols.push({ id: 'status', header: 'Status' });
+    if (showPhase) cols.push({ id: 'phase', header: 'Phase' });
+    if (showStartDate) cols.push({ id: 'startDate', header: 'Ngày bắt đầu' });
+    if (showEndDate) cols.push({ id: 'endDate', header: 'Ngày kết thúc' });
+    return cols;
+  }, [showWorkType, showPriority, showPhase, showStartDate, showEndDate]);
+
   const handleSave = useCallback(async (currentData: RoadmapDocument) => {
     if (!ensureEditor()) return;
     setSaving(true);
@@ -438,14 +481,33 @@ export default function Home() {
   }, [addToast, buildDocumentSnapshot, ensureEditor, fetchRoadmapVersion]);
 
 
-  const handleExportExcel = () => {
+  const handleExportExcelCurrentView = () => {
     if (!data) return;
     try {
-      exportRoadmapToExcel(data);
-      addToast('Đã xuất Excel thành công!', 'success');
+      exportRoadmapToExcel(data, {
+        mode: 'current-view',
+        rows: exportVisibleRows,
+        columns: exportVisibleColumns,
+        includeSummary: true,
+      });
+      addToast('Đã xuất Excel (Current View) thành công!', 'success');
     } catch (err) {
       console.error(err);
-      addToast('Lỗi khi xuất Excel.', 'error');
+      addToast('Lỗi khi xuất Excel (Current View).', 'error');
+    }
+  };
+
+  const handleExportExcelFullData = () => {
+    if (!data) return;
+    try {
+      exportRoadmapToExcel(data, {
+        mode: 'full-data',
+        includeSummary: false,
+      });
+      addToast('Đã xuất Excel (Full Data) thành công!', 'success');
+    } catch (err) {
+      console.error(err);
+      addToast('Lỗi khi xuất Excel (Full Data).', 'error');
     }
   };
 
@@ -736,7 +798,8 @@ export default function Home() {
         documentName={data.releaseName}
         onNameChange={handleNameChange}
         onSave={() => handleSave(data)}
-        onExportExcel={handleExportExcel}
+        onExportExcelCurrentView={handleExportExcelCurrentView}
+        onExportExcelFullData={handleExportExcelFullData}
         onDownloadJson={handleDownloadJson}
         onOpenFilterPopup={openFilterPopup}
         onOpenMilestonesPopup={openMilestonesPopup}
@@ -759,6 +822,8 @@ export default function Home() {
         filterPhase={filterPhase}
         filterSubcategory={filterSubcategory}
         filterGroupItemType={filterGroupItemType}
+        availablePhases={availablePhases}
+        onPhaseFilterChange={(values) => setFilterPhase(normalizePhaseFilterValues(values))}
         onToggleQuickViewMode={handleToggleQuickViewMode}
       />
       <div className="flex-1 overflow-hidden">

@@ -220,34 +220,7 @@
               "status": "Dev In Progress",
               "endDate": "2026-03-20",
               "imageId": "roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-15-53-33-1772787267500",
-              "children": [
-                {
-                  "id": "79912009",
-                  "name": "Thiết kế Banner",
-                  "type": "item",
-                  "images": [],
-                  "status": "PD In Progress",
-                  "children": [
-                    {
-                      "id": "9f3b85b5",
-                      "name": "PD",
-                      "type": "team",
-                      "images": [],
-                      "status": "PD In Progress",
-                      "phaseIds": [],
-                      "progress": 100,
-                      "teamRole": "PD",
-                      "statusMode": "manual",
-                      "manualStatus": "PD In Progress"
-                    }
-                  ],
-                  "phaseIds": [
-                    "m1"
-                  ],
-                  "progress": 100,
-                  "statusMode": "auto"
-                }
-              ],
+              "children": [],
               "imageUrl": "https://res.cloudinary.com/duoixzd6w/image/upload/v1772787267/roadmap-tool/items/c98a6e8f/screenshot-2026-03-06-at-15-53-33-1772787267500.png",
               "phaseIds": [
                 "m1"
@@ -290,10 +263,24 @@
               "manualStatus": "Dev In Progress",
               "imageProvider": "cloudinary",
               "imageUpdatedAt": "2026-03-06T08:45:24.299Z"
+            },
+            {
+              "id": "561b5f21",
+              "name": "Thiết kế Banner",
+              "type": "group",
+              "children": [],
+              "status": "PD In Progress",
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress",
+              "images": [],
+              "phaseIds": [
+                "m1"
+              ]
             }
           ],
           "phaseIds": [],
-          "progress": 50,
+          "progress": 33,
           "statusMode": "manual",
           "manualStatus": "Not Started"
         },
@@ -561,7 +548,7 @@
         }
       ],
       "phaseIds": [],
-      "progress": 17,
+      "progress": 11,
       "statusMode": "auto"
     },
     {
@@ -1435,42 +1422,12 @@
               "name": "Cross mode",
               "type": "group",
               "images": [],
-              "status": "Not Started",
-              "children": [
-                {
-                  "id": "f071d2bf",
-                  "name": "Thiết kế",
-                  "type": "item",
-                  "images": [],
-                  "status": "PD In Progress",
-                  "children": [
-                    {
-                      "id": "50d3ba9f",
-                      "name": "PD",
-                      "type": "team",
-                      "images": [],
-                      "status": "PD In Progress",
-                      "endDate": "2026-03-13",
-                      "phaseIds": [
-                        "m1"
-                      ],
-                      "progress": 0,
-                      "teamRole": "PD",
-                      "quickNote": "trong tuần này hand off cho dev",
-                      "startDate": "2026-03-09",
-                      "statusMode": "manual",
-                      "manualStatus": "PD In Progress"
-                    }
-                  ],
-                  "phaseIds": [],
-                  "progress": 0,
-                  "statusMode": "auto"
-                }
-              ],
-              "phaseIds": [],
+              "status": "PD In Progress",
+              "children": [],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "Not Started"
+              "manualStatus": "PD In Progress",
+              "phaseIds": []
             },
             {
               "id": "521034cf",
@@ -1898,14 +1855,8 @@
     "filterStatus": [],
     "filterTeam": [],
     "filterPriority": [],
-    "filterPhase": [
-      "m1"
-    ],
-    "filterSubcategory": [
-      "App",
-      "Core",
-      "Web"
-    ],
+    "filterPhase": [],
+    "filterSubcategory": [],
     "filterGroupItemType": [],
     "colWorkType": false,
     "colPriority": false,

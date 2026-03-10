@@ -21,6 +21,16 @@ export interface FlattenedItem extends RoadmapItem {
     parentIds: string[];
 }
 
+export type RoadmapTreeFilters = {
+    category?: string[];
+    status?: string[];
+    team?: string[];
+    priority?: string[];
+    phase?: string[];
+    subcategory?: string[];
+    groupItemType?: string[];
+};
+
 type RoadmapItemWithTransientFields = RoadmapItem & {
     depth?: number;
     parentIds?: string[];
@@ -216,15 +226,7 @@ export const reorderItems = (items: RoadmapItem[], fromId: string, toId: string)
 
 export const filterRoadmapTree = (
     items: RoadmapItem[],
-    filters: {
-        category?: string[];
-        status?: string[];
-        team?: string[];
-        priority?: string[];
-        phase?: string[];
-        subcategory?: string[];
-        groupItemType?: string[];
-    }
+    filters: RoadmapTreeFilters
 ): RoadmapItem[] => {
     const hasCategoryFilter = filters.category && filters.category.length > 0;
     const hasStatusFilter = filters.status && filters.status.length > 0;
@@ -393,4 +395,27 @@ export const filterRoadmapTree = (
             insideSelectedGroupItemType: false,
         }).node)
         .filter(Boolean) as RoadmapItem[];
+};
+
+export const getExpandedFlattenedRows = (
+    items: RoadmapItem[],
+    filters: RoadmapTreeFilters,
+    expandedIds: Set<string>
+): FlattenedItem[] => {
+    const visibleItems = filterRoadmapTree(items, filters);
+    const raw = flattenRoadmap(visibleItems);
+    return raw.filter(item => !item.parentIds.some(pid => !expandedIds.has(pid)));
+};
+
+export const getVisibleFlattenedRows = (
+    items: RoadmapItem[],
+    filters: RoadmapTreeFilters,
+    expandedIds: Set<string>,
+    hiddenRowIds: Set<string>
+): FlattenedItem[] => {
+    const expandedRows = getExpandedFlattenedRows(items, filters, expandedIds);
+    return expandedRows.filter(row => {
+        const isLeaf = !row.children?.length;
+        return !(isLeaf && hiddenRowIds.has(row.id));
+    });
 };

@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
     Save, Download, FileJson, Loader2, Flag, Check,
-    Pencil, Clock, Settings, X, ChevronRight, Upload, Filter, Lock, Unlock
+    Pencil, Clock, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Lock, Unlock
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import SidePanelShell from './SidePanelShell';
+import { PhaseOption } from '@/types/roadmap';
 
 export type QuickViewMode = 'feature' | 'improvement' | 'bug' | 'web' | 'app' | 'reported';
 
@@ -33,7 +34,8 @@ interface ToolbarProps {
     documentName: string;
     onNameChange: (name: string) => void;
     onSave: () => void;
-    onExportExcel?: () => void;
+    onExportExcelCurrentView?: () => void;
+    onExportExcelFullData?: () => void;
     onOpenMilestonesPopup: () => void;
     onOpenFilterPopup: () => void;
     isFilterPopupOpen?: boolean;
@@ -56,28 +58,38 @@ interface ToolbarProps {
     filterPhase: string[];
     filterSubcategory: string[];
     filterGroupItemType: string[];
+    availablePhases: PhaseOption[];
+    onPhaseFilterChange: (values: string[]) => void;
     onToggleQuickViewMode: (mode: QuickViewMode) => void;
 }
 
 export default function Toolbar({
-    documentName, onNameChange, onSave, onExportExcel,
+    documentName, onNameChange, onSave, onExportExcelCurrentView, onExportExcelFullData,
     onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
-    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, onToggleQuickViewMode
+    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
+    availablePhases, onPhaseFilterChange, onToggleQuickViewMode
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
     const [now, setNow] = useState<Date>(new Date());
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
+    const [phasePickerOpen, setPhasePickerOpen] = useState(false);
+    const [phaseSearch, setPhaseSearch] = useState('');
     const [password, setPassword] = useState('');
     const [authError, setAuthError] = useState('');
     const [authSubmitting, setAuthSubmitting] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const passwordRef = useRef<HTMLInputElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
+    const phasePickerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const closePhasePicker = useCallback(() => {
+        setPhasePickerOpen(false);
+        setPhaseSearch('');
+    }, []);
 
     useEffect(() => {
         const timer = setInterval(() => setNow(new Date()), 1000);
@@ -94,6 +106,24 @@ export default function Toolbar({
         if (settingsOpen) document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, [settingsOpen]);
+
+    useEffect(() => {
+        if (!phasePickerOpen) return;
+        const onPointerDown = (e: MouseEvent) => {
+            if (phasePickerRef.current && !phasePickerRef.current.contains(e.target as Node)) {
+                closePhasePicker();
+            }
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') closePhasePicker();
+        };
+        document.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('keydown', onKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', onPointerDown);
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [phasePickerOpen, closePhasePicker]);
 
     useEffect(() => {
         if (!authOpen) return;
@@ -119,6 +149,26 @@ export default function Toolbar({
         { mode: 'app', label: 'App', active: hasSubcategoryQuick('App') },
         { mode: 'reported', label: 'Reported', active: filterPriority.includes('Reported') },
     ];
+    const selectedPhaseSet = useMemo(() => new Set(filterPhase), [filterPhase]);
+    const normalizedPhaseSearch = phaseSearch.trim().toLowerCase();
+    const visiblePhases = useMemo(() => {
+        if (!normalizedPhaseSearch) return availablePhases;
+        return availablePhases.filter(phase => phase.label.toLowerCase().includes(normalizedPhaseSearch));
+    }, [availablePhases, normalizedPhaseSearch]);
+    const phaseButtonLabel = filterPhase.length > 0 ? `Phase (${filterPhase.length})` : 'Phase';
+
+    const handleTogglePhase = (phaseId: string) => {
+        const next = new Set(filterPhase);
+        if (next.has(phaseId)) next.delete(phaseId);
+        else next.add(phaseId);
+        onPhaseFilterChange(Array.from(next));
+    };
+
+    const handleSelectAllPhases = () => {
+        const base = new Set(filterPhase);
+        (visiblePhases.length > 0 ? visiblePhases : availablePhases).forEach(phase => base.add(phase.id));
+        onPhaseFilterChange(Array.from(base));
+    };
 
     const startEdit = () => {
         if (!canEdit) return;
@@ -254,6 +304,87 @@ export default function Toolbar({
                             {button.label}
                         </button>
                     ))}
+                </div>
+
+                <div className="relative shrink-0" ref={phasePickerRef}>
+                    <button
+                        type="button"
+                        disabled={availablePhases.length === 0}
+                        title={availablePhases.length === 0 ? 'Chưa có phase' : 'Lọc phase nhanh'}
+                        onClick={() => {
+                            if (phasePickerOpen) {
+                                closePhasePicker();
+                                return;
+                            }
+                            setPhasePickerOpen(true);
+                        }}
+                        className={`flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold transition-colors ${
+                            availablePhases.length === 0
+                                ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                                : phasePickerOpen || filterPhase.length > 0
+                                    ? 'border-indigo-600 bg-indigo-600 text-white'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                        }`}
+                    >
+                        <span>{phaseButtonLabel}</span>
+                        <ChevronDown size={11} className={`transition-transform ${phasePickerOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {phasePickerOpen && availablePhases.length > 0 && (
+                        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
+                            <input
+                                value={phaseSearch}
+                                onChange={e => setPhaseSearch(e.target.value)}
+                                placeholder="Search phase..."
+                                className="w-full rounded border border-gray-200 px-2 py-1.5 text-[11px] text-gray-700 focus:border-indigo-400 focus:outline-none"
+                            />
+                            <div className="mt-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
+                                <button
+                                    type="button"
+                                    onClick={handleSelectAllPhases}
+                                    className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-700"
+                                >
+                                    Select all
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onPhaseFilterChange([])}
+                                    className="text-[10px] font-semibold text-gray-500 hover:text-gray-700"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                            <div className="mt-1.5 max-h-56 overflow-y-auto">
+                                {visiblePhases.length === 0 ? (
+                                    <p className="px-1 py-2 text-[11px] text-gray-400">Không tìm thấy phase phù hợp.</p>
+                                ) : (
+                                    visiblePhases.map(phase => {
+                                        const checked = selectedPhaseSet.has(phase.id);
+                                        return (
+                                            <div key={phase.id} className="flex items-center justify-between gap-1 rounded px-1 py-1 hover:bg-gray-50">
+                                                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={checked}
+                                                        onChange={() => handleTogglePhase(phase.id)}
+                                                        className="h-3 w-3 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                    <span className="truncate text-[11px] text-gray-700">{phase.label}</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onPhaseFilterChange([phase.id])}
+                                                    className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
+                                                >
+                                                    Only
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -402,11 +533,19 @@ export default function Toolbar({
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hành động</p>
 
                                 <button
-                                    onClick={() => { onExportExcel?.(); setSettingsOpen(false); }}
+                                    onClick={() => { onExportExcelCurrentView?.(); setSettingsOpen(false); }}
                                     className="flex items-center gap-2 w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition-colors"
                                 >
                                     <Download size={13} />
-                                    <span>Xuất Excel</span>
+                                    <span>Xuất Excel (Current View)</span>
+                                </button>
+
+                                <button
+                                    onClick={() => { onExportExcelFullData?.(); setSettingsOpen(false); }}
+                                    className="flex items-center gap-2 w-full px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold transition-colors"
+                                >
+                                    <Download size={13} />
+                                    <span>Xuất Excel (Full Data)</span>
                                 </button>
 
                                 <button

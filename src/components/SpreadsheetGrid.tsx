@@ -19,7 +19,7 @@ import {
     normalizePhaseIds
 } from '@/types/roadmap';
 import {
-    flattenRoadmap, FlattenedItem, filterRoadmapTree, findNodeById,
+    FlattenedItem, findNodeById, getExpandedFlattenedRows,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
 import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
@@ -273,16 +273,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         });
     };
 
-    const visibleItems = useMemo(() => filterRoadmapTree(data.items, {
-        category: filterCategory,
-        status: filterStatus,
-        team: filterTeam,
-        priority: filterPriority,
-        phase: filterPhase,
-        subcategory: filterSubcategory,
-        groupItemType: filterGroupItemType,
-    }), [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType]);
-
     const phaseOptions: PhaseOption[] = useMemo(() => {
         const milestones = data.milestones || [];
         return milestones.map((phase, index) => {
@@ -334,9 +324,20 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, [data.items]);
 
     const flattened: FlattenedItem[] = useMemo(() => {
-        const raw = flattenRoadmap(visibleItems);
-        return raw.filter(item => !item.parentIds.some(pid => !expandedIds.has(pid)));
-    }, [visibleItems, expandedIds]);
+        return getExpandedFlattenedRows(
+            data.items,
+            {
+                category: filterCategory,
+                status: filterStatus,
+                team: filterTeam,
+                priority: filterPriority,
+                phase: filterPhase,
+                subcategory: filterSubcategory,
+                groupItemType: filterGroupItemType,
+            },
+            expandedIds
+        );
+    }, [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, expandedIds]);
 
     const activeNoteItem = useMemo(() => {
         if (!activeNotePreview) return null;
