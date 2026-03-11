@@ -257,7 +257,15 @@ export default function Toolbar({
 
             <div className="flex items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-3 py-2">
                 <div className="flex min-w-0 items-center gap-3">
-                    <span className="shrink-0 text-xs font-bold tracking-[0.22em] text-slate-900">COIN98</span>
+                    <div className="flex shrink-0 flex-col items-center gap-0.5">
+                        <img
+                            src="/images/logo-c98.png"
+                            alt="Coin98 Logo"
+                            className="h-5 w-5 object-contain"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                        <span className="text-xs font-bold tracking-[0.22em] text-slate-900">COIN98</span>
+                    </div>
 
                     {isEditingName ? (
                         <div className="flex min-w-[140px] items-center gap-1">
