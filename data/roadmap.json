@@ -268,15 +268,15 @@
               "id": "561b5f21",
               "name": "Thiết kế Banner",
               "type": "group",
-              "children": [],
-              "status": "PD In Progress",
-              "progress": 0,
-              "statusMode": "manual",
-              "manualStatus": "PD In Progress",
               "images": [],
+              "status": "PD In Progress",
+              "children": [],
               "phaseIds": [
                 "m1"
-              ]
+              ],
+              "progress": 0,
+              "statusMode": "manual",
+              "manualStatus": "PD In Progress"
             }
           ],
           "phaseIds": [],
@@ -356,7 +356,7 @@
                 "m1"
               ],
               "priority": "Reported",
-              "progress": 0,
+              "progress": 100,
               "imageName": "Screenshot 2026-03-06 at 15.52.29.png",
               "quickNote": "Không ảnh hưởng đến ví partner của các DID cũ\n\n- Thêm fee cho 1 và 2 ký tự\n- Trên 9 ký tự\n   + Free năm đầu\n   + Mỗi năm sau thêm +$5\n- Mua 5 năm giảm 50%",
               "statusMode": "manual",
@@ -542,13 +542,13 @@
             }
           ],
           "phaseIds": [],
-          "progress": 0,
+          "progress": 10,
           "statusMode": "manual",
           "manualStatus": "Not Started"
         }
       ],
       "phaseIds": [],
-      "progress": 11,
+      "progress": 14,
       "statusMode": "auto"
     },
     {
@@ -1424,10 +1424,10 @@
               "images": [],
               "status": "PD In Progress",
               "children": [],
+              "phaseIds": [],
               "progress": 0,
               "statusMode": "manual",
-              "manualStatus": "PD In Progress",
-              "phaseIds": []
+              "manualStatus": "PD In Progress"
             },
             {
               "id": "521034cf",
@@ -1854,15 +1854,18 @@
     "filterCategory": [],
     "filterStatus": [],
     "filterTeam": [],
-    "filterPriority": [],
+    "filterPriority": [
+      "Reported"
+    ],
     "filterPhase": [],
     "filterSubcategory": [],
     "filterGroupItemType": [],
+    "reportedMode": true,
     "colWorkType": false,
     "colPriority": false,
     "colPhase": true,
-    "colStartDate": true,
-    "colEndDate": true,
+    "colStartDate": false,
+    "colEndDate": false,
     "colFeaturesWidth": 323,
     "colFeaturesWidthMode": "manual",
     "timelineMode": "day",

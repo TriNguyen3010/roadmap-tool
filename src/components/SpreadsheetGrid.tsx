@@ -5,6 +5,7 @@ import {
     ColumnWidthMode,
     GROUP_ITEM_TYPE_OPTIONS,
     GroupItemType,
+    ItemImage,
     ItemType,
     Milestone,
     PhaseOption,
@@ -19,9 +20,10 @@ import {
     normalizePhaseIds
 } from '@/types/roadmap';
 import {
-    FlattenedItem, findNodeById, getExpandedFlattenedRows,
+    FlattenedItem, findNodeById, filterRoadmapTree, flattenRoadmap, getExpandedFlattenedRows,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
+import { resolveReportedImageReviewMainState } from '@/utils/reportedImageReviewStates';
 import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
 import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
 import EditPopup from './EditPopup';
@@ -43,6 +45,10 @@ interface GridProps {
     filterPhase: string[];
     filterSubcategory: string[];
     filterGroupItemType: string[];
+    reportedMode: boolean;
+    isSaving: boolean;
+    saveState: 'idle' | 'success' | 'error';
+    saveTick: number;
     canEdit: boolean;
     // Column visibility (lifted to parent for persistence)
     showWorkType: boolean;
@@ -84,6 +90,21 @@ const GAP_H = 8;       // height of hidden-row gap indicator
 type RenderEntry =
     | { kind: 'row'; row: FlattenedItem }
     | { kind: 'gap'; ids: string[]; names: string[] };
+
+type ReportedImageCard = {
+    row: FlattenedItem;
+    categoryName: string;
+    subcategoryName?: string;
+    phaseSummary: string;
+    images: ItemImage[];
+};
+
+type ReportedCategoryStat = {
+    name: string;
+    reportedCount: number;
+    withImageCount: number;
+    withoutImageCount: number;
+};
 
 type TimelineUnit = {
     start: Date;
@@ -191,7 +212,8 @@ function estimatePhaseCellWidth(labels: string[]): number {
 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     timelineMode,
-    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, canEdit,
+    filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
+    isSaving, saveState, saveTick, canEdit,
     showWorkType, setShowWorkType,
     showPriority, setShowPriority, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
@@ -223,6 +245,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [activeNotePreview, setActiveNotePreview] = useState<{ id: string; top: number; left: number } | null>(null);
     const [activeImagePreviewId, setActiveImagePreviewId] = useState<string | null>(null);
     const [activeImagePreviewIndex, setActiveImagePreviewIndex] = useState(0);
+    const [activeViewerImageHasError, setActiveViewerImageHasError] = useState(false);
+    const [resumeViewerAfterEdit, setResumeViewerAfterEdit] = useState<{ itemId: string; imageIndex: number } | null>(null);
+    const [reportedImageErrorKeys, setReportedImageErrorKeys] = useState<Record<string, true>>({});
+    const [viewerInlineSaveFeedback, setViewerInlineSaveFeedback] = useState<{
+        state: 'saving' | 'success' | 'error';
+        message: string;
+        startedAtSaveTick: number;
+    } | null>(null);
     const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
     const [quickNoteDraft, setQuickNoteDraft] = useState('');
     const [quickNoteSaving, setQuickNoteSaving] = useState(false);
@@ -339,6 +369,158 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         );
     }, [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, expandedIds]);
 
+    const reportedScopeRows = useMemo(() => {
+        const filteredTree = filterRoadmapTree(data.items, {
+            category: filterCategory,
+            status: filterStatus,
+            team: filterTeam,
+            phase: filterPhase,
+            subcategory: filterSubcategory,
+            groupItemType: filterGroupItemType,
+        });
+        return flattenRoadmap(filteredTree);
+    }, [data.items, filterCategory, filterStatus, filterTeam, filterPhase, filterSubcategory, filterGroupItemType]);
+
+    const reportedScopeById = useMemo(() => {
+        const map = new Map<string, FlattenedItem>();
+        reportedScopeRows.forEach(row => map.set(row.id, row));
+        return map;
+    }, [reportedScopeRows]);
+
+    const reportedCategoryNamesInScope = useMemo(() => {
+        const names = new Set<string>();
+        reportedScopeRows.forEach(row => {
+            if (row.type === 'category') names.add(row.name);
+        });
+        return Array.from(names).sort((a, b) => a.localeCompare(b));
+    }, [reportedScopeRows]);
+
+    const getCategoryAndSubcategory = useCallback((row: FlattenedItem): { categoryName: string; subcategoryName?: string } => {
+        let categoryName = 'Uncategorized';
+        let subcategoryName: string | undefined;
+        for (const parentId of row.parentIds) {
+            const parent = reportedScopeById.get(parentId);
+            if (!parent) continue;
+            if (parent.type === 'category' && categoryName === 'Uncategorized') categoryName = parent.name;
+            if (parent.type === 'subcategory' && !subcategoryName) subcategoryName = parent.name;
+        }
+        return { categoryName, subcategoryName };
+    }, [reportedScopeById]);
+
+    const reportedEntries = useMemo(() => {
+        return reportedScopeRows
+            .filter(row => (row.type === 'group' || row.type === 'item') && !hiddenRowIds.has(row.id))
+            .filter(row => normalizeItemPriority(row.priority) === 'Reported')
+            .map(row => {
+                const { categoryName, subcategoryName } = getCategoryAndSubcategory(row);
+                return {
+                    row,
+                    categoryName,
+                    subcategoryName,
+                    images: normalizeItemImages(row),
+                };
+            });
+    }, [reportedScopeRows, hiddenRowIds, getCategoryAndSubcategory]);
+
+    const reportedImageCards = useMemo<ReportedImageCard[]>(() => {
+        const cards: ReportedImageCard[] = reportedEntries
+            .filter(entry => entry.images.length > 0)
+            .map(entry => {
+                const phaseLabels = normalizePhaseIds(entry.row.phaseIds).map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
+                return {
+                    row: entry.row,
+                    categoryName: entry.categoryName,
+                    subcategoryName: entry.subcategoryName,
+                    phaseSummary: phaseLabels.length > 0 ? phaseLabels.join(', ') : 'No phase',
+                    images: entry.images,
+                };
+            });
+        cards.sort((a, b) => {
+            const byCategory = a.categoryName.localeCompare(b.categoryName);
+            if (byCategory !== 0) return byCategory;
+            return a.row.name.localeCompare(b.row.name);
+        });
+        return cards;
+    }, [reportedEntries, phaseLabelById]);
+
+    const reportedItemsCount = reportedEntries.length;
+    const reportedWithoutImageEntries = useMemo(() => reportedEntries.filter(entry => entry.images.length === 0), [reportedEntries]);
+    const reportedWithoutImageCount = reportedWithoutImageEntries.length;
+
+    const reportedCategories = useMemo<ReportedCategoryStat[]>(() => {
+        const counts = new Map<string, ReportedCategoryStat>();
+        reportedCategoryNamesInScope.forEach(name => {
+            counts.set(name, { name, reportedCount: 0, withImageCount: 0, withoutImageCount: 0 });
+        });
+
+        reportedEntries.forEach(entry => {
+            const existing = counts.get(entry.categoryName) || {
+                name: entry.categoryName,
+                reportedCount: 0,
+                withImageCount: 0,
+                withoutImageCount: 0,
+            };
+            existing.reportedCount += 1;
+            if (entry.images.length > 0) existing.withImageCount += 1;
+            else existing.withoutImageCount += 1;
+            counts.set(entry.categoryName, existing);
+        });
+
+        return Array.from(counts.values())
+            .sort((a, b) => b.withImageCount - a.withImageCount || b.reportedCount - a.reportedCount || a.name.localeCompare(b.name));
+    }, [reportedCategoryNamesInScope, reportedEntries]);
+
+    const [reportedCategoryFilter, setReportedCategoryFilter] = useState<string>('__ALL__');
+
+    useEffect(() => {
+        if (reportedCategoryFilter === '__ALL__') return;
+        const exists = reportedCategories.some(category => category.name === reportedCategoryFilter);
+        if (!exists) setReportedCategoryFilter('__ALL__');
+    }, [reportedCategories, reportedCategoryFilter]);
+
+    const selectedReportedCategory = reportedCategoryFilter === '__ALL__' ? null : reportedCategoryFilter;
+    const selectedReportedCategoryStat = useMemo(
+        () => reportedCategories.find(category => category.name === selectedReportedCategory) || null,
+        [reportedCategories, selectedReportedCategory]
+    );
+
+    const visibleReportedCards = useMemo(() => {
+        if (reportedCategoryFilter === '__ALL__') return reportedImageCards;
+        return reportedImageCards.filter(card => card.categoryName === reportedCategoryFilter);
+    }, [reportedCategoryFilter, reportedImageCards]);
+
+    const visibleReportedWithoutImageEntries = useMemo(() => {
+        if (reportedCategoryFilter === '__ALL__') return reportedWithoutImageEntries;
+        return reportedWithoutImageEntries.filter(entry => entry.categoryName === reportedCategoryFilter);
+    }, [reportedCategoryFilter, reportedWithoutImageEntries]);
+
+    const visibleReportedWithoutImageSample = useMemo(
+        () => visibleReportedWithoutImageEntries.slice(0, 6).map(entry => entry.row.name),
+        [visibleReportedWithoutImageEntries]
+    );
+
+    const visibleReportedItemsCount = selectedReportedCategoryStat?.reportedCount ?? reportedItemsCount;
+    const visibleReportedWithoutImageCount = selectedReportedCategoryStat?.withoutImageCount ?? reportedWithoutImageCount;
+
+    const reportedMainState = useMemo(() => resolveReportedImageReviewMainState({
+        isCategorySelected: !!selectedReportedCategory,
+        visibleReportedItemCount: visibleReportedItemsCount,
+        visibleReportedImageCount: visibleReportedCards.length,
+        totalReportedItemCount: reportedItemsCount,
+    }), [
+        selectedReportedCategory,
+        visibleReportedItemsCount,
+        visibleReportedCards.length,
+        reportedItemsCount,
+    ]);
+
+    const reportedImageErrorCount = useMemo(() => visibleReportedCards.reduce((count, card) => {
+        const preview = card.images[0];
+        if (!preview) return count;
+        const key = `${card.row.id}::${preview.id}`;
+        return reportedImageErrorKeys[key] ? count + 1 : count;
+    }, 0), [reportedImageErrorKeys, visibleReportedCards]);
+
     const activeNoteItem = useMemo(() => {
         if (!activeNotePreview) return null;
         return findNodeById(data.items, activeNotePreview.id);
@@ -362,7 +544,36 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const activeImagePreviewUrl = activeImagePreviewImage?.url?.trim() || '';
     const activeImagePreviewName = activeImagePreviewImage?.name?.trim() || activeImagePreviewItem?.name || 'image';
     const activeImagePreviewNote = activeImagePreviewItem?.quickNote?.trim() || '';
+    const activeImagePreviewPhaseIds = useMemo(() => normalizePhaseIds(activeImagePreviewItem?.phaseIds), [activeImagePreviewItem]);
+    const activeImagePreviewPhaseLabels = useMemo(
+        () => activeImagePreviewPhaseIds.map(phaseId => phaseLabelById.get(phaseId) || 'Unknown'),
+        [activeImagePreviewPhaseIds, phaseLabelById]
+    );
+    const activeImagePreviewPhaseIdSet = useMemo(() => new Set(activeImagePreviewPhaseIds), [activeImagePreviewPhaseIds]);
+    const isActiveImageStatusInlineEditable = !!activeImagePreviewItem
+        && canEdit
+        && activeImagePreviewItem.type !== 'category'
+        && activeImagePreviewItem.type !== 'subcategory'
+        && activeImagePreviewItem.statusMode !== 'auto';
+    const canEditActiveImagePhase = !!activeImagePreviewItem && canEdit && phaseOptions.length > 0;
+    const activeImagePreviewStatus = activeImagePreviewItem?.status || 'Not Started';
     const isQuickNoteDirty = !!activeNoteItem && quickNoteDraft !== activeNoteOriginal;
+
+    useEffect(() => {
+        setActiveViewerImageHasError(false);
+    }, [activeImagePreviewId, normalizedActiveImagePreviewIndex, activeImagePreviewImage?.url]);
+
+    useEffect(() => {
+        if (!reportedMode) setReportedImageErrorKeys({});
+    }, [reportedMode]);
+
+    const closeImagePreview = useCallback(() => {
+        setActiveImagePreviewId(null);
+        setActiveImagePreviewIndex(0);
+        setOpenStatusId(null);
+        setOpenPhaseId(null);
+        setViewerInlineSaveFeedback(null);
+    }, []);
 
     const resetQuickNoteState = useCallback(() => {
         setActiveNotePreview(null);
@@ -403,8 +614,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     useEffect(() => {
         if (!activeImagePreviewId) return;
         if (!activeImagePreviewItem || activeImagePreviewImages.length === 0 || !activeImagePreviewUrl) {
-            setActiveImagePreviewId(null);
-            setActiveImagePreviewIndex(0);
+            closeImagePreview();
             return;
         }
         if (activeImagePreviewIndex >= activeImagePreviewImages.length) {
@@ -416,8 +626,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
         const handleEscape = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
-                setActiveImagePreviewId(null);
-                setActiveImagePreviewIndex(0);
+                closeImagePreview();
             }
         };
 
@@ -426,7 +635,60 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             window.removeEventListener('keydown', handleEscape);
             document.body.style.overflow = previousOverflow;
         };
-    }, [activeImagePreviewId, activeImagePreviewItem, activeImagePreviewImages.length, activeImagePreviewIndex, activeImagePreviewUrl]);
+    }, [activeImagePreviewId, activeImagePreviewItem, activeImagePreviewImages.length, activeImagePreviewIndex, activeImagePreviewUrl, closeImagePreview]);
+
+    useEffect(() => {
+        if (!viewerInlineSaveFeedback || viewerInlineSaveFeedback.state !== 'saving') return;
+        if (isSaving) return;
+        if (saveTick <= viewerInlineSaveFeedback.startedAtSaveTick) return;
+
+        if (saveState === 'success') {
+            setViewerInlineSaveFeedback({
+                state: 'success',
+                message: 'Đã lưu thay đổi.',
+                startedAtSaveTick: saveTick,
+            });
+            return;
+        }
+
+        if (saveState === 'error') {
+            setViewerInlineSaveFeedback({
+                state: 'error',
+                message: 'Lưu thất bại. Vui lòng thử lại.',
+                startedAtSaveTick: saveTick,
+            });
+        }
+    }, [isSaving, saveState, saveTick, viewerInlineSaveFeedback]);
+
+    useEffect(() => {
+        if (!viewerInlineSaveFeedback || viewerInlineSaveFeedback.state === 'saving') return;
+        const timeout = window.setTimeout(() => {
+            setViewerInlineSaveFeedback(null);
+        }, viewerInlineSaveFeedback.state === 'success' ? 1500 : 2600);
+        return () => window.clearTimeout(timeout);
+    }, [viewerInlineSaveFeedback]);
+
+    useEffect(() => {
+        if (editingItem) return;
+        if (!resumeViewerAfterEdit) return;
+
+        const source = findNodeById(data.items, resumeViewerAfterEdit.itemId);
+        if (!source) {
+            setResumeViewerAfterEdit(null);
+            return;
+        }
+
+        const images = normalizeItemImages(source);
+        if (images.length === 0) {
+            setResumeViewerAfterEdit(null);
+            return;
+        }
+
+        const safeIndex = Math.max(0, Math.min(resumeViewerAfterEdit.imageIndex, images.length - 1));
+        setActiveImagePreviewId(source.id);
+        setActiveImagePreviewIndex(safeIndex);
+        setResumeViewerAfterEdit(null);
+    }, [editingItem, resumeViewerAfterEdit, data.items]);
 
     useEffect(() => {
         if (!openWorkTypeId) return;
@@ -766,8 +1028,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (rowImages.length === 0) return;
 
         if (activeImagePreviewId === row.id) {
-            setActiveImagePreviewId(null);
-            setActiveImagePreviewIndex(0);
+            closeImagePreview();
             return;
         }
 
@@ -776,6 +1037,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             if (!closed) return;
         }
 
+        setOpenStatusId(null);
+        setOpenPhaseId(null);
         setActiveImagePreviewId(row.id);
         setActiveImagePreviewIndex(0);
     };
@@ -845,11 +1108,25 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         }
     };
 
-    const updateFromSource = (id: string, mapper: (source: RoadmapItem) => RoadmapItem) => {
+    const updateFromSource = (
+        id: string,
+        mapper: (source: RoadmapItem) => RoadmapItem,
+        shouldSave = false
+    ) => {
         if (!canEdit) return;
         const source = findNodeById(data.items, id);
         if (!source) return;
-        onDataChange({ ...data, items: updateNodeById(data.items, id, mapper(source)) });
+        onDataChange({ ...data, items: updateNodeById(data.items, id, mapper(source)) }, shouldSave);
+    };
+
+    const updateActivePreviewItemWithSaveFeedback = (mapper: (source: RoadmapItem) => RoadmapItem) => {
+        if (!activeImagePreviewItem) return;
+        setViewerInlineSaveFeedback({
+            state: 'saving',
+            message: 'Đang lưu thay đổi...',
+            startedAtSaveTick: saveTick,
+        });
+        updateFromSource(activeImagePreviewItem.id, mapper, true);
     };
 
     const toggleReviewedGroup = (groupId: string) => {
@@ -927,6 +1204,225 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     onAdd={handleAddChild} onClose={() => setAddingToParent(null)} />
             )}
 
+            {reportedMode ? (
+                <div className="flex h-full w-full flex-col overflow-hidden bg-[#F7F8FA]">
+                    {/* ── Header bar ── */}
+                    <div className="flex shrink-0 items-center gap-4 border-b border-slate-200 bg-white px-5 py-3">
+                        <div className="min-w-0 flex-1">
+                            <h1 className="text-sm font-bold text-slate-900">Reported Image Review</h1>
+                            <p className="text-[11px] text-slate-500">
+                                {reportedItemsCount} reported · {reportedImageCards.length} có ảnh · {reportedWithoutImageCount} thiếu ảnh
+                            </p>
+                        </div>
+                        {/* Quick stats badges */}
+                        <div className="flex shrink-0 items-center gap-2">
+                            <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[11px] font-bold text-rose-700">
+                                {reportedItemsCount} reported
+                            </span>
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                                {reportedImageCards.length} có ảnh
+                            </span>
+                            {reportedWithoutImageCount > 0 && (
+                                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+                                    {reportedWithoutImageCount} thiếu ảnh
+                                </span>
+                            )}
+                        </div>
+                        <div className="shrink-0 rounded bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                            {visibleReportedCards.length}/{visibleReportedItemsCount} trong view
+                        </div>
+                    </div>
+
+                    {/* ── Body: sidebar + content ── */}
+                    <div className="grid min-h-0 flex-1 grid-cols-[220px_minmax(0,1fr)]">
+                        {/* Sidebar */}
+                        <aside className="flex flex-col overflow-hidden border-r border-slate-200 bg-white">
+                            <div className="border-b border-slate-100 px-3 py-2.5">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Category</p>
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                                <button
+                                    type="button"
+                                    className={`mb-0.5 flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[12px] font-semibold transition-colors ${reportedCategoryFilter === '__ALL__'
+                                        ? 'bg-amber-500 text-white'
+                                        : 'text-slate-600 hover:bg-slate-100'
+                                        }`}
+                                    onClick={() => setReportedCategoryFilter('__ALL__')}
+                                >
+                                    <span>All Categories</span>
+                                    <span className={`text-[11px] ${reportedCategoryFilter === '__ALL__' ? 'text-white/80' : 'text-slate-400'}`}>
+                                        {reportedImageCards.length}/{reportedItemsCount}
+                                    </span>
+                                </button>
+                                {reportedCategories.map(category => (
+                                    <button
+                                        key={category.name}
+                                        type="button"
+                                        className={`mb-0.5 flex w-full items-center justify-between rounded-md px-2.5 py-2 text-left text-[12px] font-semibold transition-colors ${reportedCategoryFilter === category.name
+                                            ? 'bg-amber-500 text-white'
+                                            : 'text-slate-600 hover:bg-slate-100'
+                                            }`}
+                                        onClick={() => setReportedCategoryFilter(category.name)}
+                                    >
+                                        <span className="min-w-0 truncate">{category.name}</span>
+                                        <span className={`ml-1 shrink-0 text-[11px] ${reportedCategoryFilter === category.name ? 'text-white/80' : 'text-slate-400'}`}>
+                                            {category.withImageCount}/{category.reportedCount}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </aside>
+
+                        {/* Content area */}
+                        <div className="flex min-h-0 flex-col overflow-hidden">
+                            {/* Inline alerts */}
+                            {(!canEdit || isSaving || (!isSaving && saveState === 'error') || reportedImageErrorCount > 0 || (reportedMainState === 'ready' && visibleReportedWithoutImageCount > 0)) && (
+                                <div className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200 bg-white px-4 py-2">
+                                    {!canEdit && (
+                                        <div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700">
+                                            Viewer mode — Unlock Editor để chỉnh Status/Phase trực tiếp.
+                                        </div>
+                                    )}
+                                    {isSaving && (
+                                        <div className="animate-pulse rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700">
+                                            Đang lưu thay đổi mới nhất...
+                                        </div>
+                                    )}
+                                    {!isSaving && saveState === 'error' && (
+                                        <div className="rounded border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700">
+                                            Lưu dữ liệu thất bại. Vui lòng thử lại.
+                                        </div>
+                                    )}
+                                    {reportedImageErrorCount > 0 && (
+                                        <div className="rounded border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-[11px] font-semibold text-orange-700">
+                                            {reportedImageErrorCount} ảnh lỗi tải. Bạn vẫn có thể bấm card để mở viewer.
+                                        </div>
+                                    )}
+                                    {reportedMainState === 'ready' && visibleReportedWithoutImageCount > 0 && (
+                                        <div className="rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-500">
+                                            {visibleReportedWithoutImageCount} item reported chưa có ảnh trong scope hiện tại.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Scrollable card grid */}
+                            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                                {reportedMainState === 'no-reported-data' && (
+                                    <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-4 text-center">
+                                        <p className="text-sm font-semibold text-slate-700">No Reported Data</p>
+                                        <p className="mt-1 text-xs text-slate-500">Không có item <code>Priority = Reported</code> theo bộ lọc hiện tại.</p>
+                                    </div>
+                                )}
+
+                                {reportedMainState === 'empty-category' && (
+                                    <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-4 text-center">
+                                        <p className="text-sm font-semibold text-slate-700">Empty Category</p>
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            Category <strong>{selectedReportedCategory}</strong> chưa có item reported trong scope hiện tại.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {reportedMainState === 'reported-no-image' && (
+                                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
+                                        <p className="text-sm font-bold text-slate-700">Reported nhưng chưa có ảnh</p>
+                                        <p className="mt-1 text-xs text-slate-500">
+                                            {visibleReportedItemsCount} item reported nhưng chưa đính kèm ảnh.
+                                        </p>
+                                        {visibleReportedWithoutImageSample.length > 0 && (
+                                            <ul className="mt-3 space-y-1 text-xs text-slate-600">
+                                                {visibleReportedWithoutImageSample.map(name => (
+                                                    <li key={name} className="flex items-start gap-1.5">
+                                                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                                                        {name}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                )}
+
+                                {reportedMainState === 'ready' && (
+                                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                                        {visibleReportedCards.map(card => {
+                                            const preview = card.images[0];
+                                            const previewKey = `${card.row.id}::${preview.id}`;
+                                            const hasPreviewError = !!reportedImageErrorKeys[previewKey];
+                                            const metaLine = card.subcategoryName
+                                                ? `${card.categoryName} • ${card.subcategoryName}`
+                                                : card.categoryName;
+                                            const cardStatus = card.row.status || 'Not Started';
+                                            const statusBg = STATUS_TAG_BG[cardStatus] || '#f3f4f6';
+                                            const statusText = STATUS_TAG_TEXT[cardStatus] || '#374151';
+                                            return (
+                                                <button
+                                                    key={card.row.id}
+                                                    type="button"
+                                                    className="group rounded-xl border border-[#E6EBF2] bg-white text-left shadow-sm transition-all hover:border-amber-400 hover:shadow-md"
+                                                    onClick={(event) => { void openImagePreview(event, card.row); }}
+                                                >
+                                                    {/* Image area */}
+                                                    <div className="relative overflow-hidden rounded-t-xl bg-slate-100">
+                                                        {hasPreviewError ? (
+                                                            <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-200 text-center text-[10px] font-semibold text-slate-400">
+                                                                Lỗi tải ảnh
+                                                            </div>
+                                                        ) : (
+                                                            <img
+                                                                src={preview.url}
+                                                                alt={preview.name || card.row.name}
+                                                                className="aspect-[3/4] w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                                                                loading="lazy"
+                                                                onLoad={() => {
+                                                                    setReportedImageErrorKeys(prev => {
+                                                                        if (!prev[previewKey]) return prev;
+                                                                        const next = { ...prev };
+                                                                        delete next[previewKey];
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                onError={() => {
+                                                                    setReportedImageErrorKeys(prev => {
+                                                                        if (prev[previewKey]) return prev;
+                                                                        return { ...prev, [previewKey]: true };
+                                                                    });
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {card.images.length > 1 && (
+                                                            <span className="absolute right-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white">
+                                                                +{card.images.length - 1}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {/* Card metadata */}
+                                                    <div className="p-2">
+                                                        <p className="truncate text-[12px] font-semibold leading-snug text-[#0B132B]">{card.row.name}</p>
+                                                        <p className="mt-0.5 truncate text-[10px] text-[#64748B]">{metaLine}</p>
+                                                        <div className="mt-1.5 flex items-center justify-between gap-1">
+                                                            <span
+                                                                className="truncate rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                                                                style={{ backgroundColor: statusBg, color: statusText }}
+                                                            >
+                                                                {cardStatus}
+                                                            </span>
+                                                            {card.phaseSummary !== 'No phase' && (
+                                                                <span className="shrink-0 truncate text-[10px] text-[#64748B]">{card.phaseSummary}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+            <>
             {/* ── LEFT PANE ── */}
             <div className="shrink-0 border-r-2 border-gray-500 flex flex-col overflow-hidden" style={{ width: totalLeftW }}>
 
@@ -1748,6 +2244,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     </div>
                 </div>
             </div>
+            </>
+            )}
 
             {activeNotePreview && activeNoteItem && (
                 <div
@@ -1839,107 +2337,331 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                 </div>
             )}
 
-            {activeImagePreviewId && activeImagePreviewImage && (
-                <div className="fixed inset-0 z-[70] flex" role="dialog" aria-modal="true">
+            {activeImagePreviewId && activeImagePreviewImage && activeImagePreviewItem && (
+                <div className="fixed inset-0 z-[70] flex items-stretch" role="dialog" aria-modal="true">
+                    {/* Backdrop */}
                     <button
                         type="button"
                         aria-label="Đóng xem ảnh"
-                        className="flex-1 bg-black/35"
-                        onClick={() => {
-                            setActiveImagePreviewId(null);
-                            setActiveImagePreviewIndex(0);
-                        }}
+                        className="flex-1 bg-black/50"
+                        onClick={closeImagePreview}
                     />
-                    <aside className="h-full w-[min(96vw,980px)] border-l border-gray-200 bg-white shadow-2xl flex flex-col">
-                        <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3">
-                            <div className="min-w-0">
-                                <p className="text-sm font-bold text-gray-800">Image Preview</p>
-                                <p className="truncate text-xs text-gray-500">{activeImagePreviewName}</p>
+                    {/* Viewer panel */}
+                    <div className="flex h-full w-[min(96vw,1020px)] flex-col border-l border-slate-200 bg-white shadow-2xl">
+                        {/* Header */}
+                        <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 py-3">
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-bold text-slate-900">{activeImagePreviewItem.name}</p>
+                                <p className="truncate text-[11px] text-slate-500">
+                                    {activeImagePreviewImage.name || `Ảnh ${normalizedActiveImagePreviewIndex + 1}`}
+                                    {activeImagePreviewImages.length > 1 && ` · ${normalizedActiveImagePreviewIndex + 1}/${activeImagePreviewImages.length}`}
+                                </p>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex shrink-0 items-center gap-1">
                                 {activeImagePreviewImages.length > 1 && (
                                     <>
                                         <button
                                             type="button"
                                             aria-label="Ảnh trước"
-                                            className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                                            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100"
                                             onClick={showPrevPreviewImage}
                                         >
-                                            <ChevronLeft size={16} />
+                                            <ChevronLeft size={15} />
                                         </button>
                                         <button
                                             type="button"
                                             aria-label="Ảnh kế"
-                                            className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
+                                            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100"
                                             onClick={showNextPreviewImage}
                                         >
-                                            <ChevronRight size={16} />
+                                            <ChevronRight size={15} />
                                         </button>
                                     </>
                                 )}
                                 <button
                                     type="button"
                                     aria-label="Đóng xem ảnh"
-                                    className="rounded p-1 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-800"
-                                    onClick={() => {
-                                        setActiveImagePreviewId(null);
-                                        setActiveImagePreviewIndex(0);
-                                    }}
+                                    className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100"
+                                    onClick={closeImagePreview}
                                 >
-                                    <X size={16} />
+                                    <X size={15} />
                                 </button>
                             </div>
                         </div>
-                        <div className="min-h-0 flex-1 bg-slate-50 p-4">
-                            <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_clamp(200px,24vw,280px)] gap-3">
-                                <div className="min-h-0 rounded-lg border border-slate-200 bg-white p-2 flex flex-col">
-                                    <div className="min-h-0 flex-1">
-                                        <img
-                                            src={activeImagePreviewImage.url}
-                                            alt={activeImagePreviewName}
-                                            className="h-full w-full object-contain"
-                                        />
-                                    </div>
-                                    {activeImagePreviewImages.length > 1 && (
-                                        <div className="mt-2 border-t border-slate-200 pt-2">
-                                            <div className="flex gap-2 overflow-x-auto pb-1">
-                                                {activeImagePreviewImages.map((image, index) => {
-                                                    const isActive = index === normalizedActiveImagePreviewIndex;
-                                                    return (
-                                                        <button
-                                                            key={image.id}
-                                                            type="button"
-                                                            className={`shrink-0 overflow-hidden rounded border ${isActive ? 'border-blue-400 ring-2 ring-blue-200' : 'border-slate-200'}`}
-                                                            onClick={() => setActiveImagePreviewIndex(index)}
-                                                            title={image.name || `Ảnh ${index + 1}`}
-                                                        >
-                                                            <img
-                                                                src={image.url}
-                                                                alt={image.name || `Ảnh ${index + 1}`}
-                                                                className="h-16 w-24 object-cover"
-                                                            />
-                                                        </button>
-                                                    );
-                                                })}
+
+                        {/* Body */}
+                        <div className="min-h-0 flex-1 overflow-hidden">
+                            <div className="grid h-full grid-cols-[minmax(0,1fr)_300px]">
+                                {/* Left: hero image + thumbnail strip */}
+                                <div className="flex min-h-0 flex-col gap-2 overflow-hidden bg-[#F7F8FA] p-3">
+                                    {/* Hero */}
+                                    <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                        {activeViewerImageHasError ? (
+                                            <div className="flex h-full w-full items-center justify-center rounded-xl bg-slate-100 text-center text-xs font-semibold text-slate-500">
+                                                Lỗi tải ảnh
                                             </div>
+                                        ) : (
+                                            <img
+                                                src={activeImagePreviewImage.url}
+                                                alt={activeImagePreviewName}
+                                                className="h-full w-full object-contain"
+                                                onLoad={() => setActiveViewerImageHasError(false)}
+                                                onError={() => setActiveViewerImageHasError(true)}
+                                            />
+                                        )}
+                                    </div>
+                                    {/* Thumbnail strip */}
+                                    {activeImagePreviewImages.length > 1 && (
+                                        <div className="flex shrink-0 gap-2 overflow-x-auto pb-1">
+                                            {activeImagePreviewImages.map((image, index) => {
+                                                const isActive = index === normalizedActiveImagePreviewIndex;
+                                                return (
+                                                    <button
+                                                        key={image.id}
+                                                        type="button"
+                                                        className={`shrink-0 overflow-hidden rounded-lg border-2 transition-all ${isActive
+                                                            ? 'border-amber-500 shadow-md ring-2 ring-amber-200'
+                                                            : 'border-slate-200 hover:border-slate-400'
+                                                            }`}
+                                                        onClick={() => setActiveImagePreviewIndex(index)}
+                                                        title={image.name || `Ảnh ${index + 1}`}
+                                                    >
+                                                        <img
+                                                            src={image.url}
+                                                            alt={image.name || `Ảnh ${index + 1}`}
+                                                            className="h-16 w-14 object-cover"
+                                                            loading="lazy"
+                                                        />
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
-                                <section className="min-h-0 rounded-lg border border-slate-200 bg-white flex flex-col">
-                                    <div className="border-b border-slate-200 px-3 py-2">
-                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Note</p>
+
+                                {/* Right: metadata panel */}
+                                <div className="flex flex-col overflow-hidden border-l border-slate-200 bg-white">
+                                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                                        {/* Feedback messages */}
+                                        {!canEdit && (
+                                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
+                                                Viewer mode — Unlock Editor để đổi Status/Phase.
+                                            </div>
+                                        )}
+                                        {viewerInlineSaveFeedback && (
+                                            <div
+                                                className={`rounded-lg border px-3 py-2 text-[11px] font-semibold ${viewerInlineSaveFeedback.state === 'saving'
+                                                    ? 'animate-pulse border-amber-200 bg-amber-50 text-amber-700'
+                                                    : viewerInlineSaveFeedback.state === 'success'
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                                        : 'border-rose-200 bg-rose-50 text-rose-700'
+                                                    }`}
+                                            >
+                                                {viewerInlineSaveFeedback.message}
+                                            </div>
+                                        )}
+
+                                        {/* Item info */}
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Item</p>
+                                            <p className="text-sm font-bold text-[#0B132B] leading-snug">{activeImagePreviewItem.name}</p>
+                                            <p className="mt-0.5 text-[11px] text-[#64748B]">
+                                                {activeImagePreviewPhaseLabels.length > 0
+                                                    ? activeImagePreviewPhaseLabels.join(', ')
+                                                    : 'No phase'}
+                                            </p>
+                                        </div>
+
+                                        {/* Status */}
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Status</p>
+                                            <div className="relative">
+                                                <button
+                                                    type="button"
+                                                    data-status-trigger="true"
+                                                    disabled={!isActiveImageStatusInlineEditable}
+                                                    className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-[12px] font-semibold transition-colors ${isActiveImageStatusInlineEditable
+                                                        ? 'cursor-pointer border-slate-300 bg-white text-slate-700 hover:border-amber-400'
+                                                        : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
+                                                        }`}
+                                                    onClick={e => {
+                                                        if (!isActiveImageStatusInlineEditable) return;
+                                                        e.stopPropagation();
+                                                        setOpenPhaseId(null);
+                                                        setOpenStatusId(openStatusId === activeImagePreviewItem.id ? null : activeImagePreviewItem.id);
+                                                    }}
+                                                >
+                                                    <span
+                                                        className="rounded-md px-2 py-0.5 text-[11px] font-bold"
+                                                        style={{
+                                                            backgroundColor: STATUS_TAG_BG[activeImagePreviewStatus] || '#f3f4f6',
+                                                            color: STATUS_TAG_TEXT[activeImagePreviewStatus] || '#374151'
+                                                        }}
+                                                    >
+                                                        {activeImagePreviewStatus}
+                                                    </span>
+                                                    <ChevronDown size={13} className="shrink-0 text-slate-400" />
+                                                </button>
+                                                {isActiveImageStatusInlineEditable && openStatusId === activeImagePreviewItem.id && (
+                                                    <div data-status-dropdown="true" className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                                                        {STATUS_OPTIONS.map(statusOption => (
+                                                            <button
+                                                                key={statusOption}
+                                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold transition-colors hover:bg-slate-50"
+                                                                onMouseDown={e => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateActivePreviewItemWithSaveFeedback(
+                                                                        source => ({
+                                                                            ...source,
+                                                                            statusMode: 'manual',
+                                                                            manualStatus: statusOption,
+                                                                            status: statusOption,
+                                                                        })
+                                                                    );
+                                                                    setOpenStatusId(null);
+                                                                }}
+                                                            >
+                                                                <span
+                                                                    className="rounded px-1.5 py-0.5 text-[10px] font-bold"
+                                                                    style={{ backgroundColor: STATUS_TAG_BG[statusOption] || '#f3f4f6', color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
+                                                                >
+                                                                    {statusOption}
+                                                                </span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Phase */}
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Phase</p>
+                                            <div className="relative">
+                                                <button
+                                                    type="button"
+                                                    data-phase-trigger="true"
+                                                    disabled={!canEditActiveImagePhase}
+                                                    className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-[12px] font-semibold transition-colors ${canEditActiveImagePhase
+                                                        ? 'cursor-pointer border-slate-300 bg-white text-slate-700 hover:border-amber-400'
+                                                        : 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
+                                                        }`}
+                                                    onClick={e => {
+                                                        if (!canEditActiveImagePhase) return;
+                                                        e.stopPropagation();
+                                                        setOpenStatusId(null);
+                                                        setOpenPhaseId(openPhaseId === activeImagePreviewItem.id ? null : activeImagePreviewItem.id);
+                                                    }}
+                                                >
+                                                    <span className="truncate">
+                                                        {activeImagePreviewPhaseLabels.length === 0
+                                                            ? <span className="text-slate-400">None</span>
+                                                            : activeImagePreviewPhaseLabels.join(', ')}
+                                                    </span>
+                                                    <ChevronDown size={13} className="shrink-0 text-slate-400" />
+                                                </button>
+                                                {canEditActiveImagePhase && openPhaseId === activeImagePreviewItem.id && (
+                                                    <div data-phase-dropdown="true" className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                                                        <div className="max-h-52 overflow-y-auto py-1">
+                                                            {phaseOptions.map(phase => {
+                                                                const isSelected = activeImagePreviewPhaseIdSet.has(phase.id);
+                                                                return (
+                                                                    <button
+                                                                        key={phase.id}
+                                                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors ${isSelected ? 'bg-amber-50 text-amber-800 font-bold' : 'text-slate-700 hover:bg-slate-50'}`}
+                                                                        onMouseDown={e => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            updateActivePreviewItemWithSaveFeedback(
+                                                                                source => {
+                                                                                    const current = new Set(normalizePhaseIds(source.phaseIds));
+                                                                                    if (current.has(phase.id)) current.delete(phase.id);
+                                                                                    else current.add(phase.id);
+                                                                                    const next = { ...source };
+                                                                                    const nextPhaseIds = Array.from(current);
+                                                                                    if (nextPhaseIds.length > 0) next.phaseIds = nextPhaseIds;
+                                                                                    else delete next.phaseIds;
+                                                                                    return next;
+                                                                                }
+                                                                            );
+                                                                        }}
+                                                                    >
+                                                                        <span className={`h-3.5 w-3.5 shrink-0 rounded border text-[10px] leading-[13px] text-center ${isSelected ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 text-transparent'}`}>✓</span>
+                                                                        <span className="truncate">{phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}</span>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <div className="border-t border-slate-100">
+                                                            <button
+                                                                className="w-full px-3 py-2 text-left text-[11px] font-semibold text-slate-500 transition-colors hover:bg-slate-50"
+                                                                onMouseDown={e => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateActivePreviewItemWithSaveFeedback(source => {
+                                                                        const next = { ...source };
+                                                                        delete next.phaseIds;
+                                                                        return next;
+                                                                    });
+                                                                    setOpenPhaseId(null);
+                                                                }}
+                                                            >
+                                                                Clear
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Note */}
+                                        {activeImagePreviewNote && (
+                                            <div>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Note</p>
+                                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                                    <p className="text-[12px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words">
+                                                        {activeImagePreviewNote}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
-                                        <p className="text-[12px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words">
-                                            {activeImagePreviewNote || 'Chưa có note.'}
-                                        </p>
+
+                                    {/* Action buttons */}
+                                    <div className="shrink-0 border-t border-slate-200 px-4 py-3 flex flex-col gap-2">
+                                        {canEdit && (
+                                            <button
+                                                type="button"
+                                                className="w-full rounded-lg bg-amber-500 px-3 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-amber-600"
+                                                onClick={() => {
+                                                    const editingId = activeImagePreviewItem.id;
+                                                    setResumeViewerAfterEdit({
+                                                        itemId: editingId,
+                                                        imageIndex: Math.max(0, normalizedActiveImagePreviewIndex),
+                                                    });
+                                                    closeImagePreview();
+                                                    openEditor(editingId);
+                                                }}
+                                            >
+                                                Open Full Edit
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[12px] font-semibold text-slate-600 transition-colors hover:bg-slate-100"
+                                            onClick={closeImagePreview}
+                                        >
+                                            Đóng
+                                        </button>
                                     </div>
-                                </section>
+                                </div>
                             </div>
                         </div>
-                    </aside>
+                    </div>
                 </div>
             )}
+
         </div>
     );
 }

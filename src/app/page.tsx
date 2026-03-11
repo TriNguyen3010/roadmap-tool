@@ -30,6 +30,10 @@ import {
 } from '@/types/roadmap';
 import { exportRoadmapToExcel, type ExcelExportColumn } from '@/utils/exportToExcel';
 import { getVisibleFlattenedRows, recalculateRoadmap } from '@/utils/roadmapHelpers';
+import {
+  ensureReportedPriority,
+  removeReportedPriority,
+} from '@/utils/reportedMode';
 
 const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
@@ -95,6 +99,8 @@ export default function Home() {
   const [data, setData] = useState<RoadmapDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'success' | 'error'>('idle');
+  const [saveTick, setSaveTick] = useState(0);
   const [showMilestones, setShowMilestones] = useState(false);
   const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [isEditor, setIsEditor] = useState(false);
@@ -115,6 +121,7 @@ export default function Home() {
   const [filterPhase, setFilterPhase] = useState<string[]>([]);
   const [filterSubcategory, setFilterSubcategory] = useState<string[]>([]);
   const [filterGroupItemType, setFilterGroupItemType] = useState<string[]>([]);
+  const [isReportedMode, setIsReportedMode] = useState(false);
 
   // Column visibility
   const [showWorkType, setShowWorkType] = useState(true);
@@ -223,6 +230,7 @@ export default function Home() {
           if (json.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(json.settings.filterPhase));
           if (json.settings.filterSubcategory) setFilterSubcategory(json.settings.filterSubcategory);
           if (json.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(json.settings.filterGroupItemType));
+          if (typeof json.settings.reportedMode === 'boolean') setIsReportedMode(json.settings.reportedMode);
           if (typeof json.settings.colWorkType === 'boolean') setShowWorkType(json.settings.colWorkType);
           if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
           if (typeof json.settings.colPhase === 'boolean') setShowPhase(json.settings.colPhase);
@@ -367,6 +375,7 @@ export default function Home() {
       filterPhase: normalizePhaseFilterValues(filterPhase),
       filterSubcategory,
       filterGroupItemType: normalizeGroupItemTypeFilter(filterGroupItemType),
+      reportedMode: isReportedMode,
       colWorkType: showWorkType,
       colPriority: showPriority,
       colPhase: showPhase,
@@ -388,6 +397,7 @@ export default function Home() {
     filterPhase,
     filterSubcategory,
     filterGroupItemType,
+    isReportedMode,
     showWorkType,
     showPriority,
     showPhase,
@@ -446,6 +456,7 @@ export default function Home() {
   const handleSave = useCallback(async (currentData: RoadmapDocument) => {
     if (!ensureEditor()) return;
     setSaving(true);
+    setSaveState('idle');
     try {
       const dataToSave = buildDocumentSnapshot(currentData);
 
@@ -457,6 +468,8 @@ export default function Home() {
       if (res.status === 401) {
         setIsEditor(false);
         addToast('Phiên Editor đã hết hạn. Vui lòng unlock lại.', 'error');
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
         return;
       }
       if (!res.ok) throw new Error();
@@ -473,8 +486,12 @@ export default function Home() {
       }
       setPendingRemoteVersion(null);
       setDismissedVersion(null);
+      setSaveState('success');
+      setSaveTick(prev => prev + 1);
     } catch {
       addToast('Lỗi khi lưu dữ liệu. Vui lòng thử lại.', 'error');
+      setSaveState('error');
+      setSaveTick(prev => prev + 1);
     } finally {
       setSaving(false);
     }
@@ -544,18 +561,16 @@ export default function Home() {
   }, []);
 
   const handleToggleQuickViewMode = useCallback((mode: QuickViewMode) => {
-    const toggleValue = (source: string[], value: string): string[] => (
-      source.includes(value) ? source.filter(item => item !== value) : [...source, value]
-    );
-
-    if (mode === 'feature' || mode === 'improvement' || mode === 'bug') {
-      const target = mode === 'feature' ? 'Feature' : mode === 'improvement' ? 'Improvement' : 'Bug';
-      setFilterGroupItemType(prev => normalizeGroupItemTypeFilter(toggleValue(prev, target)));
-      return;
-    }
-
     if (mode === 'reported') {
-      setFilterPriority(prev => normalizePriorityFilterValues(toggleValue(prev, 'Reported')));
+      setIsReportedMode(prev => {
+        const next = !prev;
+        if (next) {
+          setFilterPriority(current => ensureReportedPriority(current));
+        } else {
+          setFilterPriority(current => removeReportedPriority(current));
+        }
+        return next;
+      });
       return;
     }
 
@@ -577,6 +592,16 @@ export default function Home() {
       return Array.from(next);
     });
   }, []);
+
+  const handleExitReportedMode = useCallback(() => {
+    setIsReportedMode(false);
+    setFilterPriority(prev => removeReportedPriority(prev));
+  }, []);
+
+  useEffect(() => {
+    if (!isReportedMode) return;
+    setFilterPriority(prev => ensureReportedPriority(prev));
+  }, [isReportedMode]);
 
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
     if (!isEditor) return;
@@ -619,6 +644,7 @@ export default function Home() {
       if (Array.isArray(settings.filterPhase)) setFilterPhase(normalizePhaseFilterValues(toStringArray(settings.filterPhase)));
       if (Array.isArray(settings.filterSubcategory)) setFilterSubcategory(toStringArray(settings.filterSubcategory));
       if (Array.isArray(settings.filterGroupItemType)) setFilterGroupItemType(normalizeGroupItemTypeFilter(toStringArray(settings.filterGroupItemType)));
+      if (typeof settings.reportedMode === 'boolean') setIsReportedMode(settings.reportedMode);
       if (typeof settings.colWorkType === 'boolean') setShowWorkType(settings.colWorkType);
       if (typeof settings.colPriority === 'boolean') setShowPriority(settings.colPriority);
       if (typeof settings.colPhase === 'boolean') setShowPhase(settings.colPhase);
@@ -825,6 +851,8 @@ export default function Home() {
         availablePhases={availablePhases}
         onPhaseFilterChange={(values) => setFilterPhase(normalizePhaseFilterValues(values))}
         onToggleQuickViewMode={handleToggleQuickViewMode}
+        isReportedMode={isReportedMode}
+        onExitReportedMode={handleExitReportedMode}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
@@ -843,6 +871,10 @@ export default function Home() {
           filterPhase={filterPhase}
           filterSubcategory={filterSubcategory}
           filterGroupItemType={filterGroupItemType}
+          reportedMode={isReportedMode}
+          isSaving={saving}
+          saveState={saveState}
+          saveTick={saveTick}
           canEdit={isEditor}
           showWorkType={showWorkType} setShowWorkType={setShowWorkType}
           showPriority={showPriority} setShowPriority={setShowPriority}

@@ -10,7 +10,7 @@ import { vi } from 'date-fns/locale';
 import SidePanelShell from './SidePanelShell';
 import { PhaseOption } from '@/types/roadmap';
 
-export type QuickViewMode = 'feature' | 'improvement' | 'bug' | 'web' | 'app' | 'reported';
+export type QuickViewMode = 'web' | 'app' | 'reported';
 
 // ── Before options: weeks (negative offset from today)
 export const BEFORE_OPTIONS: { label: string; weeks: number }[] = [
@@ -61,6 +61,8 @@ interface ToolbarProps {
     availablePhases: PhaseOption[];
     onPhaseFilterChange: (values: string[]) => void;
     onToggleQuickViewMode: (mode: QuickViewMode) => void;
+    isReportedMode: boolean;
+    onExitReportedMode: () => void;
 }
 
 export default function Toolbar({
@@ -69,7 +71,8 @@ export default function Toolbar({
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
-    availablePhases, onPhaseFilterChange, onToggleQuickViewMode
+    availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
+    isReportedMode, onExitReportedMode
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -142,12 +145,9 @@ export default function Toolbar({
     );
     const hasSubcategoryQuick = (value: string) => filterSubcategory.includes(value) && filterSubcategory.includes('Core');
     const quickViewButtons: { mode: QuickViewMode; label: string; active: boolean }[] = [
-        { mode: 'feature', label: 'Feature', active: filterGroupItemType.includes('Feature') },
-        { mode: 'improvement', label: 'Improvement', active: filterGroupItemType.includes('Improvement') },
-        { mode: 'bug', label: 'Bug', active: filterGroupItemType.includes('Bug') },
         { mode: 'web', label: 'Web', active: hasSubcategoryQuick('Web') },
         { mode: 'app', label: 'App', active: hasSubcategoryQuick('App') },
-        { mode: 'reported', label: 'Reported', active: filterPriority.includes('Reported') },
+        { mode: 'reported', label: 'Reported Image Review', active: isReportedMode },
     ];
     const selectedPhaseSet = useMemo(() => new Set(filterPhase), [filterPhase]);
     const normalizedPhaseSearch = phaseSearch.trim().toLowerCase();
@@ -290,13 +290,13 @@ export default function Toolbar({
                     )}
                 </div>
 
-                <div className="flex items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-1 min-w-0 overflow-x-auto">
+                <div className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 bg-white px-2 py-1">
                     {quickViewButtons.map(button => (
                         <button
                             key={button.mode}
                             onClick={() => onToggleQuickViewMode(button.mode)}
                             title="Quick filter: kết hợp AND với các filter khác"
-                            className={`shrink-0 rounded border px-1.5 py-1 text-[10px] font-semibold transition-colors ${button.active
+                            className={`shrink-0 rounded border px-2.5 py-1.5 text-sm font-semibold transition-colors ${button.mode === 'reported' ? 'max-w-[180px] truncate' : ''} ${button.active
                                 ? 'border-indigo-600 bg-indigo-600 text-white'
                                 : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
                                 }`}
@@ -305,6 +305,17 @@ export default function Toolbar({
                         </button>
                     ))}
                 </div>
+
+                {isReportedMode && (
+                    <button
+                        type="button"
+                        onClick={onExitReportedMode}
+                        className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+                        title="Thoát Reported Image Review và quay về màn hình chính"
+                    >
+                        ← Back to Main
+                    </button>
+                )}
 
                 <div className="relative shrink-0" ref={phasePickerRef}>
                     <button
@@ -318,13 +329,12 @@ export default function Toolbar({
                             }
                             setPhasePickerOpen(true);
                         }}
-                        className={`flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-semibold transition-colors ${
-                            availablePhases.length === 0
-                                ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                                : phasePickerOpen || filterPhase.length > 0
-                                    ? 'border-indigo-600 bg-indigo-600 text-white'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
-                        }`}
+                        className={`flex items-center gap-1 rounded border px-3 py-1.5 text-sm font-semibold transition-colors ${availablePhases.length === 0
+                            ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
+                            : phasePickerOpen || filterPhase.length > 0
+                                ? 'border-indigo-600 bg-indigo-600 text-white'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                            }`}
                     >
                         <span>{phaseButtonLabel}</span>
                         <ChevronDown size={11} className={`transition-transform ${phasePickerOpen ? 'rotate-180' : ''}`} />
@@ -336,27 +346,27 @@ export default function Toolbar({
                                 value={phaseSearch}
                                 onChange={e => setPhaseSearch(e.target.value)}
                                 placeholder="Search phase..."
-                                className="w-full rounded border border-gray-200 px-2 py-1.5 text-[11px] text-gray-700 focus:border-indigo-400 focus:outline-none"
+                                className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs text-gray-700 focus:border-indigo-400 focus:outline-none"
                             />
                             <div className="mt-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
                                 <button
                                     type="button"
                                     onClick={handleSelectAllPhases}
-                                    className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-700"
+                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
                                 >
                                     Select all
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => onPhaseFilterChange([])}
-                                    className="text-[10px] font-semibold text-gray-500 hover:text-gray-700"
+                                    className="text-xs font-semibold text-gray-500 hover:text-gray-700"
                                 >
                                     Clear
                                 </button>
                             </div>
                             <div className="mt-1.5 max-h-56 overflow-y-auto">
                                 {visiblePhases.length === 0 ? (
-                                    <p className="px-1 py-2 text-[11px] text-gray-400">Không tìm thấy phase phù hợp.</p>
+                                    <p className="px-1 py-2 text-xs text-gray-400">Không tìm thấy phase phù hợp.</p>
                                 ) : (
                                     visiblePhases.map(phase => {
                                         const checked = selectedPhaseSet.has(phase.id);
@@ -369,7 +379,7 @@ export default function Toolbar({
                                                         onChange={() => handleTogglePhase(phase.id)}
                                                         className="h-3 w-3 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                                     />
-                                                    <span className="truncate text-[11px] text-gray-700">{phase.label}</span>
+                                                    <span className="truncate text-xs text-gray-700">{phase.label}</span>
                                                 </label>
                                                 <button
                                                     type="button"
@@ -390,7 +400,7 @@ export default function Toolbar({
 
             {/* CENTER: Live clock */}
             {now && (
-                <div className="flex items-center gap-1.5 text-[11px] text-gray-600 bg-white border border-gray-300 rounded-full px-3 py-0.5 shrink-0 font-mono shadow-sm select-none">
+                <div className="flex items-center gap-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-full px-4 py-1.5 shrink-0 font-mono shadow-sm select-none">
                     <Clock size={11} className="text-blue-500 shrink-0" />
                     <span className="font-semibold text-gray-700">
                         {format(now, 'EEEE', { locale: vi }).charAt(0).toUpperCase() + format(now, 'EEEE', { locale: vi }).slice(1)}
@@ -407,7 +417,7 @@ export default function Toolbar({
                 {canEdit ? (
                     <button
                         onClick={() => void onLockEditor()}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-semibold transition-colors"
                         title="Đang ở chế độ Editor. Click để khóa."
                     >
                         <Lock size={13} />
@@ -416,7 +426,7 @@ export default function Toolbar({
                 ) : (
                     <button
                         onClick={() => { setAuthOpen(true); setSettingsOpen(false); }}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-700 hover:bg-gray-800 text-white rounded text-xs font-semibold transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-800 text-white rounded text-sm font-semibold transition-colors"
                         title="Viewer mode. Unlock để chỉnh sửa."
                         disabled={!!authLoading}
                     >
@@ -429,7 +439,7 @@ export default function Toolbar({
                 <button
                     onClick={() => canEdit && onOpenMilestonesPopup()}
                     disabled={!canEdit}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-white rounded text-xs font-semibold transition-colors disabled:bg-amber-300 ${isMilestonesPopupOpen ? 'bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-white rounded text-sm font-semibold transition-colors disabled:bg-amber-300 ${isMilestonesPopupOpen ? 'bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'}`}
                     title={canEdit ? 'Mở side panel Phases' : 'Viewer mode: không thể chỉnh phase'}
                 >
                     <Flag size={13} />
@@ -439,7 +449,7 @@ export default function Toolbar({
                 <button
                     onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); }}
                     title="Mở side panel Filter"
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded transition-colors shadow-sm text-white text-xs ${isFilterPopupOpen ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors shadow-sm text-white text-sm ${isFilterPopupOpen ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
                 >
                     <Filter size={13} />
                     <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
@@ -481,20 +491,20 @@ export default function Toolbar({
 
                             {/* ── Timeline section ── */}
                             <div className="px-4 py-3 border-b border-gray-100">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Phạm vi Timeline</p>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Phạm vi Timeline</p>
 
                                 {/* Before current date */}
                                 <div className="mb-2.5">
                                     <div className="flex items-center gap-1 mb-1">
                                         <ChevronRight size={10} className="text-gray-400 rotate-180" />
-                                        <span className="text-[11px] text-gray-500 font-semibold">Trước hiện tại</span>
+                                        <span className="text-xs text-gray-500 font-semibold">Trước hiện tại</span>
                                     </div>
                                     <div className="flex gap-1">
                                         {BEFORE_OPTIONS.map(opt => (
                                             <button
                                                 key={opt.weeks}
                                                 onClick={() => onBeforeWeeksChange(opt.weeks)}
-                                                className={`text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors border ${beforeWeeks === opt.weeks
+                                                className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors border ${beforeWeeks === opt.weeks
                                                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                                                     : 'text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
                                                     }`}
@@ -509,14 +519,14 @@ export default function Toolbar({
                                 <div>
                                     <div className="flex items-center gap-1 mb-1">
                                         <ChevronRight size={10} className="text-gray-400" />
-                                        <span className="text-[11px] text-gray-500 font-semibold">Sau hiện tại</span>
+                                        <span className="text-xs text-gray-500 font-semibold">Sau hiện tại</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1">
                                         {AFTER_OPTIONS.map(opt => (
                                             <button
                                                 key={opt.months}
                                                 onClick={() => onAfterMonthsChange(opt.months)}
-                                                className={`text-[11px] px-2.5 py-1 rounded-full font-semibold transition-colors border ${afterMonths === opt.months
+                                                className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors border ${afterMonths === opt.months
                                                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                                                     : 'text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
                                                     }`}
@@ -530,7 +540,7 @@ export default function Toolbar({
 
                             {/* ── Actions section ── */}
                             <div className="px-4 py-3 flex flex-col gap-2">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Hành động</p>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Hành động</p>
 
                                 <button
                                     onClick={() => { onExportExcelCurrentView?.(); setSettingsOpen(false); }}

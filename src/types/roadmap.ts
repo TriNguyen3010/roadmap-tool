@@ -275,6 +275,7 @@ export interface RoadmapDocument {
     colFeaturesWidth?: number;
     colFeaturesWidthMode?: ColumnWidthMode;
     timelineMode?: TimelineMode;
+    reportedMode?: boolean;
     expandedIds?: string[];
     hiddenRowIds?: string[];
   };
