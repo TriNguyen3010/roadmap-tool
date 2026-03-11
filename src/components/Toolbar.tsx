@@ -3,10 +3,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
     Save, Download, FileJson, Loader2, Flag, Check,
-    Pencil, Clock, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Lock, Unlock
+    Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Lock, Unlock
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { vi } from 'date-fns/locale';
 import SidePanelShell from './SidePanelShell';
 import { PhaseOption } from '@/types/roadmap';
 
@@ -72,11 +70,10 @@ export default function Toolbar({
     canEdit, authLoading, onUnlockEditor, onLockEditor,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
-    isReportedMode, onExitReportedMode
+    isReportedMode
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
-    const [now, setNow] = useState<Date>(new Date());
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
     const [phasePickerOpen, setPhasePickerOpen] = useState(false);
@@ -92,11 +89,6 @@ export default function Toolbar({
     const closePhasePicker = useCallback(() => {
         setPhasePickerOpen(false);
         setPhaseSearch('');
-    }, []);
-
-    useEffect(() => {
-        const timer = setInterval(() => setNow(new Date()), 1000);
-        return () => clearInterval(timer);
     }, []);
 
     // Close settings on outside click
@@ -147,7 +139,7 @@ export default function Toolbar({
     const quickViewButtons: { mode: QuickViewMode; label: string; active: boolean }[] = [
         { mode: 'web', label: 'Web', active: hasSubcategoryQuick('Web') },
         { mode: 'app', label: 'App', active: hasSubcategoryQuick('App') },
-        { mode: 'reported', label: 'Reported Image Review', active: isReportedMode },
+        { mode: 'reported', label: 'Reported', active: isReportedMode },
     ];
     const selectedPhaseSet = useMemo(() => new Set(filterPhase), [filterPhase]);
     const normalizedPhaseSearch = phaseSearch.trim().toLowerCase();
@@ -222,7 +214,7 @@ export default function Toolbar({
     const isEditingName = canEdit && editing;
 
     return (
-        <div className="relative flex flex-row items-center justify-between border-b-2 border-gray-400 px-3 py-1 bg-gray-100 shrink-0 gap-2">
+        <div className="relative shrink-0 border-b border-slate-200 bg-slate-100 px-3 py-2">
             <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
 
             {authOpen && (
@@ -263,217 +255,197 @@ export default function Toolbar({
                 </SidePanelShell>
             )}
 
-            {/* LEFT: logo + doc name + quick view */}
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-                <div className="flex items-center gap-2 min-w-0 shrink-0" style={{ maxWidth: 300 }}>
-                    <span className="text-base shrink-0">📋</span>
+            <div className="flex items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-3 py-2">
+                <div className="flex min-w-0 items-center gap-3">
+                    <span className="shrink-0 text-xs font-bold tracking-[0.22em] text-slate-900">COIN98</span>
+
                     {isEditingName ? (
-                        <div className="flex items-center gap-1 flex-1">
+                        <div className="flex min-w-[140px] items-center gap-1">
                             <input
                                 ref={inputRef}
                                 autoFocus
-                                className="flex-1 border border-blue-400 rounded px-2 py-0.5 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-0"
+                                className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
                                 value={draft}
                                 onChange={e => setDraft(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(false); }}
                                 onBlur={commitEdit}
                             />
-                            <button onClick={commitEdit} className="text-green-600 hover:text-green-800 shrink-0">
-                                <Check size={15} />
+                            <button onClick={commitEdit} className="text-emerald-600 hover:text-emerald-800">
+                                <Check size={14} />
                             </button>
                         </div>
                     ) : (
-                        <div className={`flex items-center gap-1 min-w-0 ${canEdit ? 'group cursor-pointer' : 'cursor-default'}`} onClick={startEdit}>
-                            <span className="font-bold text-gray-800 text-sm truncate">{documentName}</span>
-                            {canEdit && <Pencil size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />}
+                        <div className={`flex min-w-[100px] items-center gap-1 ${canEdit ? 'group cursor-pointer' : 'cursor-default'}`} onClick={startEdit}>
+                            <span className="truncate text-sm font-semibold text-slate-600">{documentName || 'Roadmap'}</span>
+                            {canEdit && <Pencil size={12} className="shrink-0 text-slate-400 opacity-0 transition-opacity group-hover:opacity-100" />}
                         </div>
                     )}
-                </div>
 
-                <div className="flex shrink-0 items-center gap-1.5 rounded border border-gray-300 bg-white px-2 py-1">
-                    {quickViewButtons.map(button => (
+                    <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                        {quickViewButtons.map(button => (
+                            <button
+                                key={button.mode}
+                                onClick={() => onToggleQuickViewMode(button.mode)}
+                                title="Quick filter: kết hợp AND với các filter khác"
+                                className={`h-8 shrink-0 rounded-[9px] border px-3 text-xs font-semibold transition-colors ${button.mode === 'reported' ? 'max-w-[190px] truncate' : ''} ${button.active
+                                    ? 'border-[#F0B90B] bg-[#F0B90B] text-slate-900'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                                    }`}
+                            >
+                                {button.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="relative shrink-0" ref={phasePickerRef}>
                         <button
-                            key={button.mode}
-                            onClick={() => onToggleQuickViewMode(button.mode)}
-                            title="Quick filter: kết hợp AND với các filter khác"
-                            className={`shrink-0 rounded border px-2.5 py-1.5 text-sm font-semibold transition-colors ${button.mode === 'reported' ? 'max-w-[180px] truncate' : ''} ${button.active
+                            type="button"
+                            title={availablePhases.length === 0 ? 'Chưa có phase, mở manage phases để tạo mới' : 'Lọc phase nhanh'}
+                            onClick={() => {
+                                if (phasePickerOpen) {
+                                    closePhasePicker();
+                                    return;
+                                }
+                                setSettingsOpen(false);
+                                setPhasePickerOpen(true);
+                            }}
+                            className={`flex h-8 items-center gap-1 rounded-[9px] border px-3 text-xs font-semibold transition-colors ${phasePickerOpen || filterPhase.length > 0 || isMilestonesPopupOpen
                                 ? 'border-indigo-600 bg-indigo-600 text-white'
-                                : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'
                                 }`}
                         >
-                            {button.label}
+                            <Flag size={12} />
+                            <span>{phaseButtonLabel}</span>
+                            <ChevronDown size={11} className={`transition-transform ${phasePickerOpen ? 'rotate-180' : ''}`} />
                         </button>
-                    ))}
+
+                        {phasePickerOpen && (
+                            <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
+                                <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Phase Filter</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!canEdit) return;
+                                            onOpenMilestonesPopup();
+                                            closePhasePicker();
+                                        }}
+                                        disabled={!canEdit}
+                                        className="rounded border border-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        Manage
+                                    </button>
+                                </div>
+                                <input
+                                    value={phaseSearch}
+                                    onChange={e => setPhaseSearch(e.target.value)}
+                                    placeholder="Search phase..."
+                                    className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs text-gray-700 focus:border-indigo-400 focus:outline-none"
+                                />
+                                <div className="mt-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={handleSelectAllPhases}
+                                        disabled={availablePhases.length === 0}
+                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        Select all
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onPhaseFilterChange([])}
+                                        className="text-xs font-semibold text-gray-500 hover:text-gray-700"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                                <div className="mt-1.5 max-h-56 overflow-y-auto">
+                                    {visiblePhases.length === 0 ? (
+                                        <p className="px-1 py-2 text-xs text-gray-400">
+                                            {availablePhases.length === 0 ? 'Chưa có phase. Hãy mở Manage để tạo phase.' : 'Không tìm thấy phase phù hợp.'}
+                                        </p>
+                                    ) : (
+                                        visiblePhases.map(phase => {
+                                            const checked = selectedPhaseSet.has(phase.id);
+                                            return (
+                                                <div key={phase.id} className="flex items-center justify-between gap-1 rounded px-1 py-1 hover:bg-gray-50">
+                                                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={() => handleTogglePhase(phase.id)}
+                                                            className="h-3 w-3 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span className="truncate text-xs text-gray-700">{phase.label}</span>
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onPhaseFilterChange([phase.id])}
+                                                        className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
+                                                    >
+                                                        Only
+                                                    </button>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                 </div>
 
-                {isReportedMode && (
-                    <button
-                        type="button"
-                        onClick={onExitReportedMode}
-                        className="shrink-0 rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100"
-                        title="Thoát Reported Image Review và quay về màn hình chính"
-                    >
-                        ← Back to Main
-                    </button>
-                )}
-
-                <div className="relative shrink-0" ref={phasePickerRef}>
-                    <button
-                        type="button"
-                        disabled={availablePhases.length === 0}
-                        title={availablePhases.length === 0 ? 'Chưa có phase' : 'Lọc phase nhanh'}
-                        onClick={() => {
-                            if (phasePickerOpen) {
-                                closePhasePicker();
-                                return;
-                            }
-                            setPhasePickerOpen(true);
-                        }}
-                        className={`flex items-center gap-1 rounded border px-3 py-1.5 text-sm font-semibold transition-colors ${availablePhases.length === 0
-                            ? 'cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400'
-                            : phasePickerOpen || filterPhase.length > 0
-                                ? 'border-indigo-600 bg-indigo-600 text-white'
-                                : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600'
-                            }`}
-                    >
-                        <span>{phaseButtonLabel}</span>
-                        <ChevronDown size={11} className={`transition-transform ${phasePickerOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {phasePickerOpen && availablePhases.length > 0 && (
-                        <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
-                            <input
-                                value={phaseSearch}
-                                onChange={e => setPhaseSearch(e.target.value)}
-                                placeholder="Search phase..."
-                                className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs text-gray-700 focus:border-indigo-400 focus:outline-none"
-                            />
-                            <div className="mt-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
-                                <button
-                                    type="button"
-                                    onClick={handleSelectAllPhases}
-                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-                                >
-                                    Select all
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => onPhaseFilterChange([])}
-                                    className="text-xs font-semibold text-gray-500 hover:text-gray-700"
-                                >
-                                    Clear
-                                </button>
-                            </div>
-                            <div className="mt-1.5 max-h-56 overflow-y-auto">
-                                {visiblePhases.length === 0 ? (
-                                    <p className="px-1 py-2 text-xs text-gray-400">Không tìm thấy phase phù hợp.</p>
-                                ) : (
-                                    visiblePhases.map(phase => {
-                                        const checked = selectedPhaseSet.has(phase.id);
-                                        return (
-                                            <div key={phase.id} className="flex items-center justify-between gap-1 rounded px-1 py-1 hover:bg-gray-50">
-                                                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={checked}
-                                                        onChange={() => handleTogglePhase(phase.id)}
-                                                        className="h-3 w-3 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                                    />
-                                                    <span className="truncate text-xs text-gray-700">{phase.label}</span>
-                                                </label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => onPhaseFilterChange([phase.id])}
-                                                    className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
-                                                >
-                                                    Only
-                                                </button>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                    {canEdit ? (
+                        <button
+                            onClick={() => void onLockEditor()}
+                            className="flex h-9 items-center gap-1.5 rounded-[10px] bg-slate-800 px-3 text-sm font-semibold text-white transition-colors hover:bg-slate-900"
+                            title="Đang ở chế độ Editor. Click để khóa."
+                        >
+                            <Lock size={13} />
+                            <span>Editor</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => { setAuthOpen(true); setSettingsOpen(false); closePhasePicker(); }}
+                            className="flex h-9 items-center gap-1.5 rounded-[10px] bg-slate-700 px-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+                            title="Viewer mode. Unlock để chỉnh sửa."
+                            disabled={!!authLoading}
+                        >
+                            {authLoading ? <Loader2 size={13} className="animate-spin" /> : <Unlock size={13} />}
+                            <span>Viewer</span>
+                        </button>
                     )}
-                </div>
-            </div>
 
-            {/* CENTER: Live clock */}
-            {now && (
-                <div className="flex items-center gap-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded-full px-4 py-1.5 shrink-0 font-mono shadow-sm select-none">
-                    <Clock size={11} className="text-blue-500 shrink-0" />
-                    <span className="font-semibold text-gray-700">
-                        {format(now, 'EEEE', { locale: vi }).charAt(0).toUpperCase() + format(now, 'EEEE', { locale: vi }).slice(1)}
-                    </span>
-                    <span className="text-gray-300">·</span>
-                    <span>{format(now, 'dd/MM/yyyy')}</span>
-                    <span className="text-gray-300">·</span>
-                    <span className="text-blue-600 font-bold tabular-nums">{format(now, 'HH:mm:ss')}</span>
-                </div>
-            )}
-
-            {/* RIGHT: action buttons */}
-            <div className="flex flex-row items-center gap-1.5 shrink-0 ml-auto">
-                {canEdit ? (
                     <button
-                        onClick={() => void onLockEditor()}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm font-semibold transition-colors"
-                        title="Đang ở chế độ Editor. Click để khóa."
+                        onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); closePhasePicker(); }}
+                        title="Mở side panel Filter"
+                        className={`flex h-9 items-center gap-1.5 rounded-[10px] px-3 text-sm font-semibold text-white transition-colors ${isFilterPopupOpen ? 'bg-indigo-700' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`}
                     >
-                        <Lock size={13} />
-                        <span>Editor</span>
+                        <Filter size={13} />
+                        <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
                     </button>
-                ) : (
+
                     <button
-                        onClick={() => { setAuthOpen(true); setSettingsOpen(false); }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-800 text-white rounded text-sm font-semibold transition-colors"
-                        title="Viewer mode. Unlock để chỉnh sửa."
-                        disabled={!!authLoading}
+                        onClick={() => canEdit && onSave()}
+                        disabled={isSaving || !canEdit}
+                        title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu' : isSaving ? 'Đang lưu...' : 'Lưu JSON'}
+                        className="flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F0B90B] px-3 text-sm font-semibold text-slate-900 transition-colors hover:bg-[#DFA300] disabled:cursor-not-allowed disabled:bg-amber-200 disabled:text-amber-600"
                     >
-                        {authLoading ? <Loader2 size={13} className="animate-spin" /> : <Unlock size={13} />}
-                        <span>Viewer</span>
+                        {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                        <span>{isSaving ? 'Saving...' : 'Save'}</span>
                     </button>
-                )}
 
-                {/* Phases */}
-                <button
-                    onClick={() => canEdit && onOpenMilestonesPopup()}
-                    disabled={!canEdit}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-white rounded text-sm font-semibold transition-colors disabled:bg-amber-300 ${isMilestonesPopupOpen ? 'bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'}`}
-                    title={canEdit ? 'Mở side panel Phases' : 'Viewer mode: không thể chỉnh phase'}
-                >
-                    <Flag size={13} />
-                    <span>Phases</span>
-                </button>
-
-                <button
-                    onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); }}
-                    title="Mở side panel Filter"
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded transition-colors shadow-sm text-white text-sm ${isFilterPopupOpen ? 'bg-indigo-700 font-bold' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 font-bold' : 'bg-indigo-500 hover:bg-indigo-600 font-semibold'}`}
-                >
-                    <Filter size={13} />
-                    <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
-                </button>
-
-                {/* Save — icon only */}
-                <button
-                    onClick={() => canEdit && onSave()}
-                    disabled={isSaving || !canEdit}
-                    title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu' : isSaving ? 'Đang lưu...' : 'Lưu JSON'}
-                    className="flex items-center justify-center w-8 h-8 rounded bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white transition-colors shadow-sm"
-                >
-                    {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                </button>
-
-                {/* ⚙ Settings — icon only, opens dropdown */}
-                <div className="relative" ref={settingsRef}>
-                    <button
-                        onClick={() => setSettingsOpen(p => !p)}
-                        title="Cài đặt"
-                        className={`flex items-center justify-center w-8 h-8 rounded transition-colors shadow-sm text-white ${settingsOpen ? 'bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`}
-                    >
-                        <Settings size={15} className={settingsOpen ? 'animate-spin-slow' : ''} />
-                    </button>
+                    <div className="relative" ref={settingsRef}>
+                        <button
+                            onClick={() => { setSettingsOpen(p => !p); closePhasePicker(); }}
+                            title="Cài đặt"
+                            className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${settingsOpen ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'}`}
+                        >
+                            <Settings size={13} className={settingsOpen ? 'animate-spin-slow' : ''} />
+                            <span>Setting</span>
+                        </button>
 
                     {/* Settings Dropdown Panel */}
                     {settingsOpen && (
@@ -578,6 +550,7 @@ export default function Toolbar({
                             </div>
                         </div>
                     )}
+                </div>
                 </div>
             </div>
         </div>
