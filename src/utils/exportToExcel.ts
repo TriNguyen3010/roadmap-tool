@@ -1,6 +1,8 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import {
+    ItemStatus,
+    TeamRole,
     normalizeItemPriority,
     normalizePhaseIds,
     RoadmapDocument,
@@ -32,6 +34,21 @@ export interface ExportRoadmapToExcelOptions {
     includeSummary?: boolean;
 }
 
+type WindowWithFilePicker = Window & {
+    showSaveFilePicker?: (options?: {
+        suggestedName?: string;
+        types?: Array<{
+            description?: string;
+            accept: Record<string, string[]>;
+        }>;
+    }) => Promise<{
+        createWritable: () => Promise<{
+            write: (data: ArrayBuffer | Blob | Uint8Array) => Promise<void>;
+            close: () => Promise<void>;
+        }>;
+    }>;
+};
+
 interface SummaryRow {
     featureName: string;
     groupName: string;
@@ -62,6 +79,21 @@ const LEGACY_COLUMNS: ExcelExportColumn[] = [
 
 const SUMMARY_SHEET_NAME = 'Summary by Object';
 const SUMMARY_HEADERS = ['ID', 'Nội dung'];
+const SUMMARY_DEV_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Done'];
+const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA In Progress'];
+const SUMMARY_PD_STATUSES: ItemStatus[] = ['PD Handle', 'PD In Progress'];
+const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC In Progress'];
+const SUMMARY_GROWTH_STATUSES: ItemStatus[] = ['Growth Handle', 'Growth In Progress'];
+
+function sanitizeFileBaseName(name: string | undefined): string {
+    const fallback = 'roadmap';
+    if (!name) return fallback;
+    const cleaned = name
+        .trim()
+        .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+        .replace(/\s+/g, ' ');
+    return cleaned || fallback;
+}
 
 function buildPhaseLabelById(data: RoadmapDocument): Map<string, string> {
     const labelMap = new Map<string, string>();
@@ -130,16 +162,24 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
     app: SummaryRow[];
     core: SummaryRow[];
     web: SummaryRow[];
+    teamBa: SummaryRow[];
     teamPd: SummaryRow[];
+    teamDev: SummaryRow[];
+    teamQc: SummaryRow[];
+    teamGrowth: SummaryRow[];
 } {
     const rowById = buildRowById(rows);
     const descendantTeamRolesByAncestorId = buildDescendantTeamRolesByAncestorId(rows);
-    const isDevInProgress = (row: FlattenedItem) => row.status === 'Dev In Progress';
-    const isPdInProgress = (row: FlattenedItem) => row.status === 'PD In Progress';
+    const matchesStatuses = (row: FlattenedItem, statuses: ItemStatus[]) => statuses.includes(row.status);
+    const hasDescendantTeamRole = (row: FlattenedItem, roles: TeamRole[]) => {
+        const roleSet = descendantTeamRolesByAncestorId.get(row.id);
+        if (!roleSet) return false;
+        return roles.some(role => roleSet.has(role));
+    };
 
     const app = rows
         .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'App'))
-        .filter(isDevInProgress)
+        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
@@ -147,7 +187,7 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
 
     const core = rows
         .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'Core'))
-        .filter(isDevInProgress)
+        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
@@ -155,7 +195,16 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
 
     const web = rows
         .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'Web'))
-        .filter(isDevInProgress)
+        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
+        .map(row => ({
+            featureName: row.name,
+            groupName: getSummaryGroupName(row, rowById),
+        }));
+
+    const teamBa = rows
+        .filter(row => row.type === 'item')
+        .filter(row => hasDescendantTeamRole(row, ['BA']))
+        .filter(row => matchesStatuses(row, SUMMARY_BA_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
@@ -163,14 +212,41 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
 
     const teamPd = rows
         .filter(row => row.type === 'item')
-        .filter(row => descendantTeamRolesByAncestorId.get(row.id)?.has('PD'))
-        .filter(isPdInProgress)
+        .filter(row => hasDescendantTeamRole(row, ['PD']))
+        .filter(row => matchesStatuses(row, SUMMARY_PD_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
         }));
 
-    return { app, core, web, teamPd };
+    const teamDev = rows
+        .filter(row => row.type === 'item')
+        .filter(row => hasDescendantTeamRole(row, ['BE', 'FE']))
+        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
+        .map(row => ({
+            featureName: row.name,
+            groupName: getSummaryGroupName(row, rowById),
+        }));
+
+    const teamQc = rows
+        .filter(row => row.type === 'item')
+        .filter(row => hasDescendantTeamRole(row, ['QC']))
+        .filter(row => matchesStatuses(row, SUMMARY_QC_STATUSES))
+        .map(row => ({
+            featureName: row.name,
+            groupName: getSummaryGroupName(row, rowById),
+        }));
+
+    const teamGrowth = rows
+        .filter(row => row.type === 'item')
+        .filter(row => hasDescendantTeamRole(row, ['Growth']))
+        .filter(row => matchesStatuses(row, SUMMARY_GROWTH_STATUSES))
+        .map(row => ({
+            featureName: row.name,
+            groupName: getSummaryGroupName(row, rowById),
+        }));
+
+    return { app, core, web, teamBa, teamPd, teamDev, teamQc, teamGrowth };
 }
 
 function buildSummarySheetData(rows: FlattenedItem[]): (string | number)[][] {
@@ -200,7 +276,11 @@ function buildSummarySheetData(rows: FlattenedItem[]): (string | number)[][] {
     const nextAfterApp = appendBlock('App (Mobile)', blocks.app, 1);
     appendBlock('Core', blocks.core, nextAfterApp);
     appendBlock('Web', blocks.web, 1);
+    appendBlock('Team BA', blocks.teamBa, 1);
     appendBlock('Team PD (Product Design)', blocks.teamPd, 1);
+    appendBlock('Team Dev', blocks.teamDev, 1);
+    appendBlock('Team QC', blocks.teamQc, 1);
+    appendBlock('Team Growth', blocks.teamGrowth, 1);
     return data;
 }
 
@@ -241,7 +321,7 @@ function getCellValue(
     }
 }
 
-export function exportRoadmapToExcel(data: RoadmapDocument, options?: ExportRoadmapToExcelOptions): void {
+export async function exportRoadmapToExcel(data: RoadmapDocument, options?: ExportRoadmapToExcelOptions): Promise<boolean> {
     const mode: 'current-view' | 'full-data' = options?.mode
         ?? ((options?.rows || options?.columns) ? 'current-view' : 'full-data');
     const rows = options?.rows ?? flattenRoadmap(data.items);
@@ -298,10 +378,45 @@ export function exportRoadmapToExcel(data: RoadmapDocument, options?: ExportRoad
     }
 
     const modeSuffix = mode === 'current-view' ? 'current-view' : 'full-data';
-    const fileName = `${data.releaseName ?? 'roadmap'}_${modeSuffix}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
-    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+    const baseName = sanitizeFileBaseName(data.releaseName);
+    const fileName = `${baseName}_${modeSuffix}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
 
+    // Prefer SheetJS native browser saver for better compatibility across browsers.
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
+
+    const windowWithFilePicker = window as WindowWithFilePicker;
+    if (typeof windowWithFilePicker.showSaveFilePicker === 'function') {
+        try {
+            const handle = await windowWithFilePicker.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [
+                    {
+                        description: 'Excel Workbook',
+                        accept: {
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                        },
+                    },
+                ],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(excelBuffer);
+            await writable.close();
+            return true;
+        } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                return false;
+            }
+        }
+    }
+
+    try {
+        XLSX.writeFile(wb, fileName, { compression: true });
+        return true;
+    } catch {
+        // Fallback to Blob download if writeFile is blocked/unavailable.
+    }
+
+    const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
     const url = window.URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
@@ -310,4 +425,5 @@ export function exportRoadmapToExcel(data: RoadmapDocument, options?: ExportRoad
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
+    return true;
 }

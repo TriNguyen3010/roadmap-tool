@@ -63,14 +63,25 @@ const deriveStatusFromChildren = (children: RoadmapItem[]): ItemStatus => {
     const normalizedStatuses = children.map(c => normalizeItemStatus(c.status));
     const allNotStarted = normalizedStatuses.every(status => status === 'Not Started');
     const allDone = normalizedStatuses.every(status => status === 'Done');
-    const hasDevInProgress = normalizedStatuses.some(status => status === 'Dev In Progress');
-    const hasPdInProgress = normalizedStatuses.some(status => status === 'PD In Progress');
+    const hasStatus = (target: ItemStatus): boolean => normalizedStatuses.some(status => status === target);
 
     if (allDone) return 'Done';
     if (allNotStarted) return 'Not Started';
-    if (hasDevInProgress) return 'Dev In Progress';
-    if (hasPdInProgress) return 'PD In Progress';
-    return 'Dev In Progress';
+    // Prefer concrete execution stage first.
+    if (hasStatus('Growth In Progress')) return 'Growth In Progress';
+    if (hasStatus('QC In Progress')) return 'QC In Progress';
+    if (hasStatus('Dev In Progress')) return 'Dev In Progress';
+    if (hasStatus('PD In Progress')) return 'PD In Progress';
+    if (hasStatus('BA In Progress')) return 'BA In Progress';
+    // Then fallback to handle-stage precedence.
+    if (hasStatus('Growth Handle')) return 'Growth Handle';
+    if (hasStatus('QC Handle')) return 'QC Handle';
+    if (hasStatus('Dev Handle')) return 'Dev Handle';
+    if (hasStatus('PD Handle')) return 'PD Handle';
+    if (hasStatus('BA Handle')) return 'BA Handle';
+    // Mixed Done/Not Started without explicit stage means work has started.
+    if (hasStatus('Done')) return 'Dev In Progress';
+    return 'Not Started';
 };
 
 const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
@@ -127,8 +138,8 @@ export const calculateProgress = (items: RoadmapItem[]): RoadmapItem[] => {
 // Auto derive status from children:
 // - All Not Started → Not Started
 // - All Done → Done
-// - Any Dev In Progress → Dev In Progress
-// - Else any PD In Progress → PD In Progress
+// - Any * In Progress → team-stage precedence (Growth > QC > Dev > PD > BA)
+// - Else any * Handle → team-stage precedence (Growth > QC > Dev > PD > BA)
 export const calculateStatus = (items: RoadmapItem[]): RoadmapItem[] => {
     return recalculateRoadmap(items);
 };

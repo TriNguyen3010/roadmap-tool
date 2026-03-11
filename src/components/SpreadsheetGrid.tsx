@@ -79,7 +79,7 @@ const MILESTONE_HEADER_H = 22;
 // Fixed column widths (only ID and Actions are truly fixed)
 const COL_ID_W = 52;
 const COL_ACTIONS_W = 52;
-const COL_STATUS_DEFAULT = 110;
+const COL_STATUS_DEFAULT = 150;
 const COL_PHASE_MIN = 90;
 const COL_PHASE_DEFAULT = 120;
 const COL_PHASE_MAX = 320;
@@ -128,21 +128,45 @@ const DEPTH_STYLES: { bg: string; font: string }[] = [
 
 const STATUS_BAR_COLOR: Record<string, string> = {
     'Done': '#22c55e',
-    'PD In Progress': '#f59e0b',
+    'Growth In Progress': '#16a34a',
+    'Growth Handle': '#4ade80',
+    'QC In Progress': '#8b5cf6',
+    'QC Handle': '#a78bfa',
     'Dev In Progress': '#3b82f6',
+    'Dev Handle': '#60a5fa',
+    'PD In Progress': '#f59e0b',
+    'PD Handle': '#fbbf24',
+    'BA In Progress': '#64748b',
+    'BA Handle': '#94a3b8',
     'Not Started': '#9ca3af',
 };
 
 const STATUS_TAG_BG: Record<string, string> = {
     'Done': '#bbf7d0',
-    'PD In Progress': '#fef3c7',
+    'Growth In Progress': '#dcfce7',
+    'Growth Handle': '#f0fdf4',
+    'QC In Progress': '#ede9fe',
+    'QC Handle': '#f5f3ff',
     'Dev In Progress': '#bfdbfe',
+    'Dev Handle': '#dbeafe',
+    'PD In Progress': '#fef3c7',
+    'PD Handle': '#ffedd5',
+    'BA In Progress': '#e2e8f0',
+    'BA Handle': '#f1f5f9',
     'Not Started': '#f3f4f6',
 };
 const STATUS_TAG_TEXT: Record<string, string> = {
     'Done': '#166534',
-    'PD In Progress': '#92400e',
+    'Growth In Progress': '#166534',
+    'Growth Handle': '#15803d',
+    'QC In Progress': '#5b21b6',
+    'QC Handle': '#6d28d9',
     'Dev In Progress': '#1e40af',
+    'Dev Handle': '#1d4ed8',
+    'PD In Progress': '#92400e',
+    'PD Handle': '#9a3412',
+    'BA In Progress': '#334155',
+    'BA Handle': '#475569',
     'Not Started': '#374151',
 };
 
@@ -1922,7 +1946,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         </span>
                                     )}
                                     {isStatusInlineEditable && openStatusId === row.id && (
-                                        <div data-status-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[140px]">
+                                        <div data-status-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[188px]">
                                             {STATUS_OPTIONS.map(statusOption => (
                                                 <button
                                                     key={statusOption}

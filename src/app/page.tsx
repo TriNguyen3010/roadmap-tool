@@ -49,6 +49,17 @@ function normalizeDateValue(value: string | undefined): string {
   return (value || '').trim();
 }
 
+function stripQuickViewSubcategories(subcategories: string[]): string[] {
+  const next = new Set(subcategories);
+  const hasWebQuick = next.has('Web') && next.has('Core');
+  const hasAppQuick = next.has('App') && next.has('Core');
+  if (!hasWebQuick && !hasAppQuick) return subcategories;
+  next.delete('Web');
+  next.delete('App');
+  next.delete('Core');
+  return Array.from(next);
+}
+
 function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] | undefined {
   if (!milestones) return milestones;
   return milestones.map((milestone, index) => {
@@ -226,11 +237,16 @@ export default function Home() {
           if (json.settings.filterCategory) setFilterCategory(json.settings.filterCategory);
           if (json.settings.filterStatus) setFilterStatus(normalizeStatusFilter(json.settings.filterStatus));
           if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
-          if (json.settings.filterPriority) setFilterPriority(normalizePriorityFilterValues(json.settings.filterPriority));
+          const normalizedPriority = json.settings.filterPriority
+            ? normalizePriorityFilterValues(json.settings.filterPriority)
+            : [];
+          const shouldResetReportedMode = json.settings.reportedMode === true;
+          setFilterPriority(shouldResetReportedMode ? removeReportedPriority(normalizedPriority) : normalizedPriority);
           if (json.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(json.settings.filterPhase));
-          if (json.settings.filterSubcategory) setFilterSubcategory(json.settings.filterSubcategory);
+          if (json.settings.filterSubcategory) setFilterSubcategory(stripQuickViewSubcategories(json.settings.filterSubcategory));
           if (json.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(json.settings.filterGroupItemType));
-          if (typeof json.settings.reportedMode === 'boolean') setIsReportedMode(json.settings.reportedMode);
+          // Always open default in Roadmap view.
+          setIsReportedMode(false);
           if (typeof json.settings.colWorkType === 'boolean') setShowWorkType(json.settings.colWorkType);
           if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
           if (typeof json.settings.colPhase === 'boolean') setShowPhase(json.settings.colPhase);
@@ -498,30 +514,38 @@ export default function Home() {
   }, [addToast, buildDocumentSnapshot, ensureEditor, fetchRoadmapVersion]);
 
 
-  const handleExportExcelCurrentView = () => {
+  const handleExportExcelCurrentView = async () => {
     if (!data) return;
     try {
-      exportRoadmapToExcel(data, {
+      const exported = await exportRoadmapToExcel(data, {
         mode: 'current-view',
         rows: exportVisibleRows,
         columns: exportVisibleColumns,
         includeSummary: true,
       });
-      addToast('Đã xuất Excel (Current View) thành công!', 'success');
+      if (exported) {
+        addToast('Đã xuất Excel (Current View) thành công!', 'success');
+      } else {
+        addToast('Đã hủy xuất Excel (Current View).', 'info');
+      }
     } catch (err) {
       console.error(err);
       addToast('Lỗi khi xuất Excel (Current View).', 'error');
     }
   };
 
-  const handleExportExcelFullData = () => {
+  const handleExportExcelFullData = async () => {
     if (!data) return;
     try {
-      exportRoadmapToExcel(data, {
+      const exported = await exportRoadmapToExcel(data, {
         mode: 'full-data',
         includeSummary: false,
       });
-      addToast('Đã xuất Excel (Full Data) thành công!', 'success');
+      if (exported) {
+        addToast('Đã xuất Excel (Full Data) thành công!', 'success');
+      } else {
+        addToast('Đã hủy xuất Excel (Full Data).', 'info');
+      }
     } catch (err) {
       console.error(err);
       addToast('Lỗi khi xuất Excel (Full Data).', 'error');

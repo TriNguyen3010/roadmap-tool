@@ -1,5 +1,17 @@
 export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'item';
-export type ItemStatus = 'Not Started' | 'PD In Progress' | 'Dev In Progress' | 'Done';
+export type ItemStatus =
+  | 'Not Started'
+  | 'BA Handle'
+  | 'BA In Progress'
+  | 'PD Handle'
+  | 'PD In Progress'
+  | 'Dev Handle'
+  | 'Dev In Progress'
+  | 'QC Handle'
+  | 'QC In Progress'
+  | 'Growth Handle'
+  | 'Growth In Progress'
+  | 'Done';
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
 export type TimelineMode = 'day' | 'week' | 'month';
@@ -13,8 +25,23 @@ export type GroupItemType = 'Feature' | 'Improvement' | 'Bug' | 'Growth Camp';
 export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE' | 'QC';
 export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE', 'QC'];
 export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low', 'Reported'];
-export const STATUS_OPTIONS: ItemStatus[] = ['Not Started', 'PD In Progress', 'Dev In Progress', 'Done'];
+export const STATUS_OPTIONS: ItemStatus[] = [
+  'Not Started',
+  'BA Handle',
+  'BA In Progress',
+  'PD Handle',
+  'PD In Progress',
+  'Dev Handle',
+  'Dev In Progress',
+  'QC Handle',
+  'QC In Progress',
+  'Growth Handle',
+  'Growth In Progress',
+  'Done',
+];
 export const GROUP_ITEM_TYPE_OPTIONS: GroupItemType[] = ['Feature', 'Improvement', 'Bug', 'Growth Camp'];
+
+const ITEM_STATUS_SET = new Set<ItemStatus>(STATUS_OPTIONS);
 
 export function normalizeItemType(type: string | undefined | null): ItemType {
   if (!type) return 'item';
@@ -58,8 +85,8 @@ export interface ItemImage {
 
 export function normalizeItemStatus(status: string | undefined | null): ItemStatus {
   if (status === 'In Progress') return 'Dev In Progress';
-  if (status === 'Not Started' || status === 'PD In Progress' || status === 'Dev In Progress' || status === 'Done') {
-    return status;
+  if (typeof status === 'string' && ITEM_STATUS_SET.has(status as ItemStatus)) {
+    return status as ItemStatus;
   }
   return 'Not Started';
 }
