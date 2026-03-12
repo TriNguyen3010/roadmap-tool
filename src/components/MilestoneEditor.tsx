@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Milestone } from '@/types/roadmap';
+import { Milestone, normalizeWeekColor, WEEK_COLOR_PALETTE } from '@/types/roadmap';
 import { v4 as uuidv4 } from 'uuid';
 import { Trash2, Plus } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
@@ -9,12 +9,22 @@ import SidePanelShell from './SidePanelShell';
 interface MilestoneEditorProps {
     milestones: Milestone[];
     onSave: (milestones: Milestone[]) => void;
+    onApplyPhase: (phaseId: string, milestones: Milestone[]) => void | Promise<void>;
+    onApplyAll: (milestones: Milestone[]) => void | Promise<void>;
+    isApplyingDates?: boolean;
     onClose: () => void;
 }
 
-const PRESET_COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'];
+const PRESET_COLORS = WEEK_COLOR_PALETTE;
 
-export default function MilestoneEditor({ milestones, onSave, onClose }: MilestoneEditorProps) {
+export default function MilestoneEditor({
+    milestones,
+    onSave,
+    onApplyPhase,
+    onApplyAll,
+    isApplyingDates = false,
+    onClose,
+}: MilestoneEditorProps) {
     const [list, setList] = useState<Milestone[]>(milestones);
     const [error, setError] = useState<string | null>(null);
 
@@ -27,10 +37,10 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
         setError(null);
         setList(prev => [...prev, {
             id: uuidv4().slice(0, 8),
-            label: 'Phase mới',
+            label: 'Week mới',
             startDate: '',
             endDate: '',
-            color: '#ef4444',
+            color: normalizeWeekColor('', prev.length),
         }]);
     };
 
@@ -43,7 +53,7 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
         const id = (milestone.id || '').trim() || `phase_${index + 1}`;
         const label = (milestone.label || '').trim();
         if (!label) {
-            setError(`Phase #${index + 1} chưa có tên.`);
+            setError(`Week #${index + 1} chưa có tên.`);
             return null;
         }
         let startDate = (milestone.startDate || '').trim();
@@ -54,13 +64,14 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
             startDate = endDate;
         }
         if (startDate && endDate && startDate > endDate) {
-            setError(`Phase "${label}" có ngày bắt đầu lớn hơn ngày kết thúc.`);
+            setError(`Week "${label}" có ngày bắt đầu lớn hơn ngày kết thúc.`);
             return null;
         }
         return {
             ...milestone,
             id,
             label,
+            color: normalizeWeekColor(milestone.color, index),
             startDate,
             endDate,
         };
@@ -82,17 +93,26 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
         <SidePanelShell
             isOpen
             onClose={onClose}
-            title="Quản lý Phase"
-            subtitle="Phase có thể không có ngày (Unscheduled)"
+            title="Quản lý Week"
+            subtitle="Week có thể không có ngày (Unscheduled)"
             widthClassName="w-[620px]"
             footer={(
                 <div className="flex items-center justify-between">
-                    <button
-                        onClick={addNew}
-                        className="flex items-center gap-2 text-sm text-green-700 hover:text-green-900 font-semibold"
-                    >
-                        <Plus size={15} /> Thêm phase mới
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={addNew}
+                            className="flex items-center gap-2 text-sm text-green-700 hover:text-green-900 font-semibold"
+                        >
+                            <Plus size={15} /> Thêm week mới
+                        </button>
+                        <button
+                            onClick={() => { void onApplyAll(list); }}
+                            disabled={isApplyingDates || list.length === 0}
+                            className="rounded border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Apply all
+                        </button>
+                    </div>
                     <div className="flex gap-2">
                         <button onClick={onClose} className="px-4 py-1.5 rounded border border-gray-300 text-sm text-gray-600 hover:bg-gray-100">Huỷ</button>
                         <button
@@ -107,7 +127,7 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
         >
             <div className="flex flex-col gap-3">
                 {list.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">Chưa có phase nào. Nhấn &quot;+ Thêm&quot; để tạo mới.</p>
+                    <p className="text-sm text-gray-400 text-center py-4">Chưa có week nào. Nhấn &quot;+ Thêm&quot; để tạo mới.</p>
                 )}
                 {list.map((m) => (
                     <div key={m.id} className="flex gap-2 items-center bg-gray-50 rounded-lg p-3 border border-gray-200">
@@ -128,7 +148,7 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
 
                         {/* Label */}
                         <div className="flex flex-col gap-1 flex-1">
-                            <label className="text-[10px] text-gray-500 font-semibold">Tên phase</label>
+                            <label className="text-[10px] text-gray-500 font-semibold">Tên week</label>
                             <input
                                 className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                                 value={m.label}
@@ -158,8 +178,19 @@ export default function MilestoneEditor({ milestones, onSave, onClose }: Milesto
                             />
                         </div>
 
-                        <div className="shrink-0 text-[10px] font-semibold text-gray-500 mt-4 min-w-[86px] text-right">
-                            {(!m.startDate && !m.endDate) ? 'Unscheduled' : 'Scheduled'}
+                        <div className="shrink-0 mt-4 min-w-[130px] text-right">
+                            <div className="text-[10px] font-semibold text-gray-500">
+                                {(!m.startDate && !m.endDate) ? 'Unscheduled' : 'Scheduled'}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { void onApplyPhase(m.id, list); }}
+                                disabled={isApplyingDates || !m.startDate || !m.endDate}
+                                className="mt-1 rounded border border-indigo-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                title={!m.startDate || !m.endDate ? 'Week chưa có lịch nên không thể apply' : 'Apply date week này cho group'}
+                            >
+                                Apply to groups
+                            </button>
                         </div>
 
                         {/* Delete */}

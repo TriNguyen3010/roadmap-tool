@@ -18,6 +18,7 @@ import {
     STATUS_OPTIONS,
     normalizeItemImages,
     normalizeItemPriority,
+    normalizeWeekColor,
     normalizePhaseIds,
     normalizeItemStatus,
     toLegacyImageFields,
@@ -710,16 +711,16 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                     </div>
                 )}
 
-                {/* Phases */}
+                {/* Weeks */}
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-semibold text-gray-600">Phases (Optional)</label>
+                    <label className="text-xs font-semibold text-gray-600">Weeks (Optional)</label>
                     {phases.length === 0 ? (
                         <div className="rounded border border-dashed border-gray-300 bg-gray-50 px-2 py-2 text-[11px] text-gray-500">
-                            Chưa có phase. Vào panel Phases để tạo phase trước khi gán.
+                            Chưa có week. Vào panel Weeks để tạo week trước khi gán.
                         </div>
                     ) : (
                         <div className="flex flex-wrap gap-2">
-                            {phases.map(phase => {
+                            {phases.map((phase, index) => {
                                 const isSelected = selectedPhaseIds.has(phase.id);
                                 return (
                                     <label key={phase.id} className="flex items-center gap-1.5 cursor-pointer text-sm">
@@ -728,6 +729,10 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                                             checked={isSelected}
                                             onChange={() => togglePhase(phase.id)}
                                             className="w-3.5 h-3.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        />
+                                        <span
+                                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                            style={{ backgroundColor: normalizeWeekColor(phase.color, index) }}
                                         />
                                         <span className={isSelected ? 'font-medium text-gray-900' : 'text-gray-600'}>
                                             {phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}

@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local exports/backups
+/storage/json-backups/*
+!/storage/json-backups/.gitkeep
+/storage/timeline-exports/*
+!/storage/timeline-exports/.gitkeep

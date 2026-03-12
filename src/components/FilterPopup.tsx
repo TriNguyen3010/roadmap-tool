@@ -2,7 +2,7 @@
 
 import { Save } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
-import { GROUP_ITEM_TYPE_OPTIONS, PHASE_FILTER_NONE, PRIORITY_FILTER_NONE, PRIORITY_LEVELS, PhaseOption, STATUS_OPTIONS } from '@/types/roadmap';
+import { GROUP_ITEM_TYPE_OPTIONS, normalizeWeekColor, PHASE_FILTER_NONE, PRIORITY_FILTER_NONE, PRIORITY_LEVELS, PhaseOption, STATUS_OPTIONS } from '@/types/roadmap';
 
 interface FilterPopupProps {
     isOpen: boolean;
@@ -173,20 +173,24 @@ export default function FilterPopup({
                     </div>
 
                     <div className="rounded-lg border border-gray-200 bg-white px-3 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">Phase</p>
+                        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">Week</p>
                         {availablePhases.length === 0 ? (
                             <div className="rounded border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-[11px] text-gray-500">
-                                Chưa có phase. Hãy tạo phase trong panel Phases.
+                                Chưa có week. Hãy tạo week trong panel Weeks.
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {availablePhases.map(phase => (
+                                {availablePhases.map((phase, index) => (
                                     <label key={phase.id} className="group flex cursor-pointer items-center gap-2">
                                         <input
                                             type="checkbox"
                                             checked={filterPhase.includes(phase.id)}
                                             onChange={() => toggleFilter('phase', phase.id, filterPhase)}
                                             className="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span
+                                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                            style={{ backgroundColor: normalizeWeekColor(phase.color, index) }}
                                         />
                                         <span className="truncate text-xs font-medium text-gray-700 group-hover:text-indigo-700">
                                             {phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}
@@ -200,7 +204,7 @@ export default function FilterPopup({
                                         onChange={() => toggleFilter('phase', PHASE_FILTER_NONE, filterPhase)}
                                         className="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                     />
-                                    <span className="text-xs font-medium text-gray-700 group-hover:text-indigo-700">None (chưa gán phase)</span>
+                                    <span className="text-xs font-medium text-gray-700 group-hover:text-indigo-700">None (chưa gán week)</span>
                                 </label>
                             </div>
                         )}

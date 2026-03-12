@@ -25,15 +25,23 @@ import {
   normalizePhaseFilterValues,
   normalizePhaseIds,
   normalizePriorityFilterValues,
+  normalizeWeekColor,
+  normalizeWeekLabel,
   normalizeStatusFilter,
   toLegacyImageFields
 } from '@/types/roadmap';
-import { exportRoadmapToExcel, type ExcelExportColumn } from '@/utils/exportToExcel';
-import { getVisibleFlattenedRows, recalculateRoadmap } from '@/utils/roadmapHelpers';
+import { buildRoadmapExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
+import { filterRoadmapTree, flattenRoadmap, getVisibleFlattenedRows, recalculateRoadmap } from '@/utils/roadmapHelpers';
 import {
   ensureReportedPriority,
   removeReportedPriority,
 } from '@/utils/reportedMode';
+import {
+  applyDatesByAllPhases,
+  applyDatesByPhase,
+  type ApplyPhaseDatesResult,
+  type PhaseDateAffectedGroup,
+} from '@/utils/phaseDateApply';
 
 const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
@@ -47,6 +55,17 @@ function clampFeaturesColWidth(width: number): number {
 
 function normalizeDateValue(value: string | undefined): string {
   return (value || '').trim();
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
 
 function stripQuickViewSubcategories(subcategories: string[]): string[] {
@@ -64,8 +83,8 @@ function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] |
   if (!milestones) return milestones;
   return milestones.map((milestone, index) => {
     const id = (milestone.id || '').trim() || `phase_${index + 1}`;
-    const label = (milestone.label || '').trim() || `Phase ${index + 1}`;
-    const color = (milestone.color || '').trim() || '#3b82f6';
+    const label = normalizeWeekLabel(milestone.label, index);
+    const color = normalizeWeekColor(milestone.color, index);
     let startDate = normalizeDateValue(milestone.startDate);
     let endDate = normalizeDateValue(milestone.endDate);
 
@@ -106,6 +125,21 @@ function normalizeItemTree(items: RoadmapItem[]): RoadmapItem[] {
   });
 }
 
+function buildPhaseApplyConfirmMessage(groups: PhaseDateAffectedGroup[]): string {
+  const header = `Sẽ cập nhật date cho ${groups.length} group. Tiếp tục?`;
+  if (groups.length === 0) return header;
+  const lines = groups.map((group, index) => `${index + 1}. ${group.path}`);
+  return `${header}\n\n${lines.join('\n')}`;
+}
+
+function buildPhaseApplySummaryMessage(result: ApplyPhaseDatesResult): string {
+  const base = `Đã cập nhật date cho ${result.updatedCount} group.`;
+  if (result.skippedUnscheduledCount > 0) {
+    return `${base} Bỏ qua ${result.skippedUnscheduledCount} group do week chưa có lịch.`;
+  }
+  return base;
+}
+
 export default function Home() {
   const [data, setData] = useState<RoadmapDocument | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +149,7 @@ export default function Home() {
   const [showMilestones, setShowMilestones] = useState(false);
   const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [isEditor, setIsEditor] = useState(false);
+  const [isApplyingPhaseDates, setIsApplyingPhaseDates] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
@@ -428,17 +463,18 @@ export default function Home() {
 
   const exportVisibleRows = useMemo(() => {
     if (!data) return [];
+    const filters = {
+      category: filterCategory,
+      status: filterStatus,
+      team: filterTeam,
+      priority: filterPriority,
+      phase: filterPhase,
+      subcategory: filterSubcategory,
+      groupItemType: filterGroupItemType,
+    };
     return getVisibleFlattenedRows(
       data.items,
-      {
-        category: filterCategory,
-        status: filterStatus,
-        team: filterTeam,
-        priority: filterPriority,
-        phase: filterPhase,
-        subcategory: filterSubcategory,
-        groupItemType: filterGroupItemType,
-      },
+      filters,
       expandedIds,
       hiddenRowIds
     );
@@ -455,6 +491,30 @@ export default function Home() {
     hiddenRowIds,
   ]);
 
+  const exportSummaryRows = useMemo(() => {
+    if (!data) return [];
+    const filters = {
+      category: filterCategory,
+      status: filterStatus,
+      team: filterTeam,
+      priority: filterPriority,
+      phase: filterPhase,
+      subcategory: filterSubcategory,
+      groupItemType: filterGroupItemType,
+    };
+    const filteredItems = filterRoadmapTree(data.items, filters);
+    return flattenRoadmap(filteredItems);
+  }, [
+    data,
+    filterCategory,
+    filterStatus,
+    filterTeam,
+    filterPriority,
+    filterPhase,
+    filterSubcategory,
+    filterGroupItemType,
+  ]);
+
   const exportVisibleColumns = useMemo<ExcelExportColumn[]>(() => {
     const cols: ExcelExportColumn[] = [
       { id: 'id', header: 'ID' },
@@ -463,7 +523,7 @@ export default function Home() {
     if (showWorkType) cols.push({ id: 'workType', header: 'WorkType' });
     if (showPriority) cols.push({ id: 'priority', header: 'Priority' });
     cols.push({ id: 'status', header: 'Status' });
-    if (showPhase) cols.push({ id: 'phase', header: 'Phase' });
+    if (showPhase) cols.push({ id: 'phase', header: 'Week' });
     if (showStartDate) cols.push({ id: 'startDate', header: 'Ngày bắt đầu' });
     if (showEndDate) cols.push({ id: 'endDate', header: 'Ngày kết thúc' });
     return cols;
@@ -511,17 +571,31 @@ export default function Home() {
   const handleExportExcelCurrentView = async () => {
     if (!data) return;
     try {
-      const exported = await exportRoadmapToExcel(data, {
+      const built = buildRoadmapExcelFile(data, {
         mode: 'current-view',
         rows: exportVisibleRows,
+        summaryRows: exportSummaryRows,
         columns: exportVisibleColumns,
         includeSummary: true,
       });
-      if (exported) {
-        addToast('Đã xuất Excel (Current View) thành công!', 'success');
-      } else {
-        addToast('Đã hủy xuất Excel (Current View).', 'info');
+
+      const res = await fetch('/api/export/timeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: built.fileName,
+          contentBase64: arrayBufferToBase64(built.excelBuffer),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Export timeline failed: ${res.status}`);
       }
+      const payload = await res.json().catch(() => ({}));
+      const relativePath = typeof payload?.relativePath === 'string'
+        ? payload.relativePath
+        : `storage/timeline-exports/${built.fileName}`;
+      addToast(`Đã lưu Excel (Current View) vào ${relativePath}`, 'success');
     } catch (err) {
       console.error(err);
       addToast('Lỗi khi xuất Excel (Current View).', 'error');
@@ -531,15 +605,28 @@ export default function Home() {
   const handleExportExcelFullData = async () => {
     if (!data) return;
     try {
-      const exported = await exportRoadmapToExcel(data, {
+      const built = buildRoadmapExcelFile(data, {
         mode: 'full-data',
         includeSummary: false,
       });
-      if (exported) {
-        addToast('Đã xuất Excel (Full Data) thành công!', 'success');
-      } else {
-        addToast('Đã hủy xuất Excel (Full Data).', 'info');
+
+      const res = await fetch('/api/export/timeline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: built.fileName,
+          contentBase64: arrayBufferToBase64(built.excelBuffer),
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Export timeline failed: ${res.status}`);
       }
+      const payload = await res.json().catch(() => ({}));
+      const relativePath = typeof payload?.relativePath === 'string'
+        ? payload.relativePath
+        : `storage/timeline-exports/${built.fileName}`;
+      addToast(`Đã lưu Excel (Full Data) vào ${relativePath}`, 'success');
     } catch (err) {
       console.error(err);
       addToast('Lỗi khi xuất Excel (Full Data).', 'error');
@@ -559,6 +646,48 @@ export default function Home() {
     setData(newData);
     handleSave(newData);
   };
+
+  const executePhaseDateApply = useCallback(async (result: ApplyPhaseDatesResult, emptyStateMessage: string) => {
+    if (!data) return;
+
+    if (result.affectedGroups.length === 0) {
+      if (result.skippedUnscheduledCount > 0) {
+        addToast(`Không có group nào được cập nhật. ${result.skippedUnscheduledCount} group đang gán week chưa có lịch.`, 'info');
+      } else {
+        addToast(emptyStateMessage, 'info');
+      }
+      return;
+    }
+
+    const confirmed = await showConfirm(buildPhaseApplyConfirmMessage(result.affectedGroups));
+    if (!confirmed) return;
+
+    setIsApplyingPhaseDates(true);
+    try {
+      const nextData = normalizeDocument({ ...data, items: result.items });
+      setData(nextData);
+      addToast(buildPhaseApplySummaryMessage(result), 'success');
+      await handleSave(nextData);
+    } finally {
+      setIsApplyingPhaseDates(false);
+    }
+  }, [addToast, data, handleSave, normalizeDocument, showConfirm]);
+
+  const handleApplyDatesByPhase = useCallback(async (phaseId: string, milestonesDraft: Milestone[]) => {
+    if (!ensureEditor()) return;
+    if (!data) return;
+    const resolvedMilestones = normalizeMilestones(milestonesDraft) || [];
+    const result = applyDatesByPhase(data.items, resolvedMilestones, phaseId);
+    await executePhaseDateApply(result, 'Không có group nào cần cập nhật theo week này.');
+  }, [data, ensureEditor, executePhaseDateApply]);
+
+  const handleApplyDatesByAllPhases = useCallback(async (milestonesDraft: Milestone[]) => {
+    if (!ensureEditor()) return;
+    if (!data) return;
+    const resolvedMilestones = normalizeMilestones(milestonesDraft) || [];
+    const result = applyDatesByAllPhases(data.items, resolvedMilestones);
+    await executePhaseDateApply(result, 'Không có group nào cần cập nhật theo các week hiện tại.');
+  }, [data, ensureEditor, executePhaseDateApply]);
 
   const openFilterPopup = useCallback(() => {
     setShowFilterPopup(true);
@@ -690,18 +819,31 @@ export default function Home() {
     await handleSave(normalized);
   };
 
-  const handleDownloadJson = () => {
+  const handleDownloadJson = async () => {
     if (!data) return;
-    const snapshot = buildDocumentSnapshot(data);
-    const fileName = `${snapshot.releaseName.replace(/\s+/g, '_')}_backup_${format(new Date(), 'yyyy-MM-dd_HHmmss')}.json`;
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-    addToast(`Đã tải xuống ${fileName}`, 'success');
+    try {
+      const snapshot = buildDocumentSnapshot(data);
+      const res = await fetch('/api/export/json-backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          snapshot,
+          releaseName: snapshot.releaseName,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`JSON backup failed: ${res.status}`);
+      }
+      const payload = await res.json().catch(() => ({}));
+      const fileName = typeof payload?.fileName === 'string' ? payload.fileName : 'backup.json';
+      const relativePath = typeof payload?.relativePath === 'string'
+        ? payload.relativePath
+        : `storage/json-backups/${fileName}`;
+      addToast(`Đã lưu JSON backup vào ${relativePath}`, 'success');
+    } catch (err) {
+      console.error(err);
+      addToast('Lỗi khi lưu JSON backup.', 'error');
+    }
   };
 
   // ── Teams extraction ──
@@ -748,9 +890,10 @@ export default function Home() {
     if (!data?.milestones) return [];
     return data.milestones.map((milestone, index) => {
       const id = (milestone.id || '').trim() || `phase_${index + 1}`;
-      const label = (milestone.label || '').trim() || `Phase ${index + 1}`;
+      const label = normalizeWeekLabel(milestone.label, index);
       const hasSchedule = !!(normalizeDateValue(milestone.startDate) && normalizeDateValue(milestone.endDate));
-      return { id, label, hasSchedule };
+      const color = normalizeWeekColor(milestone.color, index);
+      return { id, label, hasSchedule, color };
     });
   }, [data]);
 
@@ -787,6 +930,9 @@ export default function Home() {
         <MilestoneEditor
           milestones={data.milestones || []}
           onSave={handleMilestonesSave}
+          onApplyPhase={handleApplyDatesByPhase}
+          onApplyAll={handleApplyDatesByAllPhases}
+          isApplyingDates={isApplyingPhaseDates}
           onClose={() => setShowMilestones(false)}
         />
       )}

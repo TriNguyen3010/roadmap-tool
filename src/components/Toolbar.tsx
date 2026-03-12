@@ -6,7 +6,7 @@ import {
     Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Lock, Unlock
 } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
-import { PhaseOption } from '@/types/roadmap';
+import { normalizeWeekColor, PhaseOption } from '@/types/roadmap';
 
 export type QuickViewMode = 'web' | 'app' | 'reported';
 
@@ -147,7 +147,7 @@ export default function Toolbar({
         if (!normalizedPhaseSearch) return availablePhases;
         return availablePhases.filter(phase => phase.label.toLowerCase().includes(normalizedPhaseSearch));
     }, [availablePhases, normalizedPhaseSearch]);
-    const phaseButtonLabel = filterPhase.length > 0 ? `Phase (${filterPhase.length})` : 'Phase';
+    const phaseButtonLabel = filterPhase.length > 0 ? `Week (${filterPhase.length})` : 'Week';
 
     const handleTogglePhase = (phaseId: string) => {
         const next = new Set(filterPhase);
@@ -308,7 +308,7 @@ export default function Toolbar({
                     <div className="relative shrink-0" ref={phasePickerRef}>
                         <button
                             type="button"
-                            title={availablePhases.length === 0 ? 'Chưa có phase, mở manage phases để tạo mới' : 'Lọc phase nhanh'}
+                            title={availablePhases.length === 0 ? 'Chưa có week, mở manage weeks để tạo mới' : 'Lọc week nhanh'}
                             onClick={() => {
                                 if (phasePickerOpen) {
                                     closePhasePicker();
@@ -330,7 +330,7 @@ export default function Toolbar({
                         {phasePickerOpen && (
                             <div className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
                                 <div className="mb-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
-                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Phase Filter</span>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Week Filter</span>
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -347,7 +347,7 @@ export default function Toolbar({
                                 <input
                                     value={phaseSearch}
                                     onChange={e => setPhaseSearch(e.target.value)}
-                                    placeholder="Search phase..."
+                                    placeholder="Search week..."
                                     className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs text-gray-700 focus:border-indigo-400 focus:outline-none"
                                 />
                                 <div className="mt-1.5 flex items-center justify-between gap-2 border-b border-gray-100 pb-1.5">
@@ -370,11 +370,12 @@ export default function Toolbar({
                                 <div className="mt-1.5 max-h-56 overflow-y-auto">
                                     {visiblePhases.length === 0 ? (
                                         <p className="px-1 py-2 text-xs text-gray-400">
-                                            {availablePhases.length === 0 ? 'Chưa có phase. Hãy mở Manage để tạo phase.' : 'Không tìm thấy phase phù hợp.'}
+                                            {availablePhases.length === 0 ? 'Chưa có week. Hãy mở Manage để tạo week.' : 'Không tìm thấy week phù hợp.'}
                                         </p>
                                     ) : (
-                                        visiblePhases.map(phase => {
+                                        visiblePhases.map((phase, index) => {
                                             const checked = selectedPhaseSet.has(phase.id);
+                                            const weekColor = normalizeWeekColor(phase.color, index);
                                             return (
                                                 <div key={phase.id} className="flex items-center justify-between gap-1 rounded px-1 py-1 hover:bg-gray-50">
                                                     <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
@@ -383,6 +384,10 @@ export default function Toolbar({
                                                             checked={checked}
                                                             onChange={() => handleTogglePhase(phase.id)}
                                                             className="h-3 w-3 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                        />
+                                                        <span
+                                                            className="h-2 w-2 shrink-0 rounded-full"
+                                                            style={{ backgroundColor: weekColor }}
                                                         />
                                                         <span className="truncate text-xs text-gray-700">{phase.label}</span>
                                                     </label>
@@ -408,20 +413,20 @@ export default function Toolbar({
                     {canEdit ? (
                         <button
                             onClick={() => void onLockEditor()}
-                            className="flex h-9 items-center gap-1.5 rounded-[10px] bg-slate-800 px-3 text-sm font-semibold text-white transition-colors hover:bg-slate-900"
+                            className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                             title="Đang ở chế độ Editor. Click để khóa."
                         >
-                            <Lock size={13} />
+                            <Lock size={13} className="text-slate-500" />
                             <span>Editor</span>
                         </button>
                     ) : (
                         <button
                             onClick={() => { setAuthOpen(true); setSettingsOpen(false); closePhasePicker(); }}
-                            className="flex h-9 items-center gap-1.5 rounded-[10px] bg-slate-700 px-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+                            className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                             title="Viewer mode. Unlock để chỉnh sửa."
                             disabled={!!authLoading}
                         >
-                            {authLoading ? <Loader2 size={13} className="animate-spin" /> : <Unlock size={13} />}
+                            {authLoading ? <Loader2 size={13} className="animate-spin text-slate-500" /> : <Unlock size={13} className="text-slate-500" />}
                             <span>Viewer</span>
                         </button>
                     )}
@@ -429,9 +434,9 @@ export default function Toolbar({
                     <button
                         onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); closePhasePicker(); }}
                         title="Mở side panel Filter"
-                        className={`flex h-9 items-center gap-1.5 rounded-[10px] px-3 text-sm font-semibold text-white transition-colors ${isFilterPopupOpen ? 'bg-indigo-700' : activeFilterCount > 0 ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'}`}
+                        className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isFilterPopupOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : activeFilterCount > 0 ? 'border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                     >
-                        <Filter size={13} />
+                        <Filter size={13} className={activeFilterCount > 0 || isFilterPopupOpen ? 'text-indigo-500' : 'text-slate-500'} />
                         <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
                     </button>
 
@@ -439,9 +444,9 @@ export default function Toolbar({
                         onClick={() => canEdit && onSave()}
                         disabled={isSaving || !canEdit}
                         title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu' : isSaving ? 'Đang lưu...' : 'Lưu JSON'}
-                        className="flex h-9 items-center gap-1.5 rounded-[10px] bg-[#F0B90B] px-3 text-sm font-semibold text-slate-900 transition-colors hover:bg-[#DFA300] disabled:cursor-not-allowed disabled:bg-amber-200 disabled:text-amber-600"
+                        className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-50 disabled:text-slate-400"
                     >
-                        {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                        {isSaving ? <Loader2 size={13} className="animate-spin text-slate-400" /> : <Save size={13} className={canEdit ? 'text-slate-500' : 'text-slate-300'} />}
                         <span>{isSaving ? 'Saving...' : 'Save'}</span>
                     </button>
 
@@ -543,7 +548,7 @@ export default function Toolbar({
                                     className="flex items-center gap-2 w-full px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors"
                                 >
                                     <FileJson size={13} />
-                                    <span>Tải xuống JSON</span>
+                                    <span>Lưu JSON backup</span>
                                 </button>
 
                                 <button

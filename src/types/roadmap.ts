@@ -73,6 +73,38 @@ export interface PhaseOption {
   id: string;
   label: string;
   hasSchedule: boolean;
+  color?: string;
+}
+
+export const WEEK_COLOR_PALETTE: string[] = [
+  '#ef4444',
+  '#f97316',
+  '#eab308',
+  '#22c55e',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899',
+];
+
+export function getWeekColorByIndex(index: number): string {
+  if (WEEK_COLOR_PALETTE.length === 0) return '#3b82f6';
+  const normalizedIndex = Number.isFinite(index) ? Math.trunc(index) : 0;
+  const safeIndex = ((normalizedIndex % WEEK_COLOR_PALETTE.length) + WEEK_COLOR_PALETTE.length) % WEEK_COLOR_PALETTE.length;
+  return WEEK_COLOR_PALETTE[safeIndex];
+}
+
+export function normalizeWeekColor(color: string | undefined | null, index: number): string {
+  const trimmed = (color || '').trim();
+  if (trimmed) return trimmed;
+  return getWeekColorByIndex(index);
+}
+
+export function normalizeWeekLabel(label: string | undefined | null, index: number): string {
+  const trimmed = (label || '').trim();
+  if (!trimmed) return `Week ${index + 1}`;
+  const match = trimmed.match(/^phase\s+(\d+)$/i);
+  if (match) return `Week ${match[1]}`;
+  return trimmed;
 }
 
 export interface ItemImage {

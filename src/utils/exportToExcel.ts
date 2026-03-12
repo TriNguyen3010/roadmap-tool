@@ -5,6 +5,7 @@ import {
     TeamRole,
     normalizeItemPriority,
     normalizePhaseIds,
+    normalizeWeekLabel,
     RoadmapDocument,
 } from '@/types/roadmap';
 import { flattenRoadmap, FlattenedItem } from '@/utils/roadmapHelpers';
@@ -30,8 +31,14 @@ export interface ExcelExportColumn {
 export interface ExportRoadmapToExcelOptions {
     mode?: 'current-view' | 'full-data';
     rows?: FlattenedItem[];
+    summaryRows?: FlattenedItem[];
     columns?: ExcelExportColumn[];
     includeSummary?: boolean;
+}
+
+export interface BuiltRoadmapExcelFile {
+    fileName: string;
+    excelBuffer: ArrayBuffer;
 }
 
 type WindowWithFilePicker = Window & {
@@ -52,6 +59,7 @@ type WindowWithFilePicker = Window & {
 interface SummaryRow {
     featureName: string;
     groupName: string;
+    status: ItemStatus;
 }
 
 const DEFAULT_COLUMN_WIDTH: Record<ExcelExportColumnId, number> = {
@@ -79,7 +87,8 @@ const LEGACY_COLUMNS: ExcelExportColumn[] = [
 
 const SUMMARY_SHEET_NAME = 'Summary by Object';
 const SUMMARY_HEADERS = ['ID', 'Nội dung'];
-const SUMMARY_DEV_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Done'];
+const SUMMARY_GROUP_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Not Started', 'Done'];
+const SUMMARY_DEV_TEAM_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Done'];
 const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA In Progress'];
 const SUMMARY_PD_STATUSES: ItemStatus[] = ['PD Handle', 'PD In Progress'];
 const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC In Progress'];
@@ -99,7 +108,7 @@ function buildPhaseLabelById(data: RoadmapDocument): Map<string, string> {
     const labelMap = new Map<string, string>();
     (data.milestones || []).forEach((milestone, index) => {
         const id = (milestone.id || '').trim() || `phase_${index + 1}`;
-        const label = (milestone.label || '').trim() || `Phase ${index + 1}`;
+        const label = normalizeWeekLabel(milestone.label, index);
         labelMap.set(id, label);
     });
     return labelMap;
@@ -179,26 +188,29 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
 
     const app = rows
         .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'App'))
-        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
+        .filter(row => matchesStatuses(row, SUMMARY_GROUP_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     const core = rows
         .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'Core'))
-        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
+        .filter(row => matchesStatuses(row, SUMMARY_GROUP_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     const web = rows
         .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'Web'))
-        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
+        .filter(row => matchesStatuses(row, SUMMARY_GROUP_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     const teamBa = rows
@@ -208,6 +220,7 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     const teamPd = rows
@@ -217,15 +230,17 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     const teamDev = rows
         .filter(row => row.type === 'item')
         .filter(row => hasDescendantTeamRole(row, ['BE', 'FE']))
-        .filter(row => matchesStatuses(row, SUMMARY_DEV_STATUSES))
+        .filter(row => matchesStatuses(row, SUMMARY_DEV_TEAM_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     const teamQc = rows
@@ -235,6 +250,7 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     const teamGrowth = rows
@@ -244,6 +260,7 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
         }));
 
     return { app, core, web, teamBa, teamPd, teamDev, teamQc, teamGrowth };
@@ -255,15 +272,15 @@ function buildSummarySheetData(rows: FlattenedItem[]): (string | number)[][] {
 
     const buildSummaryContent = (entry: SummaryRow): string => (
         entry.groupName && entry.groupName !== '—'
-            ? `${entry.groupName}: ${entry.featureName}`
-            : entry.featureName
+            ? `${entry.groupName}: ${entry.featureName} - [${entry.status}]`
+            : `${entry.featureName} - [${entry.status}]`
     );
 
     const appendBlock = (title: string, entries: SummaryRow[], startIndex = 1): number => {
         data.push([title, '']);
         data.push([...SUMMARY_HEADERS]);
         if (entries.length === 0) {
-            data.push(['Không có dữ liệu', '']);
+            data.push(['', 'Không có dữ liệu']);
         } else {
             entries.forEach((entry, index) => {
                 data.push([startIndex + index, buildSummaryContent(entry)]);
@@ -322,9 +339,58 @@ function getCellValue(
 }
 
 export async function exportRoadmapToExcel(data: RoadmapDocument, options?: ExportRoadmapToExcelOptions): Promise<boolean> {
+    const { fileName, excelBuffer } = buildRoadmapExcelFile(data, options);
+
+    const windowWithFilePicker = window as WindowWithFilePicker;
+    if (typeof windowWithFilePicker.showSaveFilePicker === 'function') {
+        try {
+            const handle = await windowWithFilePicker.showSaveFilePicker({
+                suggestedName: fileName,
+                types: [
+                    {
+                        description: 'Excel Workbook',
+                        accept: {
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                        },
+                    },
+                ],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(excelBuffer);
+            await writable.close();
+            return true;
+        } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') {
+                return false;
+            }
+        }
+    }
+
+    try {
+        const wb = XLSX.read(excelBuffer, { type: 'array' });
+        XLSX.writeFile(wb, fileName, { compression: true });
+        return true;
+    } catch {
+        // Fallback to Blob download if writeFile is blocked/unavailable.
+    }
+
+    const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+    const url = window.URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    return true;
+}
+
+export function buildRoadmapExcelFile(data: RoadmapDocument, options?: ExportRoadmapToExcelOptions): BuiltRoadmapExcelFile {
     const mode: 'current-view' | 'full-data' = options?.mode
         ?? ((options?.rows || options?.columns) ? 'current-view' : 'full-data');
     const rows = options?.rows ?? flattenRoadmap(data.items);
+    const summaryRows = options?.summaryRows ?? rows;
     const columns = options?.columns && options.columns.length > 0 ? options.columns : LEGACY_COLUMNS;
     const includeSummary = options?.includeSummary ?? (mode === 'current-view');
     const phaseLabelById = buildPhaseLabelById(data);
@@ -357,73 +423,30 @@ export async function exportRoadmapToExcel(data: RoadmapDocument, options?: Expo
     XLSX.utils.book_append_sheet(wb, ws, 'Roadmap');
 
     if (includeSummary) {
-        const summaryData = buildSummarySheetData(rows);
+        const summaryData = buildSummarySheetData(summaryRows);
         const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
         summaryWs['!cols'] = [
-            { wch: 8 },
-            { wch: 92 },
+            { wch: 28 },
+            { wch: 100 },
         ];
         XLSX.utils.book_append_sheet(wb, summaryWs, SUMMARY_SHEET_NAME);
     }
 
     if (data.milestones?.length) {
-        const msHeaders = ['ID', 'Tên Milestone', 'Ngày bắt đầu', 'Ngày kết thúc', 'Màu'];
+        const msHeaders = ['ID', 'Tên Week', 'Ngày bắt đầu', 'Ngày kết thúc', 'Màu'];
         const msData = [
             msHeaders,
             ...data.milestones.map(m => [m.id, m.label, m.startDate, m.endDate, m.color]),
         ];
         const msWs = XLSX.utils.aoa_to_sheet(msData);
         msWs['!cols'] = [{ wch: 20 }, { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 10 }];
-        XLSX.utils.book_append_sheet(wb, msWs, 'Milestones');
+        XLSX.utils.book_append_sheet(wb, msWs, 'Weeks');
     }
 
     const modeSuffix = mode === 'current-view' ? 'current-view' : 'full-data';
     const baseName = sanitizeFileBaseName(data.releaseName);
     const fileName = `${baseName}_${modeSuffix}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
 
-    // Prefer SheetJS native browser saver for better compatibility across browsers.
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
-
-    const windowWithFilePicker = window as WindowWithFilePicker;
-    if (typeof windowWithFilePicker.showSaveFilePicker === 'function') {
-        try {
-            const handle = await windowWithFilePicker.showSaveFilePicker({
-                suggestedName: fileName,
-                types: [
-                    {
-                        description: 'Excel Workbook',
-                        accept: {
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-                        },
-                    },
-                ],
-            });
-            const writable = await handle.createWritable();
-            await writable.write(excelBuffer);
-            await writable.close();
-            return true;
-        } catch (error) {
-            if (error instanceof DOMException && error.name === 'AbortError') {
-                return false;
-            }
-        }
-    }
-
-    try {
-        XLSX.writeFile(wb, fileName, { compression: true });
-        return true;
-    } catch {
-        // Fallback to Blob download if writeFile is blocked/unavailable.
-    }
-
-    const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-    const url = window.URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    return true;
+    return { fileName, excelBuffer };
 }

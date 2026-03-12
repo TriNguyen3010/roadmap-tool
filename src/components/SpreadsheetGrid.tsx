@@ -15,6 +15,8 @@ import {
     STATUS_OPTIONS,
     SubcategoryType,
     TimelineMode,
+    normalizeWeekColor,
+    normalizeWeekLabel,
     normalizeItemImages,
     normalizeItemPriority,
     normalizePhaseIds
@@ -331,9 +333,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         const milestones = data.milestones || [];
         return milestones.map((phase, index) => {
             const id = (phase.id || '').trim() || `phase_${index + 1}`;
-            const label = (phase.label || '').trim() || `Phase ${index + 1}`;
+            const label = normalizeWeekLabel(phase.label, index);
             const hasSchedule = !!((phase.startDate || '').trim() && (phase.endDate || '').trim());
-            return { id, label, hasSchedule };
+            const color = normalizeWeekColor(phase.color, index);
+            return { id, label, hasSchedule, color };
         });
     }, [data.milestones]);
 
@@ -345,8 +348,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     const phaseShortById = useMemo(() => {
         const shortMap = new Map<string, string>();
-        phaseOptions.forEach((phase, index) => shortMap.set(phase.id, `P${index + 1}`));
+        phaseOptions.forEach((phase, index) => shortMap.set(phase.id, `W${index + 1}`));
         return shortMap;
+    }, [phaseOptions]);
+
+    const phaseColorById = useMemo(() => {
+        const colorMap = new Map<string, string>();
+        phaseOptions.forEach((phase, index) => colorMap.set(phase.id, normalizeWeekColor(phase.color, index)));
+        return colorMap;
     }, [phaseOptions]);
 
     const groupInlinePhaseIdsById = useMemo(() => {
@@ -453,7 +462,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                 row: entry.row,
                 categoryName: entry.categoryName,
                 subcategoryName: entry.subcategoryName,
-                phaseSummary: phaseLabels.length > 0 ? phaseLabels.join(', ') : 'No phase',
+                phaseSummary: phaseLabels.length > 0 ? phaseLabels.join(', ') : 'No week',
                 images: entry.images,
             };
         });
@@ -1312,7 +1321,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 <div className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200 bg-white px-4 py-2">
                                     {!canEdit && (
                                         <div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700">
-                                            Viewer mode — Unlock Editor để chỉnh Status/Phase trực tiếp.
+                                            Viewer mode — Unlock Editor để chỉnh Status/Week trực tiếp.
                                         </div>
                                     )}
                                     {isSaving && (
@@ -1428,7 +1437,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                             >
                                                                 {cardStatus}
                                                             </span>
-                                                            {card.phaseSummary !== 'No phase' && (
+                                                            {card.phaseSummary !== 'No week' && (
                                                                 <span className="shrink-0 truncate text-[10px] text-[#64748B]">{card.phaseSummary}</span>
                                                             )}
                                                         </div>
@@ -1500,15 +1509,15 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         />
                     </div>
 
-                    {/* PHASE header – click to hide */}
+                    {/* WEEK header – click to hide */}
                     {showPhase && (
                         <div
                             className="flex items-center justify-center border-r border-gray-400 cursor-pointer hover:bg-indigo-100 transition-colors select-none"
-                            title="Click để ẩn cột Phase"
+                            title="Click để ẩn cột Week"
                             onClick={() => setShowPhase(false)}
                             style={{ minWidth: phaseW, width: phaseW }}
                         >
-                            <span className="text-indigo-700">PHASE</span>
+                            <span className="text-indigo-700">WEEK</span>
                         </div>
                     )}
 
@@ -1555,9 +1564,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             </button>
                         )}
                         {!showPhase && (
-                            <button title="Hiện cột Phase" onClick={() => setShowPhase(true)}
+                            <button title="Hiện cột Week" onClick={() => setShowPhase(true)}
                                 className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
-                                Ph
+                                W
                             </button>
                         )}
                         {!showStartDate && (
@@ -1617,13 +1626,19 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const rowPhaseIdSet = new Set(rowPhaseIds);
                         const rowPhaseLabels = rowPhaseIds.map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
                         const rowPhaseTitle = rowPhaseLabels.join(', ');
+                        const rowPhaseChips = rowPhaseIds.map((phaseId, chipIndex) => ({
+                            id: phaseId,
+                            label: phaseLabelById.get(phaseId) || 'Unknown',
+                            color: phaseColorById.get(phaseId) || normalizeWeekColor('', chipIndex),
+                        }));
                         const isCategoryOrSubcategory = row.type === 'category' || row.type === 'subcategory';
                         const isStatusInlineEditable = canEdit && !isCategoryOrSubcategory && row.statusMode !== 'auto';
                         const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
-                        const groupInlinePhaseTags = groupInlinePhaseIds.map(phaseId => ({
+                        const groupInlinePhaseTags = groupInlinePhaseIds.map((phaseId, tagIndex) => ({
                             id: phaseId,
-                            short: phaseShortById.get(phaseId) || 'P?',
+                            short: phaseShortById.get(phaseId) || 'W?',
                             full: phaseLabelById.get(phaseId) || 'Unknown',
+                            color: phaseColorById.get(phaseId) || normalizeWeekColor('', tagIndex),
                         }));
                         const groupInlinePhaseVisible = groupInlinePhaseTags.slice(0, 2);
                         const groupInlinePhaseMore = Math.max(0, groupInlinePhaseTags.length - groupInlinePhaseVisible.length);
@@ -1714,8 +1729,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             {groupInlinePhaseVisible.map(tag => (
                                                 <span
                                                     key={`${row.id}-${tag.id}`}
-                                                    className="rounded bg-indigo-100 px-1 py-0 text-[9px] font-semibold text-indigo-700"
+                                                    className="rounded px-1 py-0 text-[9px] font-semibold"
                                                     title={`${tag.short}: ${tag.full}`}
+                                                    style={{
+                                                        backgroundColor: hexToRgba(tag.color, 0.18),
+                                                        color: tag.color,
+                                                    }}
                                                 >
                                                     {tag.short}
                                                 </span>
@@ -1723,7 +1742,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             {groupInlinePhaseMore > 0 && (
                                                 <span
                                                     className="rounded bg-indigo-50 px-1 py-0 text-[9px] font-semibold text-indigo-600"
-                                                    title={groupInlinePhaseMoreTitle || `${groupInlinePhaseMore} more phase(s)`}
+                                                    title={groupInlinePhaseMoreTitle || `${groupInlinePhaseMore} more week(s)`}
                                                 >
                                                     +{groupInlinePhaseMore}
                                                 </span>
@@ -1968,12 +1987,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     )}
                                 </div>
 
-                                {/* Phase tags */}
+                                {/* Week tags */}
                                 {showPhase && (
                                     <div
                                         data-phase-trigger="true"
                                         className={`flex items-center border-r border-gray-300 px-1 relative ${canEdit && phaseOptions.length > 0 ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
-                                        title={rowPhaseTitle || 'Chưa gán phase'}
+                                        title={rowPhaseTitle || 'Chưa gán week'}
                                         onClick={e => {
                                             if (!canEdit || phaseOptions.length === 0) return;
                                             e.stopPropagation();
@@ -1987,12 +2006,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             <span className="mx-auto text-[10px] text-gray-400">—</span>
                                         ) : (
                                             <div className="flex w-full items-center justify-center gap-1 overflow-hidden">
-                                                {rowPhaseLabels.map((label, idx) => (
+                                                {rowPhaseChips.map((chip, idx) => (
                                                     <span
-                                                        key={`${row.id}-${label}-${idx}`}
-                                                        className="truncate rounded-full bg-indigo-50 px-1.5 py-0.5 text-[9px] font-semibold text-center text-indigo-700"
+                                                        key={`${row.id}-${chip.id}-${idx}`}
+                                                        className="truncate rounded-full px-1.5 py-0.5 text-[9px] font-semibold text-center"
+                                                        style={{
+                                                            backgroundColor: hexToRgba(chip.color, 0.18),
+                                                            color: chip.color,
+                                                        }}
                                                     >
-                                                        {label}
+                                                        {chip.label}
                                                     </span>
                                                 ))}
                                             </div>
@@ -2004,12 +2027,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 className="absolute bottom-full left-0 z-50 mb-1 min-w-[200px] max-w-[260px] rounded border border-gray-200 bg-white shadow-lg"
                                             >
                                                 <div className="max-h-52 overflow-auto py-1">
-                                                    {phaseOptions.map(phase => {
+                                                    {phaseOptions.map((phase, index) => {
                                                         const isSelected = rowPhaseIdSet.has(phase.id);
+                                                        const weekColor = normalizeWeekColor(phase.color, index);
                                                         return (
                                                             <button
                                                                 key={phase.id}
-                                                                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors ${isSelected ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors ${isSelected ? 'font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                                                                style={isSelected ? { backgroundColor: hexToRgba(weekColor, 0.14), color: weekColor } : undefined}
                                                                 onMouseDown={e => {
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
@@ -2025,6 +2050,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                                     });
                                                                 }}
                                                             >
+                                                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: weekColor }} />
                                                                 <span className={`h-3.5 w-3.5 rounded border text-[10px] leading-[13px] text-center ${isSelected ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
                                                                 <span className="truncate">{phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}</span>
                                                             </button>
@@ -2466,7 +2492,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         {/* Feedback messages */}
                                         {!canEdit && (
                                             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
-                                                Viewer mode — Unlock Editor để đổi Status/Phase.
+                                                Viewer mode — Unlock Editor để đổi Status/Week.
                                             </div>
                                         )}
                                         {viewerInlineSaveFeedback && (
@@ -2489,7 +2515,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             <p className="mt-0.5 text-[11px] text-[#64748B]">
                                                 {activeImagePreviewPhaseLabels.length > 0
                                                     ? activeImagePreviewPhaseLabels.join(', ')
-                                                    : 'No phase'}
+                                                    : 'No week'}
                                             </p>
                                         </div>
 
@@ -2556,9 +2582,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             </div>
                                         </div>
 
-                                        {/* Phase */}
+                                        {/* Week */}
                                         <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Phase</p>
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Week</p>
                                             <div className="relative">
                                                 <button
                                                     type="button"
@@ -2585,12 +2611,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 {canEditActiveImagePhase && openPhaseId === activeImagePreviewItem.id && (
                                                     <div data-phase-dropdown="true" className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
                                                         <div className="max-h-52 overflow-y-auto py-1">
-                                                            {phaseOptions.map(phase => {
+                                                            {phaseOptions.map((phase, index) => {
                                                                 const isSelected = activeImagePreviewPhaseIdSet.has(phase.id);
+                                                                const weekColor = normalizeWeekColor(phase.color, index);
                                                                 return (
                                                                     <button
                                                                         key={phase.id}
-                                                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors ${isSelected ? 'bg-amber-50 text-amber-800 font-bold' : 'text-slate-700 hover:bg-slate-50'}`}
+                                                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] transition-colors ${isSelected ? 'font-bold' : 'text-slate-700 hover:bg-slate-50'}`}
+                                                                        style={isSelected ? { backgroundColor: hexToRgba(weekColor, 0.14), color: weekColor } : undefined}
                                                                         onMouseDown={e => {
                                                                             e.preventDefault();
                                                                             e.stopPropagation();
@@ -2608,6 +2636,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                                             );
                                                                         }}
                                                                     >
+                                                                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: weekColor }} />
                                                                         <span className={`h-3.5 w-3.5 shrink-0 rounded border text-[10px] leading-[13px] text-center ${isSelected ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 text-transparent'}`}>✓</span>
                                                                         <span className="truncate">{phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}</span>
                                                                     </button>
