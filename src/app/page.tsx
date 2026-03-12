@@ -283,7 +283,7 @@ export default function Home() {
           hasInitializedExpansion.current = true;
         }
       } catch {
-        if (!cancelled) addToast('Không thể tải dữ liệu roadmap.json', 'error');
+        if (!cancelled) addToast('Không thể tải dữ liệu roadmap.', 'error');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -489,13 +489,7 @@ export default function Home() {
         return;
       }
       if (!res.ok) throw new Error();
-      const payload = await res.json().catch(() => ({}));
-      if (payload?.fileWarning && typeof payload.fileWarning === 'string') {
-        addToast('Đã lưu thành công lên cloud.', 'success');
-        addToast(payload.fileWarning, 'info');
-      } else {
-        addToast('Đã lưu thành công vào roadmap.json!', 'success');
-      }
+      addToast('Đã lưu thành công.', 'success');
       const latestVersion = await fetchRoadmapVersion();
       if (latestVersion) {
         currentVersionRef.current = latestVersion;
