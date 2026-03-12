@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveReportedImageReviewMainState } from './reportedImageReviewStates';
 
 describe('resolveReportedImageReviewMainState', () => {
-  it('returns ready when there is at least one visible image card', () => {
+  it('returns ready when there is at least one visible reported item with image', () => {
     expect(resolveReportedImageReviewMainState({
       isCategorySelected: false,
       visibleReportedItemCount: 3,
@@ -11,13 +11,13 @@ describe('resolveReportedImageReviewMainState', () => {
     })).toBe('ready');
   });
 
-  it('returns reported-no-image when reported items exist but no image', () => {
+  it('returns ready when reported items exist but all of them have no image', () => {
     expect(resolveReportedImageReviewMainState({
       isCategorySelected: true,
       visibleReportedItemCount: 2,
       visibleReportedImageCount: 0,
       totalReportedItemCount: 4,
-    })).toBe('reported-no-image');
+    })).toBe('ready');
   });
 
   it('returns no-reported-data when there is no reported item at all', () => {

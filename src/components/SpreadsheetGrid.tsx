@@ -91,7 +91,7 @@ type RenderEntry =
     | { kind: 'row'; row: FlattenedItem }
     | { kind: 'gap'; ids: string[]; names: string[] };
 
-type ReportedImageCard = {
+type ReportedReviewCard = {
     row: FlattenedItem;
     categoryName: string;
     subcategoryName?: string;
@@ -446,19 +446,17 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             });
     }, [reportedScopeRows, hiddenRowIds, getCategoryAndSubcategory]);
 
-    const reportedImageCards = useMemo<ReportedImageCard[]>(() => {
-        const cards: ReportedImageCard[] = reportedEntries
-            .filter(entry => entry.images.length > 0)
-            .map(entry => {
-                const phaseLabels = normalizePhaseIds(entry.row.phaseIds).map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
-                return {
-                    row: entry.row,
-                    categoryName: entry.categoryName,
-                    subcategoryName: entry.subcategoryName,
-                    phaseSummary: phaseLabels.length > 0 ? phaseLabels.join(', ') : 'No phase',
-                    images: entry.images,
-                };
-            });
+    const reportedReviewCards = useMemo<ReportedReviewCard[]>(() => {
+        const cards: ReportedReviewCard[] = reportedEntries.map(entry => {
+            const phaseLabels = normalizePhaseIds(entry.row.phaseIds).map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
+            return {
+                row: entry.row,
+                categoryName: entry.categoryName,
+                subcategoryName: entry.subcategoryName,
+                phaseSummary: phaseLabels.length > 0 ? phaseLabels.join(', ') : 'No phase',
+                images: entry.images,
+            };
+        });
         cards.sort((a, b) => {
             const byCategory = a.categoryName.localeCompare(b.categoryName);
             if (byCategory !== 0) return byCategory;
@@ -468,6 +466,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, [reportedEntries, phaseLabelById]);
 
     const reportedItemsCount = reportedEntries.length;
+    const reportedWithImageCount = useMemo(
+        () => reportedEntries.reduce((count, entry) => count + (entry.images.length > 0 ? 1 : 0), 0),
+        [reportedEntries]
+    );
     const reportedWithoutImageEntries = useMemo(() => reportedEntries.filter(entry => entry.images.length === 0), [reportedEntries]);
     const reportedWithoutImageCount = reportedWithoutImageEntries.length;
 
@@ -509,32 +511,28 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     );
 
     const visibleReportedCards = useMemo(() => {
-        if (reportedCategoryFilter === '__ALL__') return reportedImageCards;
-        return reportedImageCards.filter(card => card.categoryName === reportedCategoryFilter);
-    }, [reportedCategoryFilter, reportedImageCards]);
+        if (reportedCategoryFilter === '__ALL__') return reportedReviewCards;
+        return reportedReviewCards.filter(card => card.categoryName === reportedCategoryFilter);
+    }, [reportedCategoryFilter, reportedReviewCards]);
 
     const visibleReportedWithoutImageEntries = useMemo(() => {
         if (reportedCategoryFilter === '__ALL__') return reportedWithoutImageEntries;
         return reportedWithoutImageEntries.filter(entry => entry.categoryName === reportedCategoryFilter);
     }, [reportedCategoryFilter, reportedWithoutImageEntries]);
 
-    const visibleReportedWithoutImageSample = useMemo(
-        () => visibleReportedWithoutImageEntries.slice(0, 6).map(entry => entry.row.name),
-        [visibleReportedWithoutImageEntries]
-    );
-
     const visibleReportedItemsCount = selectedReportedCategoryStat?.reportedCount ?? reportedItemsCount;
+    const visibleReportedWithImageCount = visibleReportedCards.length - visibleReportedWithoutImageEntries.length;
     const visibleReportedWithoutImageCount = selectedReportedCategoryStat?.withoutImageCount ?? reportedWithoutImageCount;
 
     const reportedMainState = useMemo(() => resolveReportedImageReviewMainState({
         isCategorySelected: !!selectedReportedCategory,
         visibleReportedItemCount: visibleReportedItemsCount,
-        visibleReportedImageCount: visibleReportedCards.length,
+        visibleReportedImageCount: visibleReportedWithImageCount,
         totalReportedItemCount: reportedItemsCount,
     }), [
         selectedReportedCategory,
         visibleReportedItemsCount,
-        visibleReportedCards.length,
+        visibleReportedWithImageCount,
         reportedItemsCount,
     ]);
 
@@ -1049,7 +1047,17 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const openImagePreview = async (event: React.MouseEvent, row: FlattenedItem) => {
         event.stopPropagation();
         const rowImages = normalizeItemImages(row);
-        if (rowImages.length === 0) return;
+        if (rowImages.length === 0) {
+            if (!canEdit) return;
+            if (activeNotePreview) {
+                const closed = await closeQuickNotePreview();
+                if (!closed) return;
+            }
+            setOpenStatusId(null);
+            setOpenPhaseId(null);
+            openEditor(row.id);
+            return;
+        }
 
         if (activeImagePreviewId === row.id) {
             closeImagePreview();
@@ -1235,7 +1243,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         <div className="min-w-0 flex-1">
                             <h1 className="text-sm font-bold text-slate-900">Reported Image Review</h1>
                             <p className="text-[11px] text-slate-500">
-                                {reportedItemsCount} reported · {reportedImageCards.length} có ảnh · {reportedWithoutImageCount} thiếu ảnh
+                                {reportedItemsCount} reported · {reportedWithImageCount} có ảnh · {reportedWithoutImageCount} thiếu ảnh
                             </p>
                         </div>
                         {/* Quick stats badges */}
@@ -1244,7 +1252,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {reportedItemsCount} reported
                             </span>
                             <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
-                                {reportedImageCards.length} có ảnh
+                                {reportedWithImageCount} có ảnh
                             </span>
                             {reportedWithoutImageCount > 0 && (
                                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
@@ -1275,7 +1283,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 >
                                     <span>All Categories</span>
                                     <span className={`text-[11px] ${reportedCategoryFilter === '__ALL__' ? 'text-white/80' : 'text-slate-400'}`}>
-                                        {reportedImageCards.length}/{reportedItemsCount}
+                                        {reportedWithImageCount}/{reportedItemsCount}
                                     </span>
                                 </button>
                                 {reportedCategories.map(category => (
@@ -1348,31 +1356,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     </div>
                                 )}
 
-                                {reportedMainState === 'reported-no-image' && (
-                                    <div className="rounded-xl border border-dashed border-slate-300 bg-white p-5">
-                                        <p className="text-sm font-bold text-slate-700">Reported nhưng chưa có ảnh</p>
-                                        <p className="mt-1 text-xs text-slate-500">
-                                            {visibleReportedItemsCount} item reported nhưng chưa đính kèm ảnh.
-                                        </p>
-                                        {visibleReportedWithoutImageSample.length > 0 && (
-                                            <ul className="mt-3 space-y-1 text-xs text-slate-600">
-                                                {visibleReportedWithoutImageSample.map(name => (
-                                                    <li key={name} className="flex items-start gap-1.5">
-                                                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                                                        {name}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        )}
-                                    </div>
-                                )}
-
                                 {reportedMainState === 'ready' && (
                                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                                         {visibleReportedCards.map(card => {
-                                            const preview = card.images[0];
-                                            const previewKey = `${card.row.id}::${preview.id}`;
-                                            const hasPreviewError = !!reportedImageErrorKeys[previewKey];
+                                            const preview = card.images[0] || null;
+                                            const previewKey = preview ? `${card.row.id}::${preview.id}` : `${card.row.id}::no-image`;
+                                            const hasPreviewError = preview ? !!reportedImageErrorKeys[previewKey] : false;
+                                            const hasImage = !!preview;
                                             const metaLine = card.subcategoryName
                                                 ? `${card.categoryName} • ${card.subcategoryName}`
                                                 : card.categoryName;
@@ -1388,7 +1378,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 >
                                                     {/* Image area */}
                                                     <div className="relative overflow-hidden rounded-t-xl bg-slate-100">
-                                                        {hasPreviewError ? (
+                                                        {!hasImage ? (
+                                                            <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-1 bg-slate-100 text-center">
+                                                                <ImageIcon size={16} className="text-slate-400" />
+                                                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                                                                    No image
+                                                                </span>
+                                                            </div>
+                                                        ) : hasPreviewError ? (
                                                             <div className="flex aspect-[3/4] w-full items-center justify-center bg-slate-200 text-center text-[10px] font-semibold text-slate-400">
                                                                 Lỗi tải ảnh
                                                             </div>
@@ -1414,7 +1411,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                                 }}
                                                             />
                                                         )}
-                                                        {card.images.length > 1 && (
+                                                        {hasImage && card.images.length > 1 && (
                                                             <span className="absolute right-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white">
                                                                 +{card.images.length - 1}
                                                             </span>

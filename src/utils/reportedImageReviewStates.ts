@@ -1,8 +1,7 @@
 export type ReportedImageReviewMainState =
   | 'ready'
   | 'empty-category'
-  | 'no-reported-data'
-  | 'reported-no-image';
+  | 'no-reported-data';
 
 export interface ResolveReportedImageReviewMainStateInput {
   isCategorySelected: boolean;
@@ -17,12 +16,10 @@ export function resolveReportedImageReviewMainState(
   const {
     isCategorySelected,
     visibleReportedItemCount,
-    visibleReportedImageCount,
     totalReportedItemCount,
   } = input;
 
-  if (visibleReportedImageCount > 0) return 'ready';
-  if (visibleReportedItemCount > 0) return 'reported-no-image';
+  if (visibleReportedItemCount > 0) return 'ready';
   if (totalReportedItemCount === 0) return 'no-reported-data';
   if (isCategorySelected) return 'empty-category';
   return 'no-reported-data';
