@@ -1400,6 +1400,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             const previewKey = preview ? `${card.row.id}::${preview.id}` : `${card.row.id}::no-image`;
                                             const hasPreviewError = preview ? !!reportedImageErrorKeys[previewKey] : false;
                                             const hasImage = !!preview;
+                                            const hasNote = !!card.row.quickNote?.trim();
                                             const metaLine = card.subcategoryName
                                                 ? `${card.categoryName} • ${card.subcategoryName}`
                                                 : card.categoryName;
@@ -1447,6 +1448,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                                     });
                                                                 }}
                                                             />
+                                                        )}
+                                                        {hasNote && (
+                                                            <span
+                                                                className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5"
+                                                                title="Có ghi chú"
+                                                            >
+                                                                <MessageSquare size={9} className="text-white" />
+                                                            </span>
                                                         )}
                                                         {hasImage && card.images.length > 1 && (
                                                             <span className="absolute right-1.5 top-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white">
