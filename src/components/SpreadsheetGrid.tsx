@@ -291,6 +291,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
     const [quickNoteDraft, setQuickNoteDraft] = useState('');
     const [quickNoteSaving, setQuickNoteSaving] = useState(false);
+    const [imagePreviewNoteDraft, setImagePreviewNoteDraft] = useState('');
     // Ephemeral review markers for groups only (UI helper, never persisted).
     // Value is marker number shown inside the circle.
     const [reviewedGroupNumberById, setReviewedGroupNumberById] = useState<Record<string, number>>({});
@@ -606,6 +607,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     useEffect(() => {
         if (!reportedMode) setReportedImageErrorKeys({});
     }, [reportedMode]);
+
+    useEffect(() => {
+        setImagePreviewNoteDraft(activeImagePreviewItem?.quickNote?.trim() || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeImagePreviewItem?.id]);
 
     const closeImagePreview = useCallback(() => {
         setActiveImagePreviewId(null);
@@ -1156,6 +1162,19 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         } finally {
             setQuickNoteSaving(false);
         }
+    };
+
+    const handleImagePreviewNoteSave = () => {
+        if (!canEdit || !activeImagePreviewItem) return;
+        const trimmed = imagePreviewNoteDraft.trim();
+        const current = (activeImagePreviewItem.quickNote || '').trim();
+        if (trimmed === current) return;
+        updateActivePreviewItemWithSaveFeedback(source => {
+            const next = { ...source };
+            if (trimmed.length > 0) next.quickNote = trimmed;
+            else delete next.quickNote;
+            return next;
+        });
     };
 
     const updateFromSource = (
@@ -2675,16 +2694,22 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         </div>
 
                                         {/* Note */}
-                                        {activeImagePreviewNote && (
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Note</p>
-                                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                                                    <p className="text-[12px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words">
-                                                        {activeImagePreviewNote}
-                                                    </p>
-                                                </div>
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Note</p>
+                                                <span className="text-[10px] text-slate-400">{imagePreviewNoteDraft.length}/{MAX_QUICK_NOTE_LENGTH}</span>
                                             </div>
-                                        )}
+                                            <textarea
+                                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-[12px] leading-relaxed text-slate-700 resize-none focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 placeholder:text-slate-400 disabled:opacity-60"
+                                                rows={4}
+                                                maxLength={MAX_QUICK_NOTE_LENGTH}
+                                                value={imagePreviewNoteDraft}
+                                                placeholder="Thêm ghi chú..."
+                                                onChange={e => setImagePreviewNoteDraft(e.target.value.slice(0, MAX_QUICK_NOTE_LENGTH))}
+                                                onBlur={handleImagePreviewNoteSave}
+                                                disabled={!canEdit}
+                                            />
+                                        </div>
                                     </div>
 
                                     {/* Action buttons */}
