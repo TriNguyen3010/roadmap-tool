@@ -87,8 +87,8 @@ const LEGACY_COLUMNS: ExcelExportColumn[] = [
 
 const SUMMARY_SHEET_NAME = 'Summary by Object';
 const SUMMARY_HEADERS = ['ID', 'Nội dung'];
-const SUMMARY_GROUP_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Not Started', 'Done'];
-const SUMMARY_DEV_TEAM_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Done'];
+const SUMMARY_GROUP_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Not Started', 'Dev Done', 'Done - Dev Env', 'Done - Prod Env'];
+const SUMMARY_DEV_TEAM_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Dev Done', 'Done - Dev Env', 'Done - Prod Env'];
 const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA In Progress'];
 const SUMMARY_PD_STATUSES: ItemStatus[] = ['PD Handle', 'PD In Progress'];
 const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC In Progress'];

@@ -2604,7 +2604,7 @@
       "name": "Roadmap Main - Coin98",
       "width": 1440,
       "height": 900,
-      "fill": "#FAFBFC",
+      "fill": "#F5F5F5",
       "layout": "none",
       "children": [
         {
@@ -2616,10 +2616,15 @@
           "width": 1392,
           "height": 72,
           "fill": "#FFFFFF",
-          "cornerRadius": 14,
+          "cornerRadius": 20,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#E5E7EB"
+          },
           "padding": [
-            12,
-            14
+            14,
+            18
           ],
           "justifyContent": "space_between",
           "alignItems": "center",
@@ -2628,14 +2633,37 @@
               "type": "frame",
               "id": "zIpdm",
               "name": "headerLeftP2",
-              "gap": 12,
+              "gap": 10,
               "alignItems": "center",
               "children": [
+                {
+                  "type": "frame",
+                  "id": "v9DML",
+                  "name": "logo",
+                  "width": 28,
+                  "height": 28,
+                  "fill": "#F0B90B",
+                  "cornerRadius": 8,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HRIsl",
+                      "name": "logoMark",
+                      "fill": "#111111",
+                      "content": "∞",
+                      "fontFamily": "Plus Jakarta Sans",
+                      "fontSize": 15,
+                      "fontWeight": "bold"
+                    }
+                  ]
+                },
                 {
                   "type": "text",
                   "id": "xTW0H",
                   "name": "productP2",
-                  "fill": "#0B132B",
+                  "fill": "#111111",
                   "content": "COIN98",
                   "fontFamily": "Plus Jakarta Sans",
                   "fontSize": 14,
@@ -2645,17 +2673,17 @@
                   "type": "text",
                   "id": "BAuFa",
                   "name": "pageTitleP2",
-                  "fill": "#64748B",
-                  "content": "Roadmap",
+                  "fill": "#6B7280",
+                  "content": "Roadmap V2",
                   "fontFamily": "Plus Jakarta Sans",
                   "fontSize": 14,
-                  "fontWeight": "semibold"
+                  "fontWeight": "medium"
                 },
                 {
                   "type": "frame",
                   "id": "2tucX",
                   "name": "modeTabsP2",
-                  "gap": 8,
+                  "gap": 10,
                   "alignItems": "center",
                   "children": [
                     {
@@ -2664,10 +2692,15 @@
                       "name": "webTabP2",
                       "height": 34,
                       "fill": "#FFFFFF",
-                      "cornerRadius": 17,
+                      "cornerRadius": 16,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#E5E7EB"
+                      },
                       "padding": [
                         0,
-                        12
+                        14
                       ],
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -2676,11 +2709,11 @@
                           "type": "text",
                           "id": "65QAZ",
                           "name": "webTabTextP2",
-                          "fill": "#475569",
+                          "fill": "#111827",
                           "content": "Web",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 13,
-                          "fontWeight": "semibold"
+                          "fontWeight": "medium"
                         }
                       ]
                     },
@@ -2690,10 +2723,15 @@
                       "name": "appTabP2",
                       "height": 34,
                       "fill": "#FFFFFF",
-                      "cornerRadius": 17,
+                      "cornerRadius": 16,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#E5E7EB"
+                      },
                       "padding": [
                         0,
-                        12
+                        14
                       ],
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -2702,11 +2740,11 @@
                           "type": "text",
                           "id": "kTPWE",
                           "name": "appTabTextP2",
-                          "fill": "#475569",
+                          "fill": "#111827",
                           "content": "App",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 13,
-                          "fontWeight": "semibold"
+                          "fontWeight": "medium"
                         }
                       ]
                     },
@@ -2716,10 +2754,10 @@
                       "name": "reportedTabP2",
                       "height": 34,
                       "fill": "#F0B90B",
-                      "cornerRadius": 17,
+                      "cornerRadius": 16,
                       "padding": [
                         0,
-                        12
+                        16
                       ],
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -2728,11 +2766,11 @@
                           "type": "text",
                           "id": "QP8Ur",
                           "name": "reportedTabTextP2",
-                          "fill": "#0B132B",
+                          "fill": "#111827",
                           "content": "Reported Image Review",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 13,
-                          "fontWeight": "semibold"
+                          "fontWeight": "bold"
                         }
                       ]
                     }
@@ -2752,11 +2790,11 @@
                   "id": "otztX",
                   "name": "editorBtnP2",
                   "height": 34,
-                  "fill": "#FFFFFF",
-                  "cornerRadius": 17,
+                  "fill": "#111111",
+                  "cornerRadius": 16,
                   "padding": [
                     0,
-                    12
+                    14
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -2765,7 +2803,7 @@
                       "type": "text",
                       "id": "dyA9F",
                       "name": "editorTextP2",
-                      "fill": "#475569",
+                      "fill": "#FFFFFF",
                       "content": "Editor",
                       "fontFamily": "Plus Jakarta Sans",
                       "fontSize": 12,
@@ -2779,10 +2817,15 @@
                   "name": "phaseBtnP2",
                   "height": 34,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 17,
+                  "cornerRadius": 16,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "padding": [
                     0,
-                    12
+                    14
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -2791,8 +2834,8 @@
                       "type": "text",
                       "id": "s3Mkg",
                       "name": "phaseTextP2",
-                      "fill": "#475569",
-                      "content": "Phase",
+                      "fill": "#111827",
+                      "content": "Week",
                       "fontFamily": "Plus Jakarta Sans",
                       "fontSize": 12,
                       "fontWeight": "semibold"
@@ -2805,10 +2848,15 @@
                   "name": "filterBtnP2",
                   "height": 34,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 17,
+                  "cornerRadius": 16,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "padding": [
                     0,
-                    12
+                    14
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -2817,7 +2865,7 @@
                       "type": "text",
                       "id": "xs0HQ",
                       "name": "filterTextP2",
-                      "fill": "#475569",
+                      "fill": "#111827",
                       "content": "Filter",
                       "fontFamily": "Plus Jakarta Sans",
                       "fontSize": 12,
@@ -2831,10 +2879,10 @@
                   "name": "saveBtnP2",
                   "height": 34,
                   "fill": "#F0B90B",
-                  "cornerRadius": 17,
+                  "cornerRadius": 16,
                   "padding": [
                     0,
-                    12
+                    14
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -2843,11 +2891,11 @@
                       "type": "text",
                       "id": "LnPbn",
                       "name": "saveTextP2",
-                      "fill": "#0B132B",
+                      "fill": "#111827",
                       "content": "Save",
                       "fontFamily": "Plus Jakarta Sans",
                       "fontSize": 12,
-                      "fontWeight": "semibold"
+                      "fontWeight": "bold"
                     }
                   ]
                 },
@@ -2857,10 +2905,15 @@
                   "name": "settingBtnP2",
                   "height": 34,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 17,
+                  "cornerRadius": 16,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "padding": [
                     0,
-                    12
+                    14
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -2869,7 +2922,7 @@
                       "type": "text",
                       "id": "UVU24",
                       "name": "settingTextP2",
-                      "fill": "#475569",
+                      "fill": "#111827",
                       "content": "Setting",
                       "fontFamily": "Plus Jakarta Sans",
                       "fontSize": 12,
@@ -2890,14 +2943,15 @@
           "width": 1392,
           "height": 776,
           "layout": "vertical",
-          "gap": 12,
+          "gap": 16,
           "children": [
             {
               "type": "frame",
               "id": "FsqvE",
               "name": "topControlsP2",
               "width": "fill_container",
-              "height": 44,
+              "height": 48,
+              "gap": 12,
               "justifyContent": "space_between",
               "alignItems": "center",
               "children": [
@@ -2908,7 +2962,12 @@
                   "width": 360,
                   "height": 40,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 10,
+                  "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "padding": [
                     0,
                     12
@@ -2919,8 +2978,8 @@
                       "type": "text",
                       "id": "MekFT",
                       "name": "searchTextP2",
-                      "fill": "#94A3B8",
-                      "content": "Search group, item, note, phase...",
+                      "fill": "#9CA3AF",
+                      "content": "Search group, item, note, week...",
                       "fontFamily": "Plus Jakarta Sans",
                       "fontSize": 12,
                       "fontWeight": "normal"
@@ -2952,7 +3011,7 @@
                           "type": "text",
                           "id": "GjZCZ",
                           "name": "countChipTextP2",
-                          "fill": "#92400E",
+                          "fill": "#8A5A00",
                           "content": "12 groups",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
@@ -2965,7 +3024,7 @@
                       "id": "Ghpd9",
                       "name": "itemChipP2",
                       "height": 30,
-                      "fill": "#EFF6FF",
+                      "fill": "#FEF3C7",
                       "cornerRadius": 999,
                       "padding": [
                         0,
@@ -2978,7 +3037,7 @@
                           "type": "text",
                           "id": "pCPuq",
                           "name": "itemChipTextP2",
-                          "fill": "#1D4ED8",
+                          "fill": "#6B4F00",
                           "content": "38 items",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
@@ -2995,6 +3054,11 @@
                   "height": 30,
                   "fill": "#FFFFFF",
                   "cornerRadius": 999,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "padding": [
                     0,
                     10
@@ -3006,8 +3070,8 @@
                       "type": "text",
                       "id": "80VV9",
                       "name": "columnHintTextP2",
-                      "fill": "#64748B",
-                      "content": "Columns: Name, Status, Phase, WorkType, Priority, Team",
+                      "fill": "#6B7280",
+                      "content": "Columns: Name, Status, Week, WorkType, Priority, Team",
                       "fontFamily": "Plus Jakarta Sans",
                       "fontSize": 11,
                       "fontWeight": "medium"
@@ -3024,7 +3088,12 @@
               "width": "fill_container",
               "height": "fill_container",
               "fill": "#FFFFFF",
-              "cornerRadius": 14,
+              "cornerRadius": 20,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#E5E7EB"
+              },
               "layout": "vertical",
               "children": [
                 {
@@ -3032,8 +3101,8 @@
                   "id": "mqXtB",
                   "name": "tableHeaderP2",
                   "width": "fill_container",
-                  "height": 48,
-                  "fill": "#FAFBFC",
+                  "height": 50,
+                  "fill": "#F7F7F7",
                   "padding": [
                     0,
                     14
@@ -3052,11 +3121,11 @@
                           "type": "text",
                           "id": "s8mZQ",
                           "name": "colNameTextP2",
-                          "fill": "#64748B",
+                          "fill": "#374151",
                           "content": "Group / Item",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
-                          "fontWeight": "semibold"
+                          "fontWeight": "bold"
                         }
                       ]
                     },
@@ -3073,11 +3142,11 @@
                           "type": "text",
                           "id": "cVEMm",
                           "name": "colStatusTextP2",
-                          "fill": "#64748B",
+                          "fill": "#374151",
                           "content": "Status",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
-                          "fontWeight": "semibold"
+                          "fontWeight": "bold"
                         }
                       ]
                     },
@@ -3094,11 +3163,11 @@
                           "type": "text",
                           "id": "w6mTZ",
                           "name": "colPhaseTextP2",
-                          "fill": "#64748B",
-                          "content": "Phase",
+                          "fill": "#374151",
+                          "content": "Week",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
-                          "fontWeight": "semibold"
+                          "fontWeight": "bold"
                         }
                       ]
                     },
@@ -3115,11 +3184,11 @@
                           "type": "text",
                           "id": "rVYp4",
                           "name": "colWorkTypeTextP2",
-                          "fill": "#64748B",
+                          "fill": "#374151",
                           "content": "WorkType",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
-                          "fontWeight": "semibold"
+                          "fontWeight": "bold"
                         }
                       ]
                     },
@@ -3136,11 +3205,11 @@
                           "type": "text",
                           "id": "NY3qK",
                           "name": "colPriorityTextP2",
-                          "fill": "#64748B",
+                          "fill": "#374151",
                           "content": "Priority",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
-                          "fontWeight": "semibold"
+                          "fontWeight": "bold"
                         }
                       ]
                     },
@@ -3157,11 +3226,11 @@
                           "type": "text",
                           "id": "eqntA",
                           "name": "colTeamTextP2",
-                          "fill": "#64748B",
+                          "fill": "#374151",
                           "content": "Team",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 12,
-                          "fontWeight": "semibold"
+                          "fontWeight": "bold"
                         }
                       ]
                     }
@@ -3235,7 +3304,7 @@
                               "id": "dA1wm",
                               "name": "gPhaseTagP2",
                               "height": 24,
-                              "fill": "#FEF3C7",
+                              "fill": "#FFF1B8",
                               "cornerRadius": 999,
                               "padding": [
                                 0,
@@ -3248,8 +3317,8 @@
                                   "type": "text",
                                   "id": "rnyFd",
                                   "name": "gPhaseTagTextP2",
-                                  "fill": "#92400E",
-                                  "content": "P1",
+                                  "fill": "#8A5A00",
+                                  "content": "W1",
                                   "fontFamily": "Plus Jakarta Sans",
                                   "fontSize": 12,
                                   "fontWeight": "semibold"
@@ -3303,7 +3372,7 @@
                               "id": "9bbgs",
                               "name": "gPhaseCellTextP2",
                               "fill": "#334155",
-                              "content": "Phase 1",
+                              "content": "Week 1",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "semibold"
@@ -3381,7 +3450,7 @@
                       "name": "itemRowA1",
                       "width": "fill_container",
                       "height": 52,
-                      "fill": "#FFFFFF",
+                      "fill": "#FAFAFA",
                       "padding": [
                         0,
                         14
@@ -3426,11 +3495,11 @@
                               "type": "text",
                               "id": "XY71W",
                               "name": "iStatusTextA1",
-                              "fill": "#1D4ED8",
+                              "fill": "#1E40AF",
                               "content": "Dev In Progress ▾",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
-                              "fontWeight": "semibold"
+                              "fontWeight": "bold"
                             }
                           ]
                         },
@@ -3448,7 +3517,7 @@
                               "id": "g2NtS",
                               "name": "iPhaseTextA1",
                               "fill": "#334155",
-                              "content": "Phase 1 ▾",
+                              "content": "Week 1 ▾",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "medium"
@@ -3526,7 +3595,7 @@
                       "name": "rowLineP2a",
                       "width": "fill_container",
                       "height": 1,
-                      "fill": "#F1F5F9"
+                      "fill": "#ECECEC"
                     },
                     {
                       "type": "frame",
@@ -3588,7 +3657,7 @@
                               "id": "cvrq9",
                               "name": "gPhaseTagP2",
                               "height": 24,
-                              "fill": "#FEF3C7",
+                              "fill": "#FFF1B8",
                               "cornerRadius": 999,
                               "padding": [
                                 0,
@@ -3601,8 +3670,8 @@
                                   "type": "text",
                                   "id": "6Tnkf",
                                   "name": "gPhaseTagTextP2",
-                                  "fill": "#92400E",
-                                  "content": "P2",
+                                  "fill": "#8A5A00",
+                                  "content": "W2",
                                   "fontFamily": "Plus Jakarta Sans",
                                   "fontSize": 12,
                                   "fontWeight": "semibold"
@@ -3656,7 +3725,7 @@
                               "id": "5a3HD",
                               "name": "gPhaseCellTextP2",
                               "fill": "#334155",
-                              "content": "Phase 2",
+                              "content": "Week 2",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "semibold"
@@ -3734,7 +3803,7 @@
                       "name": "rowLineP2b",
                       "width": "fill_container",
                       "height": 1,
-                      "fill": "#F1F5F9"
+                      "fill": "#ECECEC"
                     },
                     {
                       "type": "frame",
@@ -3742,7 +3811,7 @@
                       "name": "itemRowP2b",
                       "width": "fill_container",
                       "height": 52,
-                      "fill": "#FFFFFF",
+                      "fill": "#FAFAFA",
                       "padding": [
                         0,
                         14
@@ -3791,7 +3860,7 @@
                               "content": "Reported ▾",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
-                              "fontWeight": "semibold"
+                              "fontWeight": "bold"
                             }
                           ]
                         },
@@ -3809,7 +3878,7 @@
                               "id": "VVQRm",
                               "name": "iPhaseTextA1",
                               "fill": "#334155",
-                              "content": "Phase 2 ▾",
+                              "content": "Week 2 ▾",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "medium"
@@ -3887,7 +3956,7 @@
                       "name": "rowLineP2c",
                       "width": "fill_container",
                       "height": 1,
-                      "fill": "#F1F5F9"
+                      "fill": "#ECECEC"
                     },
                     {
                       "type": "frame",
@@ -3962,7 +4031,7 @@
                               "id": "ej5jv",
                               "name": "iPhaseTextA1",
                               "fill": "#334155",
-                              "content": "Phase 2 ▾",
+                              "content": "Week 2 ▾",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "medium"
@@ -4040,7 +4109,7 @@
                       "name": "rowLineP2d",
                       "width": "fill_container",
                       "height": 1,
-                      "fill": "#F1F5F9"
+                      "fill": "#ECECEC"
                     },
                     {
                       "type": "frame",
@@ -4222,7 +4291,7 @@
                       "name": "rowLineP2e",
                       "width": "fill_container",
                       "height": 1,
-                      "fill": "#F1F5F9"
+                      "fill": "#ECECEC"
                     },
                     {
                       "type": "frame",
@@ -4230,7 +4299,7 @@
                       "name": "itemRowNoPhaseP2",
                       "width": "fill_container",
                       "height": 52,
-                      "fill": "#FFFFFF",
+                      "fill": "#FAFAFA",
                       "padding": [
                         0,
                         14
@@ -4275,7 +4344,7 @@
                               "type": "text",
                               "id": "s8ljs",
                               "name": "iStatusTextA1",
-                              "fill": "#64748B",
+                              "fill": "#6B7280",
                               "content": "Not Started ▾",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
@@ -4296,7 +4365,7 @@
                               "type": "text",
                               "id": "xgVrz",
                               "name": "iPhaseTextA1",
-                              "fill": "#334155",
+                              "fill": "#475569",
                               "content": "None ▾",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
@@ -4385,7 +4454,7 @@
       "name": "Roadmap Main - Clarity Redraw",
       "width": 1440,
       "height": 900,
-      "fill": "#FAFBFC",
+      "fill": "#F5F5F5",
       "layout": "none",
       "children": [
         {
@@ -4397,10 +4466,15 @@
           "width": 1392,
           "height": 76,
           "fill": "#FFFFFF",
-          "cornerRadius": 12,
+          "cornerRadius": 18,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#E5E7EB"
+          },
           "padding": [
             10,
-            12
+            16
           ],
           "justifyContent": "space_between",
           "alignItems": "center",
@@ -4409,18 +4483,60 @@
               "type": "frame",
               "id": "kAdAx",
               "name": "leftTopP3",
-              "gap": 10,
+              "gap": 14,
               "alignItems": "center",
               "children": [
+                {
+                  "type": "frame",
+                  "id": "vCrjC",
+                  "name": "brandWrap",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "kHAex",
+                      "name": "brandIcon",
+                      "width": 32,
+                      "height": 32,
+                      "fill": "#F0B90B",
+                      "cornerRadius": 8,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "fTW7u",
+                          "name": "brandGlyph",
+                          "fill": "#111111",
+                          "content": "∞",
+                          "fontFamily": "Plus Jakarta Sans",
+                          "fontSize": 16,
+                          "fontWeight": "bold"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "1pwYF",
+                      "name": "brandTxt",
+                      "fill": "#111111",
+                      "content": "COIN98",
+                      "fontFamily": "Plus Jakarta Sans",
+                      "fontSize": 14,
+                      "fontWeight": "bold"
+                    }
+                  ]
+                },
                 {
                   "type": "text",
                   "id": "thXBn",
                   "name": "brandP3",
-                  "fill": "#0F172A",
+                  "fill": "#374151",
                   "content": "Roadmap Ver1",
                   "fontFamily": "Plus Jakarta Sans",
-                  "fontSize": 28,
-                  "fontWeight": "bold"
+                  "fontSize": 14,
+                  "fontWeight": "semibold"
                 },
                 {
                   "type": "frame",
@@ -4428,7 +4544,12 @@
                   "name": "modeGroupP3",
                   "height": 44,
                   "fill": "#F8FAFC",
-                  "cornerRadius": 12,
+                  "cornerRadius": 14,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "gap": 8,
                   "padding": [
                     0,
@@ -4442,10 +4563,15 @@
                       "name": "webModeP3",
                       "height": 34,
                       "fill": "#FFFFFF",
-                      "cornerRadius": 9,
+                      "cornerRadius": 10,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#E5E7EB"
+                      },
                       "padding": [
                         0,
-                        16
+                        14
                       ],
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -4454,10 +4580,10 @@
                           "type": "text",
                           "id": "T3Cuz",
                           "name": "webModeTextP3",
-                          "fill": "#475569",
+                          "fill": "#374151",
                           "content": "Web",
                           "fontFamily": "Plus Jakarta Sans",
-                          "fontSize": 20,
+                          "fontSize": 14,
                           "fontWeight": "semibold"
                         }
                       ]
@@ -4468,10 +4594,15 @@
                       "name": "appModeP3",
                       "height": 34,
                       "fill": "#FFFFFF",
-                      "cornerRadius": 9,
+                      "cornerRadius": 10,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#E5E7EB"
+                      },
                       "padding": [
                         0,
-                        16
+                        14
                       ],
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -4480,10 +4611,10 @@
                           "type": "text",
                           "id": "iIdeq",
                           "name": "appModeTextP3",
-                          "fill": "#475569",
+                          "fill": "#374151",
                           "content": "App",
                           "fontFamily": "Plus Jakarta Sans",
-                          "fontSize": 20,
+                          "fontSize": 14,
                           "fontWeight": "semibold"
                         }
                       ]
@@ -4494,10 +4625,15 @@
                       "name": "reportedModeP3",
                       "height": 34,
                       "fill": "#FFFFFF",
-                      "cornerRadius": 9,
+                      "cornerRadius": 10,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "#E5E7EB"
+                      },
                       "padding": [
                         0,
-                        16
+                        14
                       ],
                       "justifyContent": "center",
                       "alignItems": "center",
@@ -4506,10 +4642,10 @@
                           "type": "text",
                           "id": "qfpDS",
                           "name": "reportedModeTextP3",
-                          "fill": "#334155",
+                          "fill": "#374151",
                           "content": "Reported Image Review",
                           "fontFamily": "Plus Jakarta Sans",
-                          "fontSize": 20,
+                          "fontSize": 14,
                           "fontWeight": "semibold"
                         }
                       ]
@@ -4522,7 +4658,12 @@
                   "name": "phaseQuickP3",
                   "height": 44,
                   "fill": "#FFFFFF",
-                  "cornerRadius": 10,
+                  "cornerRadius": 12,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "padding": [
                     0,
                     14
@@ -4534,10 +4675,10 @@
                       "type": "text",
                       "id": "BXLzw",
                       "name": "phaseQuickTextP3",
-                      "fill": "#334155",
-                      "content": "Phase",
+                      "fill": "#374151",
+                      "content": "Week",
                       "fontFamily": "Plus Jakarta Sans",
-                      "fontSize": 20,
+                      "fontSize": 14,
                       "fontWeight": "semibold"
                     }
                   ]
@@ -4548,7 +4689,7 @@
               "type": "frame",
               "id": "NzObF",
               "name": "rightTopP3",
-              "gap": 8,
+              "gap": 10,
               "alignItems": "center",
               "children": [
                 {
@@ -4558,6 +4699,11 @@
                   "height": 44,
                   "fill": "#FFFFFF",
                   "cornerRadius": 22,
+                  "stroke": {
+                    "align": "inside",
+                    "thickness": 1,
+                    "fill": "#E5E7EB"
+                  },
                   "padding": [
                     0,
                     14
@@ -4569,10 +4715,10 @@
                       "type": "text",
                       "id": "5PrWr",
                       "name": "dateChipTextP3",
-                      "fill": "#334155",
+                      "fill": "#475569",
                       "content": "Thu Tu 11/03/2026 11:43",
                       "fontFamily": "Plus Jakarta Sans",
-                      "fontSize": 18,
+                      "fontSize": 13,
                       "fontWeight": "semibold"
                     }
                   ]
@@ -4582,8 +4728,8 @@
                   "id": "jMMlv",
                   "name": "viewerBtnP3",
                   "height": 44,
-                  "fill": "#1E293B",
-                  "cornerRadius": 10,
+                  "fill": "#111111",
+                  "cornerRadius": 12,
                   "padding": [
                     0,
                     14
@@ -4595,10 +4741,10 @@
                       "type": "text",
                       "id": "z8jrY",
                       "name": "viewerBtnTextP3",
-                      "fill": "#F8FAFC",
+                      "fill": "#FFFFFF",
                       "content": "Viewer",
                       "fontFamily": "Plus Jakarta Sans",
-                      "fontSize": 20,
+                      "fontSize": 14,
                       "fontWeight": "semibold"
                     }
                   ]
@@ -4609,7 +4755,7 @@
                   "name": "phasesBtnP3",
                   "height": 44,
                   "fill": "#F0B90B",
-                  "cornerRadius": 10,
+                  "cornerRadius": 12,
                   "padding": [
                     0,
                     14
@@ -4621,11 +4767,11 @@
                       "type": "text",
                       "id": "ifk4O",
                       "name": "phasesBtnTextP3",
-                      "fill": "#0F172A",
-                      "content": "Phases",
+                      "fill": "#111111",
+                      "content": "Weeks",
                       "fontFamily": "Plus Jakarta Sans",
-                      "fontSize": 20,
-                      "fontWeight": "semibold"
+                      "fontSize": 14,
+                      "fontWeight": "bold"
                     }
                   ]
                 },
@@ -4650,7 +4796,7 @@
                       "fill": "#EEF2FF",
                       "content": "Filter",
                       "fontFamily": "Plus Jakarta Sans",
-                      "fontSize": 20,
+                      "fontSize": 14,
                       "fontWeight": "semibold"
                     }
                   ]
@@ -4669,7 +4815,12 @@
           "width": 1392,
           "height": 778,
           "fill": "#FFFFFF",
-          "cornerRadius": 12,
+          "cornerRadius": 18,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#E5E7EB"
+          },
           "children": [
             {
               "type": "frame",
@@ -4686,7 +4837,7 @@
                   "name": "leftHeaderP3",
                   "width": "fill_container",
                   "height": 62,
-                  "fill": "#EEF2F7",
+                  "fill": "#F3F4F6",
                   "padding": [
                     0,
                     10
@@ -4706,7 +4857,7 @@
                           "type": "text",
                           "id": "E5zSe",
                           "name": "colIdTextP3",
-                          "fill": "#334155",
+                          "fill": "#374151",
                           "content": "ID",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 13,
@@ -4726,7 +4877,7 @@
                           "type": "text",
                           "id": "RoiZm",
                           "name": "colNameTextP3",
-                          "fill": "#334155",
+                          "fill": "#374151",
                           "content": "Name",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 13,
@@ -4747,7 +4898,7 @@
                           "type": "text",
                           "id": "s76bR",
                           "name": "colStatusTextP3",
-                          "fill": "#334155",
+                          "fill": "#374151",
                           "content": "Status",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 13,
@@ -4768,8 +4919,8 @@
                           "type": "text",
                           "id": "qZFiY",
                           "name": "colPhaseTextP3",
-                          "fill": "#334155",
-                          "content": "Phase",
+                          "fill": "#374151",
+                          "content": "Week",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 13,
                           "fontWeight": "bold"
@@ -4793,7 +4944,7 @@
                       "name": "groupTplP3",
                       "width": "fill_container",
                       "height": 42,
-                      "fill": "#EAF1FB",
+                      "fill": "#DDE7F7",
                       "padding": [
                         0,
                         10
@@ -4834,7 +4985,7 @@
                               "id": "bD03f",
                               "name": "gNameTextP3",
                               "fill": "#0F172A",
-                              "content": "▾  P1  Coin98 Home",
+                              "content": "▾  W1  Coin98 Home",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 13,
                               "fontWeight": "bold"
@@ -4972,8 +5123,8 @@
                               "type": "text",
                               "id": "GLLZN",
                               "name": "iPhaseTextP3",
-                              "fill": "#4F46E5",
-                              "content": "Phase 1",
+                              "fill": "#2563EB",
+                              "content": "Week 1",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "semibold"
@@ -4996,7 +5147,7 @@
                       "name": "subRowA3",
                       "width": "fill_container",
                       "height": 38,
-                      "fill": "#F2F8ED",
+                      "fill": "#EAF3DE",
                       "padding": [
                         0,
                         10
@@ -5142,7 +5293,7 @@
                               "id": "zNbKe",
                               "name": "iNameTextP3",
                               "fill": "#111827",
-                              "content": "P1  New UI",
+                              "content": "W1  New UI",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 13,
                               "fontWeight": "semibold"
@@ -5183,8 +5334,8 @@
                               "type": "text",
                               "id": "82VjK",
                               "name": "iPhaseTextP3",
-                              "fill": "#4F46E5",
-                              "content": "Phase 1",
+                              "fill": "#2563EB",
+                              "content": "Week 1",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "semibold"
@@ -5417,7 +5568,7 @@
                       "name": "groupB3",
                       "width": "fill_container",
                       "height": 42,
-                      "fill": "#EAF1FB",
+                      "fill": "#DDE7F7",
                       "padding": [
                         0,
                         10
@@ -5523,7 +5674,7 @@
                       "name": "subRowB3",
                       "width": "fill_container",
                       "height": 38,
-                      "fill": "#F2F8ED",
+                      "fill": "#EAF3DE",
                       "padding": [
                         0,
                         10
@@ -5734,7 +5885,7 @@
                       "name": "groupC3",
                       "width": "fill_container",
                       "height": 42,
-                      "fill": "#EAF1FB",
+                      "fill": "#DDE7F7",
                       "padding": [
                         0,
                         10
@@ -5775,7 +5926,7 @@
                               "id": "icE5F",
                               "name": "gNameTextP3",
                               "fill": "#0F172A",
-                              "content": "▾  P1  OneID",
+                              "content": "▾  W1  OneID",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 13,
                               "fontWeight": "bold"
@@ -5840,7 +5991,7 @@
                       "name": "subRowC3",
                       "width": "fill_container",
                       "height": 38,
-                      "fill": "#F2F8ED",
+                      "fill": "#EAF3DE",
                       "padding": [
                         0,
                         10
@@ -5986,7 +6137,7 @@
                               "id": "rLRee",
                               "name": "iNameTextP3",
                               "fill": "#111827",
-                              "content": "P1  Dynamic Banner - Can Banner",
+                              "content": "W1  Dynamic Banner - Can Banner",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 13,
                               "fontWeight": "semibold"
@@ -6027,8 +6178,8 @@
                               "type": "text",
                               "id": "EKjp1",
                               "name": "iPhaseTextP3",
-                              "fill": "#4F46E5",
-                              "content": "Phase 1",
+                              "fill": "#2563EB",
+                              "content": "Week 1",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "semibold"
@@ -6091,7 +6242,7 @@
                               "id": "NapK8",
                               "name": "iNameTextP3",
                               "fill": "#111827",
-                              "content": "P1  Remove old referral scheme",
+                              "content": "W1  Remove old referral scheme",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 13,
                               "fontWeight": "semibold"
@@ -6132,8 +6283,8 @@
                               "type": "text",
                               "id": "TUGGw",
                               "name": "iPhaseTextP3",
-                              "fill": "#4F46E5",
-                              "content": "Phase 1",
+                              "fill": "#2563EB",
+                              "content": "Week 1",
                               "fontFamily": "Plus Jakarta Sans",
                               "fontSize": 12,
                               "fontWeight": "semibold"
@@ -6150,9 +6301,9 @@
               "type": "frame",
               "id": "RzpYd",
               "name": "dividerP3",
-              "width": 2,
+              "width": 1,
               "height": "fill_container",
-              "fill": "#CBD5E1"
+              "fill": "#D1D5DB"
             },
             {
               "type": "frame",
@@ -6179,7 +6330,7 @@
                       "id": "EBWhv",
                       "name": "weekRowP3",
                       "width": "fill_container",
-                      "height": 28,
+                      "height": 30,
                       "fill": "#EEF2F7",
                       "padding": [
                         0,
@@ -6234,7 +6385,7 @@
                       "id": "RYwY9",
                       "name": "dayRowP3",
                       "width": "fill_container",
-                      "height": 34,
+                      "height": 32,
                       "fill": "#F8FAFC",
                       "gap": 8,
                       "padding": [
@@ -6247,7 +6398,7 @@
                           "type": "text",
                           "id": "QPH46",
                           "name": "dayTextP3",
-                          "fill": "#64748B",
+                          "fill": "#6B7280",
                           "content": "M T W T F S S  |  M T W T F S S  |  M T W T F S S",
                           "fontFamily": "Plus Jakarta Sans",
                           "fontSize": 11,
@@ -6276,7 +6427,7 @@
                       "name": "todayBandP3",
                       "width": 120,
                       "height": 716,
-                      "fill": "#FEE2E2"
+                      "fill": "#FFF2D7"
                     },
                     {
                       "type": "frame",
@@ -6296,7 +6447,7 @@
                       "name": "bgGroup1P3",
                       "width": 740,
                       "height": 42,
-                      "fill": "#EAF1FB"
+                      "fill": "#E5EDF8"
                     },
                     {
                       "type": "frame",
@@ -6306,7 +6457,7 @@
                       "name": "bgSub1P3",
                       "width": 740,
                       "height": 38,
-                      "fill": "#F2F8ED"
+                      "fill": "#EEF6E7"
                     },
                     {
                       "type": "frame",
@@ -6316,7 +6467,7 @@
                       "name": "bgGroup2P3",
                       "width": 740,
                       "height": 42,
-                      "fill": "#EAF1FB"
+                      "fill": "#E5EDF8"
                     },
                     {
                       "type": "frame",
@@ -6326,7 +6477,7 @@
                       "name": "bgSub2P3",
                       "width": 740,
                       "height": 38,
-                      "fill": "#F2F8ED"
+                      "fill": "#EEF6E7"
                     },
                     {
                       "type": "frame",
@@ -6336,7 +6487,7 @@
                       "name": "bgGroup3P3",
                       "width": 740,
                       "height": 42,
-                      "fill": "#EAF1FB"
+                      "fill": "#E5EDF8"
                     },
                     {
                       "type": "frame",
@@ -6346,7 +6497,7 @@
                       "name": "bgSub3P3",
                       "width": 740,
                       "height": 38,
-                      "fill": "#F2F8ED"
+                      "fill": "#EEF6E7"
                     },
                     {
                       "type": "frame",
@@ -6356,7 +6507,7 @@
                       "name": "weekLine1P3",
                       "width": 1,
                       "height": 716,
-                      "fill": "#E2E8F0"
+                      "fill": "#E5E7EB"
                     },
                     {
                       "type": "frame",
@@ -6366,7 +6517,7 @@
                       "name": "weekLine2P3",
                       "width": 1,
                       "height": 716,
-                      "fill": "#E2E8F0"
+                      "fill": "#E5E7EB"
                     },
                     {
                       "type": "frame",
@@ -6376,7 +6527,7 @@
                       "name": "weekLine3P3",
                       "width": 1,
                       "height": 716,
-                      "fill": "#E2E8F0"
+                      "fill": "#E5E7EB"
                     },
                     {
                       "type": "frame",
@@ -6386,7 +6537,7 @@
                       "name": "weekLine4P3",
                       "width": 1,
                       "height": 716,
-                      "fill": "#E2E8F0"
+                      "fill": "#E5E7EB"
                     },
                     {
                       "type": "frame",
@@ -6397,7 +6548,7 @@
                       "width": 438,
                       "height": 24,
                       "fill": "#3B82F6",
-                      "cornerRadius": 6
+                      "cornerRadius": 8
                     },
                     {
                       "type": "frame",
@@ -6408,7 +6559,7 @@
                       "width": 200,
                       "height": 24,
                       "fill": "#3B82F6",
-                      "cornerRadius": 6
+                      "cornerRadius": 8
                     },
                     {
                       "type": "frame",
@@ -6419,7 +6570,7 @@
                       "width": 160,
                       "height": 24,
                       "fill": "#3B82F6",
-                      "cornerRadius": 6
+                      "cornerRadius": 8
                     },
                     {
                       "type": "frame",
@@ -6430,7 +6581,7 @@
                       "width": 150,
                       "height": 24,
                       "fill": "#3B82F6",
-                      "cornerRadius": 6
+                      "cornerRadius": 8
                     }
                   ]
                 }

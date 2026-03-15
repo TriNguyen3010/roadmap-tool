@@ -129,13 +129,16 @@ const DEPTH_STYLES: { bg: string; font: string }[] = [
 ];
 
 const STATUS_BAR_COLOR: Record<string, string> = {
-    'Done': '#22c55e',
+    'Sếp Vinh': '#f43f5e',
     'Growth In Progress': '#16a34a',
     'Growth Handle': '#4ade80',
     'QC In Progress': '#8b5cf6',
     'QC Handle': '#a78bfa',
     'Dev In Progress': '#3b82f6',
     'Dev Handle': '#60a5fa',
+    'Dev Done': '#15803d',
+    'Done - Dev Env': '#0ea5e9',
+    'Done - Prod Env': '#16a34a',
     'PD In Progress': '#f59e0b',
     'PD Handle': '#fbbf24',
     'BA In Progress': '#64748b',
@@ -144,13 +147,16 @@ const STATUS_BAR_COLOR: Record<string, string> = {
 };
 
 const STATUS_TAG_BG: Record<string, string> = {
-    'Done': '#bbf7d0',
+    'Sếp Vinh': '#ffe4e6',
     'Growth In Progress': '#dcfce7',
     'Growth Handle': '#f0fdf4',
     'QC In Progress': '#ede9fe',
     'QC Handle': '#f5f3ff',
     'Dev In Progress': '#bfdbfe',
     'Dev Handle': '#dbeafe',
+    'Dev Done': '#dcfce7',
+    'Done - Dev Env': '#e0f2fe',
+    'Done - Prod Env': '#bbf7d0',
     'PD In Progress': '#fef3c7',
     'PD Handle': '#ffedd5',
     'BA In Progress': '#e2e8f0',
@@ -158,13 +164,16 @@ const STATUS_TAG_BG: Record<string, string> = {
     'Not Started': '#f3f4f6',
 };
 const STATUS_TAG_TEXT: Record<string, string> = {
-    'Done': '#166534',
+    'Sếp Vinh': '#9f1239',
     'Growth In Progress': '#166534',
     'Growth Handle': '#15803d',
     'QC In Progress': '#5b21b6',
     'QC Handle': '#6d28d9',
     'Dev In Progress': '#1e40af',
     'Dev Handle': '#1d4ed8',
+    'Dev Done': '#14532d',
+    'Done - Dev Env': '#0c4a6e',
+    'Done - Prod Env': '#166534',
     'PD In Progress': '#92400e',
     'PD Handle': '#9a3412',
     'BA In Progress': '#334155',

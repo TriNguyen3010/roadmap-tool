@@ -1,17 +1,20 @@
 export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'item';
 export type ItemStatus =
   | 'Not Started'
+  | 'Sếp Vinh'
   | 'BA Handle'
   | 'BA In Progress'
   | 'PD Handle'
   | 'PD In Progress'
-  | 'Dev Handle'
-  | 'Dev In Progress'
   | 'QC Handle'
   | 'QC In Progress'
   | 'Growth Handle'
   | 'Growth In Progress'
-  | 'Done';
+  | 'Dev Handle'
+  | 'Dev In Progress'
+  | 'Dev Done'
+  | 'Done - Dev Env'
+  | 'Done - Prod Env';
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
 export type TimelineMode = 'day' | 'week' | 'month';
@@ -27,17 +30,20 @@ export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE', 'QC'];
 export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low', 'Reported'];
 export const STATUS_OPTIONS: ItemStatus[] = [
   'Not Started',
+  'Sếp Vinh',
   'BA Handle',
   'BA In Progress',
   'PD Handle',
   'PD In Progress',
-  'Dev Handle',
-  'Dev In Progress',
   'QC Handle',
   'QC In Progress',
   'Growth Handle',
   'Growth In Progress',
-  'Done',
+  'Dev Handle',
+  'Dev In Progress',
+  'Dev Done',
+  'Done - Dev Env',
+  'Done - Prod Env',
 ];
 export const GROUP_ITEM_TYPE_OPTIONS: GroupItemType[] = ['Feature', 'Improvement', 'Bug', 'Growth Camp'];
 
@@ -117,6 +123,7 @@ export interface ItemImage {
 
 export function normalizeItemStatus(status: string | undefined | null): ItemStatus {
   if (status === 'In Progress') return 'Dev In Progress';
+  if (status === 'Done') return 'Done - Prod Env';
   if (typeof status === 'string' && ITEM_STATUS_SET.has(status as ItemStatus)) {
     return status as ItemStatus;
   }

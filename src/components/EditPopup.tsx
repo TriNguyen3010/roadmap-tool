@@ -119,7 +119,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
 
     const handleStatusChange = (s: ItemStatus) => {
         setStatus(s);
-        if (s === 'Done') setProgress(100);
+        if (s === 'Done - Prod Env') setProgress(100);
         if (s === 'Not Started') setProgress(0);
     };
 

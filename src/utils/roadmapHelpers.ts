@@ -59,18 +59,21 @@ const stripTransientFields = (item: RoadmapItem): RoadmapItem => {
     };
 };
 
+const DONE_STATUSES: ItemStatus[] = ['Done - Prod Env', 'Done - Dev Env', 'Dev Done'];
+
 const deriveStatusFromChildren = (children: RoadmapItem[]): ItemStatus => {
     const normalizedStatuses = children.map(c => normalizeItemStatus(c.status));
     const allNotStarted = normalizedStatuses.every(status => status === 'Not Started');
-    const allDone = normalizedStatuses.every(status => status === 'Done');
+    const allDone = normalizedStatuses.every(status => DONE_STATUSES.includes(status));
     const hasStatus = (target: ItemStatus): boolean => normalizedStatuses.some(status => status === target);
 
-    if (allDone) return 'Done';
+    if (allDone) return 'Done - Prod Env';
     if (allNotStarted) return 'Not Started';
     // Prefer concrete execution stage first.
     if (hasStatus('Growth In Progress')) return 'Growth In Progress';
     if (hasStatus('QC In Progress')) return 'QC In Progress';
     if (hasStatus('Dev In Progress')) return 'Dev In Progress';
+    if (hasStatus('Dev Done')) return 'Dev Done';
     if (hasStatus('PD In Progress')) return 'PD In Progress';
     if (hasStatus('BA In Progress')) return 'BA In Progress';
     // Then fallback to handle-stage precedence.
@@ -79,8 +82,8 @@ const deriveStatusFromChildren = (children: RoadmapItem[]): ItemStatus => {
     if (hasStatus('Dev Handle')) return 'Dev Handle';
     if (hasStatus('PD Handle')) return 'PD Handle';
     if (hasStatus('BA Handle')) return 'BA Handle';
-    // Mixed Done/Not Started without explicit stage means work has started.
-    if (hasStatus('Done')) return 'Dev In Progress';
+    // Mixed Done-family/Not Started without explicit stage means work has started.
+    if (DONE_STATUSES.some(ds => hasStatus(ds))) return 'Dev In Progress';
     return 'Not Started';
 };
 
@@ -109,7 +112,7 @@ const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
     if (hasChildren && updatedChildren && updatedChildren.length > 0) {
         const sumProgress = updatedChildren.reduce((sum, child) => sum + (child.progress || 0), 0);
         progress = Math.round(sumProgress / updatedChildren.length);
-    } else if (effectiveStatus === 'Done') {
+    } else if (effectiveStatus === 'Done - Prod Env') {
         progress = 100;
     } else if (effectiveStatus === 'Not Started') {
         progress = 0;
