@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
     Save, Download, FileJson, Loader2, Flag, Check,
-    Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Lock, Unlock
+    Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Lock, Unlock, ArrowLeft
 } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
 import { normalizeWeekColor, PhaseOption } from '@/types/roadmap';
@@ -61,6 +61,7 @@ interface ToolbarProps {
     onToggleQuickViewMode: (mode: QuickViewMode) => void;
     isReportedMode: boolean;
     onExitReportedMode: () => void;
+    onBackToHome?: () => void;
 }
 
 export default function Toolbar({
@@ -70,7 +71,7 @@ export default function Toolbar({
     canEdit, authLoading, onUnlockEditor, onLockEditor,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
-    isReportedMode
+    isReportedMode, onBackToHome
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -257,6 +258,16 @@ export default function Toolbar({
 
             <div className="flex items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-3 py-2">
                 <div className="flex min-w-0 items-center gap-3">
+                    {onBackToHome && (
+                        <button
+                            onClick={onBackToHome}
+                            title="Về trang danh sách Roadmap"
+                            className="flex h-8 shrink-0 items-center gap-1 rounded-[9px] border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900"
+                        >
+                            <ArrowLeft size={12} />
+                            <span>Home</span>
+                        </button>
+                    )}
                     <div className="flex shrink-0 flex-col items-center gap-0.5">
                         <img
                             src="/images/logo-c98.png"
