@@ -1669,7 +1669,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             color: phaseColorById.get(phaseId) || normalizeWeekColor('', chipIndex),
                         }));
                         const isCategoryOrSubcategory = row.type === 'category' || row.type === 'subcategory';
-                        const isStatusInlineEditable = canEdit && !isCategoryOrSubcategory && row.statusMode !== 'auto';
+                        const isStatusInlineEditable = canEdit && row.statusMode !== 'auto';
                         const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
                         const groupInlinePhaseTags = groupInlinePhaseIds.map((phaseId, tagIndex) => ({
                             id: phaseId,
@@ -1970,10 +1970,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {/* Status */}
                                 <div
                                     data-status-trigger="true"
-                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit && !isCategoryOrSubcategory ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
                                     onClick={e => {
                                         if (!canEdit) return;
-                                        if (isCategoryOrSubcategory) return;
                                         e.stopPropagation();
                                         if (!isStatusInlineEditable) {
                                             openEditor(row.id);
@@ -1984,14 +1983,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         setOpenPhaseId(null);
                                         setOpenStatusId(openStatusId === row.id ? null : row.id);
                                     }}
-                                    title={isCategoryOrSubcategory
-                                        ? 'Status ẩn ở level này'
-                                        : row.statusMode === 'auto'
-                                            ? 'Status đang auto từ task con. Click để mở Edit.'
-                                            : 'Click để đổi status'}
+                                    title={row.statusMode === 'auto'
+                                        ? 'Status đang auto từ task con. Click để mở Edit.'
+                                        : 'Click để đổi status'}
                                 >
-                                    {isCategoryOrSubcategory ? (
-                                        <span className="mx-auto text-[10px] text-gray-300"> </span>
+                                    {row.statusMode === 'auto' ? (
+                                        <span className="mx-auto text-[10px] text-gray-400 italic">auto</span>
                                     ) : (
                                         <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
                                             style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
@@ -2274,7 +2271,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         barWidth = (lastIdx - firstIdx + 1) * timelineUnitWidth;
                                         workdays = countWorkdays(sd, ed);
 
-                                        const sprintsNum = calendarDays / 14;
+                                        const sprintsNum = calendarDays / 7;
                                         sprintStr = Number.isInteger(sprintsNum) ? sprintsNum.toString() : sprintsNum.toFixed(1);
                                     }
                                 }

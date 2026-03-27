@@ -464,6 +464,7 @@ export default function RoadmapPage() {
     const cols: ExcelExportColumn[] = [
       { id: 'id', header: 'ID' },
       { id: 'name', header: 'Tên' },
+      { id: 'note', header: 'Note' },
     ];
     if (showWorkType) cols.push({ id: 'workType', header: 'WorkType' });
     if (showPriority) cols.push({ id: 'priority', header: 'Priority' });

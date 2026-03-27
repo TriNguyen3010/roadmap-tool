@@ -13,6 +13,7 @@ import { flattenRoadmap, FlattenedItem } from '@/utils/roadmapHelpers';
 export type ExcelExportColumnId =
     | 'id'
     | 'name'
+    | 'note'
     | 'type'
     | 'workType'
     | 'priority'
@@ -65,6 +66,7 @@ interface SummaryRow {
 const DEFAULT_COLUMN_WIDTH: Record<ExcelExportColumnId, number> = {
     id: 20,
     name: 45,
+    note: 52,
     type: 14,
     workType: 16,
     priority: 12,
@@ -78,6 +80,7 @@ const DEFAULT_COLUMN_WIDTH: Record<ExcelExportColumnId, number> = {
 const LEGACY_COLUMNS: ExcelExportColumn[] = [
     { id: 'id', header: 'ID' },
     { id: 'name', header: 'Tên' },
+    { id: 'note', header: 'Note' },
     { id: 'type', header: 'Loại' },
     { id: 'status', header: 'Trạng thái' },
     { id: 'progress', header: 'Tiến độ (%)' },
@@ -312,6 +315,8 @@ function getCellValue(
             return row.id;
         case 'name':
             return buildIndentedName(row);
+        case 'note':
+            return row.quickNote || '';
         case 'type':
             return row.type;
         case 'workType':
