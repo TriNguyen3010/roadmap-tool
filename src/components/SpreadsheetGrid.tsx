@@ -226,6 +226,13 @@ function hexToRgba(hex: string, alpha: number) {
     return `rgba(${r},${g},${b},${alpha})`;
 }
 
+function getRowBg(depthBg: string, rowPhaseIds: string[], phaseColorById: Map<string, string>): string {
+    if (rowPhaseIds.length === 0) return depthBg;
+    const firstColor = phaseColorById.get(rowPhaseIds[0]);
+    if (!firstColor) return depthBg;
+    return hexToRgba(firstColor, 0.18);
+}
+
 function countWorkdays(start: Date, end: Date): number {
     let count = 0;
     const d = new Date(start);
@@ -1694,7 +1701,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         return (
                             <div key={row.id}
                                 className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOver ? 'border-t-4 border-t-blue-500' : ''}`}
-                                style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: style.bg }}
+                                style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: getRowBg(style.bg, rowPhaseIds, phaseColorById) }}
                                 draggable={canDragRow}
                                 onDragStart={canDragRow ? (e) => handleDragStart(e, row.id) : undefined}
                                 onDragOver={canDragRow ? (e) => handleDragOver(e, row.id) : undefined}
