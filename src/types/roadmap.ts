@@ -108,8 +108,6 @@ export function normalizeWeekColor(color: string | undefined | null, index: numb
 export function normalizeWeekLabel(label: string | undefined | null, index: number): string {
   const trimmed = (label || '').trim();
   if (!trimmed) return `Week ${index + 1}`;
-  const match = trimmed.match(/^phase\s+(\d+)$/i);
-  if (match) return `Week ${match[1]}`;
   return trimmed;
 }
 
