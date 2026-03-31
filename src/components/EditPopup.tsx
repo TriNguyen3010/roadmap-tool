@@ -367,7 +367,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
             children: updatedChildren
         };
 
-        if (item.type === 'item' || item.type === 'group') {
+        if (item.type === 'item' || item.type === 'group' || item.type === 'subcategory') {
             if (priority) updatedItem.priority = priority;
             else delete updatedItem.priority;
         }
@@ -684,7 +684,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                     </div>
                 )}
 
-                {(item.type === 'item' || item.type === 'group') && (
+                {(item.type === 'item' || item.type === 'group' || item.type === 'subcategory') && (
                     <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
                             <label className="text-xs font-semibold text-gray-600">Priority</label>

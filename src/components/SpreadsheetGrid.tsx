@@ -1900,9 +1900,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     </div>
                                 )}
 
-                                {/* Priority — only for group/item, hidden when showPriority=false */}
+                                {/* Priority — only for group/item/subcategory, hidden when showPriority=false */}
                                 {showPriority && (
-                                    (row.type === 'group' || row.type === 'item') ? (
+                                    (row.type === 'group' || row.type === 'item' || row.type === 'subcategory') ? (
                                         <div
                                             data-priority-trigger="true"
                                             className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors relative"
@@ -1988,7 +1988,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         : 'Click để đổi status'}
                                 >
                                     {row.statusMode === 'auto' ? (
-                                        <span className="mx-auto text-[10px] text-gray-400 italic">auto</span>
+                                        <span className="mx-auto text-[10px] text-gray-400 italic"></span>
                                     ) : (
                                         <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
                                             style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
