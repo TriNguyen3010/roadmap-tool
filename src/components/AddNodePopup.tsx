@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { RoadmapItem, ItemType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
+import { createItemWithTimestamps } from '@/utils/roadmapHelpers';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
 
@@ -33,17 +34,6 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
         setSelectedTeams(next);
     };
 
-    const createItem = (partial: Omit<RoadmapItem, 'status' | 'progress' | 'statusMode' | 'manualStatus'>): RoadmapItem => {
-        const hasChildren = !!(partial.children && partial.children.length > 0);
-        return {
-            ...partial,
-            progress: 0,
-            status: 'None',
-            statusMode: hasChildren ? 'auto' : 'manual',
-            manualStatus: hasChildren ? undefined : 'None',
-        };
-    };
-
     const handleAdd = () => {
         if (!name.trim()) return;
 
@@ -52,14 +42,14 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
         if (childType === 'category') {
             children = DEFAULT_SUBCATEGORIES
                 .filter(sub => selectedSubcategories.has(sub))
-                .map(sub => createItem({
+                .map(sub => createItemWithTimestamps({
                     id: uuidv4().slice(0, 8),
                     name: sub,
                     type: 'subcategory' as const,
                     children: []
                 }));
         } else if (childType === 'item' && selectedTeams.size > 0) {
-            children = Array.from(selectedTeams).map(role => createItem({
+            children = Array.from(selectedTeams).map(role => createItemWithTimestamps({
                 id: uuidv4().slice(0, 8),
                 name: role,
                 type: 'team' as const,
@@ -69,7 +59,7 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
             children = [];
         }
 
-        const newItem: RoadmapItem = createItem({
+        const newItem: RoadmapItem = createItemWithTimestamps({
             id: uuidv4().slice(0, 8),
             name: name.trim(),
             type: childType,

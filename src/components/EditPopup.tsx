@@ -23,6 +23,7 @@ import {
     normalizeItemStatus,
     toLegacyImageFields,
 } from '@/types/roadmap';
+import { createItemWithTimestamps } from '@/utils/roadmapHelpers';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
 
@@ -329,7 +330,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                 if (currentTeamsMap.has(role)) {
                     newChildren.push(currentTeamsMap.get(role)!);
                 } else {
-                    newChildren.push({
+                    newChildren.push(createItemWithTimestamps({
                         id: uuidv4().slice(0, 8),
                         name: role,
                         type: 'team',
@@ -340,7 +341,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                         progress: 0,
                         startDate: startDate || undefined,
                         endDate: endDate || undefined
-                    });
+                    }));
                 }
             });
             updatedChildren = newChildren;

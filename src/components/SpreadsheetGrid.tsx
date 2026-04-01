@@ -23,7 +23,7 @@ import {
 } from '@/types/roadmap';
 import {
     FlattenedItem, findNodeById, filterRoadmapTree, flattenRoadmap, getExpandedFlattenedRows,
-    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
+    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp
 } from '@/utils/roadmapHelpers';
 import { resolveReportedImageReviewMainState } from '@/utils/reportedImageReviewStates';
 import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval, addDays, subDays } from 'date-fns';
@@ -1044,7 +1044,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     // ── CRUD handlers ──
     const handleEditSave = (updated: RoadmapItem) => {
         if (!canEdit) return;
-        onDataChange({ ...data, items: updateNodeById(data.items, updated.id, updated) });
+        onDataChange({ ...data, items: updateNodeById(data.items, updated.id, touchItemTimestamp(updated)) });
         if (updated.children && updated.children.length > 0) {
             setExpandedIds(prev => new Set([...prev, updated.id]));
         }
@@ -1105,8 +1105,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (!canEdit) return;
         e.preventDefault();
         if (draggedId && isValidSameLayerDrop(draggedId, targetId)) {
-            const newItems = reorderItems(data.items, draggedId, targetId);
-            if (newItems !== data.items) {
+            const reorderedItems = reorderItems(data.items, draggedId, targetId);
+            if (reorderedItems !== data.items) {
+                const movedItem = findNodeById(reorderedItems, draggedId);
+                const newItems = movedItem
+                    ? updateNodeById(reorderedItems, draggedId, touchItemTimestamp(movedItem))
+                    : reorderedItems;
                 onDataChange({ ...data, items: newItems }, true); // Pass true to trigger auto-save if supported
             }
         }
@@ -1226,13 +1230,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (!canEdit || !activeNoteItem || quickNoteSaving || !isQuickNoteDirty) return;
         setQuickNoteSaving(true);
         try {
-            const source = findNodeById(data.items, activeNoteItem.id);
-            if (!source) return;
-            const updatedSource = { ...source };
             const normalizedNote = quickNoteDraft.trim();
-            if (normalizedNote.length > 0) updatedSource.quickNote = normalizedNote;
-            else delete updatedSource.quickNote;
-            onDataChange({ ...data, items: updateNodeById(data.items, activeNoteItem.id, updatedSource) }, true);
+            updateFromSource(activeNoteItem.id, source => {
+                const next = { ...source };
+                if (normalizedNote.length > 0) next.quickNote = normalizedNote;
+                else delete next.quickNote;
+                return next;
+            }, true);
             setQuickNoteDraft(normalizedNote);
             setIsQuickNoteEditing(false);
         } finally {
@@ -1261,7 +1265,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (!canEdit) return;
         const source = findNodeById(data.items, id);
         if (!source) return;
-        onDataChange({ ...data, items: updateNodeById(data.items, id, mapper(source)) }, shouldSave);
+        onDataChange({ ...data, items: updateNodeById(data.items, id, touchItemTimestamp(mapper(source))) }, shouldSave);
     };
 
     const updateActivePreviewItemWithSaveFeedback = (mapper: (source: RoadmapItem) => RoadmapItem) => {

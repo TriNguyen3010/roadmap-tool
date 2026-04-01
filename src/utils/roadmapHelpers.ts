@@ -74,6 +74,37 @@ export const normalizeRoadmapItemTimestamps = (
     return items.map(item => normalizeItemTimestamps(item, fallbackIso));
 };
 
+export const touchItemTimestamp = (item: RoadmapItem, timestamp = new Date().toISOString()): RoadmapItem => {
+    const createdAt = normalizeTimestampValue(item.created_at) || timestamp;
+    return {
+        ...item,
+        created_at: createdAt,
+        updated_at: timestamp,
+    };
+};
+
+export const createItemWithTimestamps = (partial: Partial<RoadmapItem>): RoadmapItem => {
+    const timestamp = new Date().toISOString();
+    const hasChildren = !!(partial.children && partial.children.length > 0);
+    const status = normalizeItemStatus(partial.status ?? partial.manualStatus ?? 'None');
+    const statusMode: StatusMode = partial.statusMode ?? (hasChildren ? 'auto' : 'manual');
+
+    return {
+        id: partial.id || crypto.randomUUID(),
+        name: partial.name ?? '',
+        type: partial.type ?? 'item',
+        ...partial,
+        status,
+        progress: partial.progress ?? 0,
+        statusMode,
+        manualStatus: statusMode === 'manual'
+            ? normalizeItemStatus(partial.manualStatus ?? status)
+            : undefined,
+        created_at: timestamp,
+        updated_at: timestamp,
+    };
+};
+
 const stripTransientFields = (item: RoadmapItem): RoadmapItem => {
     const { depth, parentIds, ...rest } = item as RoadmapItemWithTransientFields;
     void depth;
