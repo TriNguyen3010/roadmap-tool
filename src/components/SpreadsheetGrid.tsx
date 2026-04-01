@@ -30,6 +30,7 @@ import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfIn
 import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
 import EditPopup from './EditPopup';
 import AddNodePopup from './AddNodePopup';
+import DateMiniPopup from './DateMiniPopup';
 
 interface GridProps {
     data: RoadmapDocument;
@@ -343,6 +344,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [openStatusId, setOpenStatusId] = useState<string | null>(null);
     const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
+    const [dateMiniPopup, setDateMiniPopup] = useState<{
+        itemId: string;
+        field: 'startDate' | 'endDate';
+        value: string | undefined;
+        siblingValue: string | undefined;
+        anchorRect: DOMRect;
+    } | null>(null);
 
     // ── CRUD states ──
     const [editingItem, setEditingItem] = useState<RoadmapItem | null>(null);
@@ -373,6 +381,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const handleScrollLeft = (e: React.UIEvent<HTMLDivElement>) => {
         if (rightPaneRef.current) rightPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
+        if (dateMiniPopup) setDateMiniPopup(null);
         if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
         if (openStatusId) setOpenStatusId(null);
@@ -381,6 +390,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
         if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop;
         if (activeNotePreview) void closeQuickNotePreview();
+        if (dateMiniPopup) setDateMiniPopup(null);
         if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
         if (openStatusId) setOpenStatusId(null);
@@ -886,6 +896,22 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         };
     }, [openStatusId]);
 
+    useEffect(() => {
+        if (!dateMiniPopup) return;
+        const handleViewportChange = () => setDateMiniPopup(null);
+        window.addEventListener('resize', handleViewportChange);
+        return () => {
+            window.removeEventListener('resize', handleViewportChange);
+        };
+    }, [dateMiniPopup]);
+
+    useEffect(() => {
+        if (!dateMiniPopup) return;
+        if (!canEdit || !findNodeById(data.items, dateMiniPopup.itemId)) {
+            setDateMiniPopup(null);
+        }
+    }, [canEdit, data.items, dateMiniPopup]);
+
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
         if (nameWMode !== 'auto') return;
@@ -1267,6 +1293,37 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (!source) return;
         onDataChange({ ...data, items: updateNodeById(data.items, id, touchItemTimestamp(mapper(source))) }, shouldSave);
     };
+
+    const isDateInlineEditable = useCallback((row: FlattenedItem): boolean => {
+        if (!canEdit) return false;
+        const hasNonTeamChildren = !!(row.children && row.children.some(child => child.type !== 'team'));
+        const isCategoryManual = row.type === 'category' && row.statusMode === 'manual';
+        return !hasNonTeamChildren || isCategoryManual;
+    }, [canEdit]);
+
+    const openDateMiniPopup = useCallback((
+        event: React.MouseEvent<HTMLDivElement>,
+        row: FlattenedItem,
+        field: 'startDate' | 'endDate'
+    ) => {
+        if (!isDateInlineEditable(row)) return;
+        event.stopPropagation();
+        if (dateMiniPopup?.itemId === row.id && dateMiniPopup.field === field) {
+            setDateMiniPopup(null);
+            return;
+        }
+        setOpenWorkTypeId(null);
+        setOpenPriorityId(null);
+        setOpenStatusId(null);
+        setOpenPhaseId(null);
+        setDateMiniPopup({
+            itemId: row.id,
+            field,
+            value: field === 'startDate' ? row.startDate : row.endDate,
+            siblingValue: field === 'startDate' ? row.endDate : row.startDate,
+            anchorRect: event.currentTarget.getBoundingClientRect(),
+        });
+    }, [dateMiniPopup, isDateInlineEditable]);
 
     const updateActivePreviewItemWithSaveFeedback = (mapper: (source: RoadmapItem) => RoadmapItem) => {
         if (!activeImagePreviewItem) return;
@@ -1754,6 +1811,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         }));
                         const isCategoryOrSubcategory = row.type === 'category' || row.type === 'subcategory';
                         const isStatusInlineEditable = canEdit && row.statusMode !== 'auto';
+                        const isDateCellEditable = isDateInlineEditable(row);
                         const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
                         const groupInlinePhaseTags = groupInlinePhaseIds.map((phaseId, tagIndex) => ({
                             id: phaseId,
@@ -2196,14 +2254,24 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                                 {/* Start Date */}
                                 {showStartDate && (
-                                    <div className="flex items-center justify-center border-r border-gray-300 px-1 text-[10px] text-gray-500 font-mono">
+                                    <div
+                                        data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
+                                        className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
+                                        title={isDateCellEditable ? 'Click để sửa Start Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
+                                        onClick={(event) => openDateMiniPopup(event, row, 'startDate')}
+                                    >
                                         {row.startDate ? format(parseISO(row.startDate), 'dd/MM/yy') : '-'}
                                     </div>
                                 )}
 
                                 {/* End Date */}
                                 {showEndDate && (
-                                    <div className="flex items-center justify-center border-r border-gray-300 px-1 text-[10px] text-gray-500 font-mono">
+                                    <div
+                                        data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
+                                        className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
+                                        title={isDateCellEditable ? 'Click để sửa End Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
+                                        onClick={(event) => openDateMiniPopup(event, row, 'endDate')}
+                                    >
                                         {row.endDate ? format(parseISO(row.endDate), 'dd/MM/yy') : '-'}
                                     </div>
                                 )}
@@ -3034,6 +3102,26 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         </div>
                     </div>
                 </div>
+            )}
+            {dateMiniPopup && (
+                <DateMiniPopup
+                    key={`${dateMiniPopup.itemId}-${dateMiniPopup.field}-${dateMiniPopup.value || ''}`}
+                    label={dateMiniPopup.field === 'startDate' ? 'Start Date' : 'End Date'}
+                    value={dateMiniPopup.value}
+                    anchorRect={dateMiniPopup.anchorRect}
+                    comparisonValue={dateMiniPopup.siblingValue}
+                    comparisonMode={dateMiniPopup.field === 'startDate' ? 'greater_than' : 'less_than'}
+                    onSave={(newDate) => {
+                        updateFromSource(dateMiniPopup.itemId, source => {
+                            const next = { ...source };
+                            if (newDate) next[dateMiniPopup.field] = newDate;
+                            else delete next[dateMiniPopup.field];
+                            return next;
+                        }, true);
+                        setDateMiniPopup(null);
+                    }}
+                    onClose={() => setDateMiniPopup(null)}
+                />
             )}
 
         </div>
