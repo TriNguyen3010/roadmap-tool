@@ -24,6 +24,7 @@ import {
     toLegacyImageFields,
 } from '@/types/roadmap';
 import { createItemWithTimestamps } from '@/utils/roadmapHelpers';
+import { formatFullDateTime, formatRelativeTime, wasUpdated } from '@/utils/timeFormat';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
 
@@ -90,6 +91,11 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const selectedImage = selectedImageIndex >= 0 ? images[selectedImageIndex] : null;
+    const createdAtLabel = useMemo(() => formatRelativeTime(item.created_at), [item.created_at]);
+    const createdAtTitle = useMemo(() => formatFullDateTime(item.created_at), [item.created_at]);
+    const updatedAtLabel = useMemo(() => formatRelativeTime(item.updated_at), [item.updated_at]);
+    const updatedAtTitle = useMemo(() => formatFullDateTime(item.updated_at), [item.updated_at]);
+    const showUpdatedAt = useMemo(() => wasUpdated(item.created_at, item.updated_at), [item.created_at, item.updated_at]);
 
     // Dates are locked when item has children that are NOT all teams
     const hasNonTeamChildren = !!(item.children && item.children.some(c => c.type !== 'team'));
@@ -486,6 +492,21 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                 ) : undefined}
                 footer={(
                     <div className="flex flex-col gap-3">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Lịch sử</p>
+                            <div className="mt-2 flex flex-col gap-1.5 text-[11px] text-slate-600">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="font-semibold text-slate-500">Tạo</span>
+                                    <span className="text-right text-slate-700" title={createdAtTitle}>{createdAtLabel}</span>
+                                </div>
+                                {showUpdatedAt && (
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="font-semibold text-slate-500">Sửa lần cuối</span>
+                                        <span className="text-right text-slate-700" title={updatedAtTitle}>{updatedAtLabel}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         <div className="rounded-lg border border-gray-200 bg-white p-2">
                             <input
                                 ref={fileInputRef}
