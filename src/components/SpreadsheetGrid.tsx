@@ -40,6 +40,8 @@ interface GridProps {
     viewEnd: string;
     timelineMode: TimelineMode;
     timelineOnly: boolean;
+    timelineTaskW: number;
+    setTimelineTaskW: (v: number | ((prev: number) => number)) => void;
     today: Date;
     filterCategory: string[];
     filterStatus: string[];
@@ -88,7 +90,8 @@ const COL_PHASE_DEFAULT = 120;
 const COL_PHASE_MAX = 320;
 const COL_DATE_DEFAULT = 85;
 const GAP_H = 8;       // height of hidden-row gap indicator
-const TIMELINE_ONLY_LABEL_W = 220;
+const MIN_TIMELINE_TASK_W = 140;
+const MAX_TIMELINE_TASK_W = 420;
 
 // Gap render entry type
 type RenderEntry =
@@ -317,7 +320,7 @@ function getRowDisplayDepth(row: Pick<FlattenedItem, 'depth' | 'type'>): number 
 }
 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
-    timelineMode, timelineOnly,
+    timelineMode, timelineOnly, timelineTaskW, setTimelineTaskW,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
     isSaving, saveState, saveTick, canEdit,
     showWorkType, setShowWorkType,
@@ -974,7 +977,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             labelBottom: format(start, 'yy'),
         }));
     }, [timelineDays, timelineMode]);
-    const timelineLeftOffset = timelineOnly ? TIMELINE_ONLY_LABEL_W : 0;
+    const timelineLeftOffset = timelineOnly ? timelineTaskW : 0;
     const timelineCanvasWidth = timelineLeftOffset + timelineUnits.length * timelineUnitWidth;
 
     const todayIndex = useMemo(() => {
@@ -1291,7 +1294,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const startResize = useCallback((
         e: React.MouseEvent,
         setter: React.Dispatch<React.SetStateAction<number>>,
-        minW: number
+        minW: number,
+        maxW?: number
     ) => {
         e.preventDefault();
         const startX = e.clientX;
@@ -1299,7 +1303,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setter(w => { startW = w; return w; }); // capture current
 
         const onMove = (ev: MouseEvent) => {
-            const next = Math.max(minW, startW + (ev.clientX - startX));
+            const next = Math.max(minW, Math.min(maxW ?? Number.POSITIVE_INFINITY, startW + (ev.clientX - startX)));
             setter(next);
         };
         const onUp = () => {
@@ -2256,10 +2260,18 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         <div className="relative flex border-b border-gray-400 bg-gray-200 shrink-0" style={{ height: ROW_HEIGHT }}>
                             {timelineOnly && (
                                 <div
-                                    className="sticky left-0 z-30 flex shrink-0 items-center border-r border-gray-400 bg-gray-200 px-2 text-[10px] font-bold uppercase tracking-wide text-slate-500"
+                                    className="sticky left-0 z-30 flex shrink-0 items-center border-r border-gray-400 bg-gray-200 px-2 text-[10px] font-bold uppercase tracking-wide text-slate-500 relative"
                                     style={{ width: timelineLeftOffset }}
                                 >
                                     Task
+                                    <div
+                                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400/30 z-10"
+                                        onMouseDown={e => {
+                                            e.stopPropagation();
+                                            startResize(e, setTimelineTaskW, MIN_TIMELINE_TASK_W, MAX_TIMELINE_TASK_W);
+                                        }}
+                                        title="Kéo để thay đổi độ rộng cột Task"
+                                    />
                                 </div>
                             )}
                             {headerGroups.map((wk, i) => (
@@ -2415,7 +2427,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 }
                             }
                             const hasChildSegments = childSegments.length > 0;
-                            const rowHasTimelineData = hasChildSegments || barLeft >= 0;
                             const segMinLeft = hasChildSegments ? Math.min(...childSegments.map(s => s.left)) : 0;
                             const segMaxRight = hasChildSegments ? Math.max(...childSegments.map(s => s.left + s.width)) : 0;
                             const segTotalWidth = segMaxRight - segMinLeft;
@@ -2450,7 +2461,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             } : undefined}
                                             title={hasChildren
                                                 ? (isExpanded ? 'Thu gọn children' : 'Mở rộng children')
-                                                : canEdit ? `Mở editor: ${row.name}` : rowHasTimelineData ? row.name : `${row.name} • No date`
+                                                : canEdit ? `Mở editor: ${row.name}` : row.name
                                             }
                                         >
                                             <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: `${displayDepth * 12 + 2}px` }}>
@@ -2460,11 +2471,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                         : <ChevronRight size={12} className="shrink-0 text-slate-500" />)
                                                     : <span className="w-[12px] shrink-0" />}
                                                 <span className="min-w-0 truncate text-[11px] font-semibold text-slate-700">{row.name}</span>
-                                                {!rowHasTimelineData && (
-                                                    <span className="shrink-0 rounded-full bg-white/75 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500">
-                                                        No date
-                                                    </span>
-                                                )}
                                             </div>
                                         </div>
                                     )}

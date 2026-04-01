@@ -398,6 +398,7 @@ export interface RoadmapDocument {
     colFeaturesWidthMode?: ColumnWidthMode;
     timelineMode?: TimelineMode;
     timelineOnly?: boolean;
+    timelineTaskWidth?: number;
     reportedMode?: boolean;
     expandedIds?: string[];
     hiddenRowIds?: string[];

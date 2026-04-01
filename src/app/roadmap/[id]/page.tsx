@@ -48,10 +48,17 @@ const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
 const MAX_FEATURES_COL_WIDTH = 450;
 const DEFAULT_TIMELINE_MODE: TimelineMode = 'day';
+const DEFAULT_TIMELINE_TASK_WIDTH = 220;
+const MIN_TIMELINE_TASK_WIDTH = 140;
+const MAX_TIMELINE_TASK_WIDTH = 420;
 const VERSION_POLL_INTERVAL_MS = 20_000;
 
 function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
+}
+
+function clampTimelineTaskWidth(width: number): number {
+  return Math.max(MIN_TIMELINE_TASK_WIDTH, Math.min(MAX_TIMELINE_TASK_WIDTH, width));
 }
 
 function normalizeDateValue(value: string | undefined): string {
@@ -181,6 +188,7 @@ export default function RoadmapPage() {
   const [featuresColWidthMode, setFeaturesColWidthMode] = useState<ColumnWidthMode>('auto');
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(DEFAULT_TIMELINE_MODE);
   const [timelineOnly, setTimelineOnly] = useState(false);
+  const [timelineTaskWidth, setTimelineTaskWidth] = useState(DEFAULT_TIMELINE_TASK_WIDTH);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(new Set());
@@ -266,6 +274,11 @@ export default function RoadmapPage() {
         setPendingRemoteVersion(null);
         setDismissedVersion(null);
         setTimelineOnly(!!json.settings?.timelineOnly);
+        setTimelineTaskWidth(clampTimelineTaskWidth(
+          typeof json.settings?.timelineTaskWidth === 'number'
+            ? json.settings.timelineTaskWidth
+            : DEFAULT_TIMELINE_TASK_WIDTH
+        ));
 
         if (json.settings) {
           if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
@@ -297,6 +310,9 @@ export default function RoadmapPage() {
           }
           if (json.settings.timelineMode === 'day' || json.settings.timelineMode === 'week' || json.settings.timelineMode === 'month') {
             setTimelineMode(json.settings.timelineMode);
+          }
+          if (typeof json.settings.timelineTaskWidth === 'number') {
+            setTimelineTaskWidth(clampTimelineTaskWidth(json.settings.timelineTaskWidth));
           }
           if (json.settings.expandedIds) {
             setExpandedIds(new Set(json.settings.expandedIds));
@@ -431,6 +447,7 @@ export default function RoadmapPage() {
       colFeaturesWidthMode: featuresColWidthMode,
       timelineMode,
       timelineOnly,
+      timelineTaskWidth: clampTimelineTaskWidth(timelineTaskWidth),
       expandedIds: Array.from(expandedIds),
       hiddenRowIds: Array.from(hiddenRowIds),
     }
@@ -439,6 +456,7 @@ export default function RoadmapPage() {
     filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     isReportedMode, showWorkType, showPriority, showPhase, showStartDate,
     showEndDate, featuresColWidth, featuresColWidthMode, timelineMode, timelineOnly,
+    timelineTaskWidth,
     expandedIds, hiddenRowIds,
   ]);
 
@@ -714,6 +732,11 @@ export default function RoadmapPage() {
     const normalized = normalizeDocument(parsed as RoadmapDocument);
     setData(normalized);
     setTimelineOnly(!!parsed.settings?.timelineOnly);
+    setTimelineTaskWidth(clampTimelineTaskWidth(
+      typeof parsed.settings?.timelineTaskWidth === 'number'
+        ? parsed.settings.timelineTaskWidth
+        : DEFAULT_TIMELINE_TASK_WIDTH
+    ));
     if (parsed.settings) {
       const settings = parsed.settings as Record<string, unknown>;
       const toStringArray = (value: unknown): string[] => (
@@ -744,6 +767,9 @@ export default function RoadmapPage() {
       }
       if (settings.timelineMode === 'day' || settings.timelineMode === 'week' || settings.timelineMode === 'month') {
         setTimelineMode(settings.timelineMode as TimelineMode);
+      }
+      if (typeof settings.timelineTaskWidth === 'number') {
+        setTimelineTaskWidth(clampTimelineTaskWidth(settings.timelineTaskWidth));
       }
       if (Array.isArray(settings.expandedIds)) {
         setExpandedIds(new Set(toStringArray(settings.expandedIds)));
@@ -966,6 +992,8 @@ export default function RoadmapPage() {
           viewEnd={viewEnd}
           timelineMode={timelineMode}
           timelineOnly={timelineOnly}
+          timelineTaskW={timelineTaskWidth}
+          setTimelineTaskW={setTimelineTaskWidth}
           filterCategory={filterCategory}
           filterStatus={filterStatus}
           filterTeam={filterTeam}
