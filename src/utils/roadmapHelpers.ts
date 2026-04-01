@@ -48,6 +48,32 @@ export const flattenRoadmap = (items: RoadmapItem[], parentIds: string[] = [], d
     return result;
 };
 
+const normalizeTimestampValue = (value: string | undefined): string | undefined => {
+    const normalized = value?.trim();
+    return normalized ? normalized : undefined;
+};
+
+export const normalizeItemTimestamps = (item: RoadmapItem, fallbackIso = new Date().toISOString()): RoadmapItem => {
+    const createdAt = normalizeTimestampValue(item.created_at);
+    const updatedAt = normalizeTimestampValue(item.updated_at);
+    const normalizedCreatedAt = createdAt || updatedAt || fallbackIso;
+    const normalizedUpdatedAt = updatedAt || createdAt || normalizedCreatedAt;
+
+    return {
+        ...item,
+        created_at: normalizedCreatedAt,
+        updated_at: normalizedUpdatedAt,
+        children: item.children?.map(child => normalizeItemTimestamps(child, fallbackIso)),
+    };
+};
+
+export const normalizeRoadmapItemTimestamps = (
+    items: RoadmapItem[],
+    fallbackIso = new Date().toISOString()
+): RoadmapItem[] => {
+    return items.map(item => normalizeItemTimestamps(item, fallbackIso));
+};
+
 const stripTransientFields = (item: RoadmapItem): RoadmapItem => {
     const { depth, parentIds, ...rest } = item as RoadmapItemWithTransientFields;
     void depth;

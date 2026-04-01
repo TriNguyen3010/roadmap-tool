@@ -32,7 +32,13 @@ import {
   toLegacyImageFields
 } from '@/types/roadmap';
 import { buildRoadmapExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
-import { filterRoadmapTree, flattenRoadmap, getVisibleFlattenedRows, recalculateRoadmap } from '@/utils/roadmapHelpers';
+import {
+  filterRoadmapTree,
+  flattenRoadmap,
+  getVisibleFlattenedRows,
+  normalizeRoadmapItemTimestamps,
+  recalculateRoadmap
+} from '@/utils/roadmapHelpers';
 import {
   ensureReportedPriority,
   removeReportedPriority,
@@ -213,7 +219,7 @@ export default function RoadmapPage() {
         filterGroupItemType: normalizeGroupItemTypeFilter(doc.settings.filterGroupItemType),
       }
       : doc.settings,
-    items: recalculateRoadmap(normalizeItemTree(doc.items || [])),
+    items: recalculateRoadmap(normalizeItemTree(normalizeRoadmapItemTimestamps(doc.items || []))),
   }), []);
 
   const fetchRoadmapVersion = useCallback(async (): Promise<string | null> => {

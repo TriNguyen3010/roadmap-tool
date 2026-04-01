@@ -362,6 +362,8 @@ export interface RoadmapItem {
   imageName?: string;
   imageProvider?: 'cloudinary';
   imageUpdatedAt?: string;
+  created_at?: string;
+  updated_at?: string;
   children?: RoadmapItem[];
 }
 
