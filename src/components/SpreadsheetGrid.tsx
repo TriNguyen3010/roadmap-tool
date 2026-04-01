@@ -26,7 +26,7 @@ import {
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems
 } from '@/utils/roadmapHelpers';
 import { resolveReportedImageReviewMainState } from '@/utils/reportedImageReviewStates';
-import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval } from 'date-fns';
+import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval, addDays, subDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
 import EditPopup from './EditPopup';
 import AddNodePopup from './AddNodePopup';
@@ -129,57 +129,112 @@ const DEPTH_STYLES: { bg: string; font: string }[] = [
 ];
 
 const STATUS_BAR_COLOR: Record<string, string> = {
-    'Sếp Vinh': '#f43f5e',
-    'Growth In Progress': '#16a34a',
-    'Growth Handle': '#4ade80',
-    'QC In Progress': '#8b5cf6',
-    'QC Handle': '#a78bfa',
-    'Dev In Progress': '#3b82f6',
-    'Dev Handle': '#60a5fa',
-    'Dev Done': '#15803d',
-    'Done - Dev Env': '#0ea5e9',
-    'Done - Prod Env': '#16a34a',
-    'PD In Progress': '#f59e0b',
-    'PD Handle': '#fbbf24',
-    'BA In Progress': '#64748b',
-    'BA Handle': '#94a3b8',
-    'Not Started': '#9ca3af',
+  'Not Started':       '#9ca3af',
+  'Sếp Vinh':          '#f43f5e',
+  // BA
+  'BA Handle':         '#94a3b8',
+  'BA Start':          '#64748b',
+  'BA Done':           '#475569',
+  // PD
+  'PD Handle':         '#fbbf24',
+  'PD Start UI/UX':    '#f59e0b',
+  'PD Start Visual':   '#d97706',
+  'PD Done UI/UX':     '#b45309',
+  'PD Done Visual':    '#92400e',
+  // DevOps
+  'DevOps Handle':     '#a78bfa',
+  'DevOps Start':      '#8b5cf6',
+  'DevOps Done':       '#7c3aed',
+  // FE
+  'FE Handle':         '#60a5fa',
+  'FE Start':          '#3b82f6',
+  'FE Done':           '#2563eb',
+  // BE
+  'BE Handle':         '#34d399',
+  'BE Start':          '#10b981',
+  'BE Done':           '#059669',
+  // QC
+  'QC Handle':         '#f472b6',
+  'QC Start':          '#ec4899',
+  'QC Done - Staging': '#db2777',
+  'QC Done - Pro':     '#be185d',
+  // Growth
+  'Growth Handle':     '#4ade80',
+  'Growth Start':      '#22c55e',
+  'Growth Done':       '#16a34a',
 };
 
 const STATUS_TAG_BG: Record<string, string> = {
-    'Sếp Vinh': '#ffe4e6',
-    'Growth In Progress': '#dcfce7',
-    'Growth Handle': '#f0fdf4',
-    'QC In Progress': '#ede9fe',
-    'QC Handle': '#f5f3ff',
-    'Dev In Progress': '#bfdbfe',
-    'Dev Handle': '#dbeafe',
-    'Dev Done': '#dcfce7',
-    'Done - Dev Env': '#e0f2fe',
-    'Done - Prod Env': '#bbf7d0',
-    'PD In Progress': '#fef3c7',
-    'PD Handle': '#ffedd5',
-    'BA In Progress': '#e2e8f0',
-    'BA Handle': '#f1f5f9',
-    'Not Started': '#f3f4f6',
+  'Not Started':       '#f3f4f6',
+  'Sếp Vinh':          '#ffe4e6',
+  // BA
+  'BA Handle':         '#f1f5f9',
+  'BA Start':          '#e2e8f0',
+  'BA Done':           '#cbd5e1',
+  // PD
+  'PD Handle':         '#ffedd5',
+  'PD Start UI/UX':    '#fef3c7',
+  'PD Start Visual':   '#fde68a',
+  'PD Done UI/UX':     '#fef08a',
+  'PD Done Visual':    '#fef9c3',
+  // DevOps
+  'DevOps Handle':     '#ede9fe',
+  'DevOps Start':      '#ddd6fe',
+  'DevOps Done':       '#c4b5fd',
+  // FE
+  'FE Handle':         '#dbeafe',
+  'FE Start':          '#bfdbfe',
+  'FE Done':           '#93c5fd',
+  // BE
+  'BE Handle':         '#d1fae5',
+  'BE Start':          '#a7f3d0',
+  'BE Done':           '#6ee7b7',
+  // QC
+  'QC Handle':         '#fce7f3',
+  'QC Start':          '#fbcfe8',
+  'QC Done - Staging': '#f9a8d4',
+  'QC Done - Pro':     '#f472b6',
+  // Growth
+  'Growth Handle':     '#dcfce7',
+  'Growth Start':      '#bbf7d0',
+  'Growth Done':       '#86efac',
 };
 const STATUS_TAG_TEXT: Record<string, string> = {
-    'Sếp Vinh': '#9f1239',
-    'Growth In Progress': '#166534',
-    'Growth Handle': '#15803d',
-    'QC In Progress': '#5b21b6',
-    'QC Handle': '#6d28d9',
-    'Dev In Progress': '#1e40af',
-    'Dev Handle': '#1d4ed8',
-    'Dev Done': '#14532d',
-    'Done - Dev Env': '#0c4a6e',
-    'Done - Prod Env': '#166534',
-    'PD In Progress': '#92400e',
-    'PD Handle': '#9a3412',
-    'BA In Progress': '#334155',
-    'BA Handle': '#475569',
-    'Not Started': '#374151',
+  'Not Started':       '#374151',
+  'Sếp Vinh':          '#9f1239',
+  // BA
+  'BA Handle':         '#475569',
+  'BA Start':          '#334155',
+  'BA Done':           '#1e293b',
+  // PD
+  'PD Handle':         '#9a3412',
+  'PD Start UI/UX':    '#92400e',
+  'PD Start Visual':   '#78350f',
+  'PD Done UI/UX':     '#713f12',
+  'PD Done Visual':    '#854d0e',
+  // DevOps
+  'DevOps Handle':     '#6d28d9',
+  'DevOps Start':      '#5b21b6',
+  'DevOps Done':       '#4c1d95',
+  // FE
+  'FE Handle':         '#1d4ed8',
+  'FE Start':          '#1e40af',
+  'FE Done':           '#1e3a8a',
+  // BE
+  'BE Handle':         '#065f46',
+  'BE Start':          '#064e3b',
+  'BE Done':           '#064e3b',
+  // QC
+  'QC Handle':         '#9d174d',
+  'QC Start':          '#831843',
+  'QC Done - Staging': '#701a75',
+  'QC Done - Pro':     '#4a044e',
+  // Growth
+  'Growth Handle':     '#166534',
+  'Growth Start':      '#14532d',
+  'Growth Done':       '#14532d',
 };
+
 
 const PRIORITY_TAG_BG: Record<string, string> = {
     'High': '#fee2e2',
@@ -1475,12 +1530,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                         <p className="truncate text-[12px] font-semibold leading-snug text-[#0B132B]">{card.row.name}</p>
                                                         <p className="mt-0.5 truncate text-[10px] text-[#64748B]">{metaLine}</p>
                                                         <div className="mt-1.5 flex items-center justify-between gap-1">
-                                                            <span
-                                                                className="truncate rounded px-1.5 py-0.5 text-[10px] font-semibold"
-                                                                style={{ backgroundColor: statusBg, color: statusText }}
-                                                            >
-                                                                {cardStatus}
-                                                            </span>
+                                                            {cardStatus !== 'None' && (
+                                                                <span
+                                                                    className="truncate rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                                                                    style={{ backgroundColor: statusBg, color: statusText }}
+                                                                >
+                                                                    {cardStatus}
+                                                                </span>
+                                                            )}
                                                             {card.phaseSummary !== 'No week' && (
                                                                 <span className="shrink-0 truncate text-[10px] text-[#64748B]">{card.phaseSummary}</span>
                                                             )}
@@ -1996,6 +2053,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 >
                                     {row.statusMode === 'auto' ? (
                                         <span className="mx-auto text-[10px] text-gray-400 italic"></span>
+                                    ) : row.status === 'None' ? (
+                                        <span className="mx-auto text-[10px] text-transparent"></span>
                                     ) : (
                                         <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
                                             style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
@@ -2008,7 +2067,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 <button
                                                     key={statusOption}
                                                     className="text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors"
-                                                    style={{ color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
+                                                    style={statusOption === 'None' ? { color: '#9ca3af' } : { color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
                                                     onMouseDown={e => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
@@ -2021,7 +2080,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                         setOpenStatusId(null);
                                                     }}
                                                 >
-                                                    {statusOption}
+                                                    {statusOption === 'None' ? '—' : statusOption}
                                                 </button>
                                             ))}
                                         </div>
@@ -2288,6 +2347,41 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                             const isGrowthCamp = row.type === 'subcategory' && row.subcategoryType === 'Growth Camp';
 
+                            // ── Multi-segment bar: one segment per direct child with dates ──
+                            const childSegments: { left: number; width: number; color: string; status: string; childName: string; startDate: string; endDate: string }[] = [];
+                            if (row.children && row.children.length > 0) {
+                                for (const child of row.children) {
+                                    if (!child.startDate || !child.endDate) continue;
+                                    const csd = parseISO(child.startDate);
+                                    const cedRaw = parseISO(child.endDate);
+                                    if (Number.isNaN(csd.getTime())) continue;
+                                    const ced = Number.isNaN(cedRaw.getTime()) ? csd : cedRaw;
+                                    let cFirstIdx = -1, cLastIdx = -1;
+                                    for (let i = 0; i < timelineUnits.length; i++) {
+                                        const unit = timelineUnits[i];
+                                        if (unit.end >= csd && unit.start <= ced) {
+                                            if (cFirstIdx === -1) cFirstIdx = i;
+                                            cLastIdx = i;
+                                        }
+                                    }
+                                    if (cFirstIdx >= 0 && cLastIdx >= 0) {
+                                        childSegments.push({
+                                            left: cFirstIdx * timelineUnitWidth,
+                                            width: (cLastIdx - cFirstIdx + 1) * timelineUnitWidth,
+                                            color: STATUS_BAR_COLOR[child.status] || '#9ca3af',
+                                            status: child.status,
+                                            childName: child.name,
+                                            startDate: child.startDate,
+                                            endDate: child.endDate,
+                                        });
+                                    }
+                                }
+                            }
+                            const hasChildSegments = childSegments.length > 0;
+                            const segMinLeft = hasChildSegments ? Math.min(...childSegments.map(s => s.left)) : 0;
+                            const segMaxRight = hasChildSegments ? Math.max(...childSegments.map(s => s.left + s.width)) : 0;
+                            const segTotalWidth = segMaxRight - segMinLeft;
+
                             const barStyle: React.CSSProperties = {
                                 left: barLeft,
                                 width: barWidth,
@@ -2304,27 +2398,130 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             return (
                                 <div key={row.id} className="flex relative border-b border-gray-200"
                                     style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}>
-                                    {barLeft >= 0 && (
+                                    {hasChildSegments ? (
+                                        /* ── Multi-segment parent bar ── */
                                         <div
-                                            className="absolute top-[4px] bottom-[4px] rounded shadow-sm z-[5] cursor-pointer transition-all flex items-center justify-center hover:z-20 group-hover/gantt:z-10"
-                                            style={barStyle}
+                                            className="absolute top-[4px] bottom-[4px] cursor-pointer hover:z-20 group-hover/gantt:z-10"
+                                            style={{ left: segMinLeft, width: segTotalWidth, zIndex: hasActiveInfo ? 150 : 5 }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
                                             }}
                                         >
-                                            {isGrowthCamp && <span className="absolute left-1 text-[10px]">🚀</span>}
-                                            {hasActiveInfo && (
-                                                <div className="absolute z-20 bottom-full mb-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
-                                                    <div>{row.name}</div>
-                                                    <div>{row.startDate} → {row.endDate}</div>
-                                                    <div>
-                                                        {sprintStr} sprint · {workdays} ngày · {row.progress}%
-                                                        {row.type === 'category' || row.type === 'subcategory' ? '' : ` · ${row.status}`}
+                                            <div className="absolute inset-0 rounded overflow-hidden shadow-sm pointer-events-none" style={{ backgroundColor: 'rgba(0,0,0,0.09)' }}>
+                                                {childSegments.map((seg, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className="absolute top-0 bottom-0 pointer-events-none"
+                                                        style={{
+                                                            left: seg.left - segMinLeft,
+                                                            width: seg.width,
+                                                            backgroundColor: seg.color,
+                                                            opacity: 0.85,
+                                                        }}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div className="absolute inset-0 z-10 flex items-center overflow-hidden pointer-events-none">
+                                                <span className="sticky left-2 text-[10.5px] font-bold text-slate-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] whitespace-nowrap px-1">
+                                                    {row.status !== 'None' ? `${row.status} • ` : ''}
+                                                    {row.endDate ? format(parseISO(row.endDate), 'dd/MM') : ''}
+                                                    {workdays > 0 ? ` • ${workdays}d` : ''}
+                                                </span>
+                                            </div>
+                                            {hasActiveInfo && (() => {
+                                                const sdRaw = row.startDate ? parseISO(row.startDate) : null;
+                                                const edRaw = row.endDate ? parseISO(row.endDate) : sdRaw;
+                                                let elapsedStr = "Chưa diễn ra";
+                                                if (sdRaw && edRaw && !Number.isNaN(sdRaw.getTime()) && !Number.isNaN(edRaw.getTime())) {
+                                                    const todayCompare = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                                                    const sdCompare = new Date(sdRaw.getFullYear(), sdRaw.getMonth(), sdRaw.getDate());
+                                                    const edCompare = new Date(edRaw.getFullYear(), edRaw.getMonth(), edRaw.getDate());
+                                                    if (todayCompare > edCompare) {
+                                                        elapsedStr = `Đã hoàn tất (${countWorkdays(sdCompare, edCompare)} ngày làm việc)`;
+                                                    } else if (todayCompare >= sdCompare) {
+                                                        elapsedStr = `Đã chạy ${countWorkdays(sdCompare, todayCompare)} ngày (tính tới hn)`;
+                                                    }
+                                                }
+
+                                                const sortedSegs = [...childSegments].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+                                                const renderItems: React.ReactNode[] = [];
+                                                let maxEndSeen: Date | null = null;
+
+                                                sortedSegs.forEach((seg, i) => {
+                                                    const curStart = parseISO(seg.startDate);
+                                                    const curEnd = parseISO(seg.endDate);
+                                                    if (!Number.isNaN(curStart.getTime()) && !Number.isNaN(curEnd.getTime())) {
+                                                        if (maxEndSeen) {
+                                                            const gapStart = addDays(maxEndSeen, 1);
+                                                            const gapEnd = subDays(curStart, 1);
+                                                            if (gapStart <= gapEnd) {
+                                                                const gapWorkdays = countWorkdays(gapStart, gapEnd);
+                                                                if (gapWorkdays > 0) {
+                                                                    renderItems.push(
+                                                                        <div key={`gap-${i}`} className="text-red-400 font-semibold px-1 py-0.5 rounded shadow-sm border border-red-500/30 bg-red-950/40 text-[9.5px] whitespace-nowrap mt-1 mb-1 flex items-center gap-1">
+                                                                            <span>⚠️</span> GAP {format(gapStart, 'dd/MM')} → {format(gapEnd, 'dd/MM')} ({gapWorkdays} ngày làm việc)
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                            }
+                                                            if (curEnd > maxEndSeen) maxEndSeen = curEnd;
+                                                        } else {
+                                                            maxEndSeen = curEnd;
+                                                        }
+
+                                                        renderItems.push(
+                                                            <div key={`seg-${i}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
+                                                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                    <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: seg.color }} />
+                                                                    <span className="max-w-[120px] truncate">{seg.childName}</span>
+                                                                </div>
+                                                                <span className="text-gray-300 font-medium shrink-0 tabular-nums">End {format(curEnd, 'dd/MM/yyyy')} ({countWorkdays(curStart, curEnd)}d)</span>
+                                                            </div>
+                                                        );
+                                                    }
+                                                });
+
+                                                return (
+                                                    <div className="absolute z-20 top-full mt-1 left-0 bg-slate-900 border border-slate-700 text-white text-[10.5px] font-medium px-2.5 py-2 rounded-lg select-none pointer-events-none shadow-xl flex flex-col gap-1.5"
+                                                        style={{ minWidth: 200, maxWidth: 260 }}>
+                                                        <div>
+                                                            <div className="font-bold text-slate-100 text-[11px] mb-0.5 truncate">{row.name}</div>
+                                                            <div className="text-emerald-400 font-semibold text-[9.5px] pb-1.5 border-b border-slate-700">
+                                                                {elapsedStr}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            {renderItems}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
+                                                );
+                                            })()}
                                         </div>
+                                    ) : (
+                                        /* ── Single bar (leaf or no child dates) ── */
+                                        barLeft >= 0 && (
+                                            <div
+                                                className="absolute top-[4px] bottom-[4px] rounded shadow-sm cursor-pointer transition-all flex items-center justify-center hover:z-20 group-hover/gantt:z-10"
+                                                style={{ ...barStyle, zIndex: hasActiveInfo ? 150 : 5 }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
+                                                }}
+                                            >
+                                                {isGrowthCamp && <span className="absolute left-1 text-[10px]">🚀</span>}
+                                                {hasActiveInfo && (
+                                                    <div className="absolute z-20 top-full mt-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
+                                                        <div>{row.name}</div>
+                                                        <div>{row.startDate} → {row.endDate}</div>
+                                                        <div>
+                                                            {sprintStr} sprint · {workdays} ngày · {row.progress}%
+                                                            {row.type === 'category' || row.type === 'subcategory' ? '' : ` · ${row.status}`}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
                                     )}
                                 </div>
                             );
@@ -2581,12 +2778,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 >
                                                     <span
                                                         className="rounded-md px-2 py-0.5 text-[11px] font-bold"
-                                                        style={{
+                                                        style={activeImagePreviewStatus === 'None' ? { color: '#9ca3af' } : {
                                                             backgroundColor: STATUS_TAG_BG[activeImagePreviewStatus] || '#f3f4f6',
                                                             color: STATUS_TAG_TEXT[activeImagePreviewStatus] || '#374151'
                                                         }}
                                                     >
-                                                        {activeImagePreviewStatus}
+                                                        {activeImagePreviewStatus === 'None' ? '—' : activeImagePreviewStatus}
                                                     </span>
                                                     <ChevronDown size={13} className="shrink-0 text-slate-400" />
                                                 </button>
@@ -2612,9 +2809,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                             >
                                                                 <span
                                                                     className="rounded px-1.5 py-0.5 text-[10px] font-bold"
-                                                                    style={{ backgroundColor: STATUS_TAG_BG[statusOption] || '#f3f4f6', color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
+                                                                    style={statusOption === 'None' ? { color: '#9ca3af' } : { backgroundColor: STATUS_TAG_BG[statusOption] || '#f3f4f6', color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
                                                                 >
-                                                                    {statusOption}
+                                                                    {statusOption === 'None' ? '—' : statusOption}
                                                                 </span>
                                                             </button>
                                                         ))}
