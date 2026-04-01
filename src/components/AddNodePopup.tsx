@@ -37,10 +37,10 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
         const hasChildren = !!(partial.children && partial.children.length > 0);
         return {
             ...partial,
-            status: 'Not Started',
             progress: 0,
+            status: 'None',
             statusMode: hasChildren ? 'auto' : 'manual',
-            manualStatus: hasChildren ? undefined : 'Not Started',
+            manualStatus: hasChildren ? undefined : 'None',
         };
     };
 

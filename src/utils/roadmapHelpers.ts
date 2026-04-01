@@ -59,33 +59,58 @@ const stripTransientFields = (item: RoadmapItem): RoadmapItem => {
     };
 };
 
-const DONE_STATUSES: ItemStatus[] = ['Done - Prod Env', 'Done - Dev Env', 'Dev Done'];
+const DONE_STATUSES: ItemStatus[] = [
+    'QC Done - Pro',
+    'QC Done - Staging',
+    'Growth Done',
+    'FE Done',
+    'BE Done',
+    'DevOps Done',
+    'BA Done',
+    'PD Done Visual',
+    'PD Done UI/UX',
+];
 
 const deriveStatusFromChildren = (children: RoadmapItem[]): ItemStatus => {
+    if (children.length === 0) return 'None';
     const normalizedStatuses = children.map(c => normalizeItemStatus(c.status));
-    const allNotStarted = normalizedStatuses.every(status => status === 'Not Started');
+    const allNotStartedOrNone = normalizedStatuses.every(status => status === 'Not Started' || status === 'None');
     const allDone = normalizedStatuses.every(status => DONE_STATUSES.includes(status));
     const hasStatus = (target: ItemStatus): boolean => normalizedStatuses.some(status => status === target);
 
-    if (allDone) return 'Done - Prod Env';
-    if (allNotStarted) return 'Not Started';
-    // Prefer concrete execution stage first.
-    if (hasStatus('Growth In Progress')) return 'Growth In Progress';
-    if (hasStatus('QC In Progress')) return 'QC In Progress';
-    if (hasStatus('Dev In Progress')) return 'Dev In Progress';
-    if (hasStatus('Dev Done')) return 'Dev Done';
-    if (hasStatus('PD In Progress')) return 'PD In Progress';
-    if (hasStatus('BA In Progress')) return 'BA In Progress';
+    if (allDone) return 'QC Done - Pro';
+    if (allNotStartedOrNone) {
+        return normalizedStatuses.every(status => status === 'None') ? 'None' : 'Not Started';
+    }
+    // Prefer concrete execution stage first (highest priority → lowest).
+    if (hasStatus('Growth Start')) return 'Growth Start';
+    if (hasStatus('QC Start')) return 'QC Start';
+    if (hasStatus('QC Done - Staging')) return 'QC Done - Staging';
+    if (hasStatus('FE Start')) return 'FE Start';
+    if (hasStatus('BE Start')) return 'BE Start';
+    if (hasStatus('DevOps Start')) return 'DevOps Start';
+    if (hasStatus('PD Start Visual')) return 'PD Start Visual';
+    if (hasStatus('PD Start UI/UX')) return 'PD Start UI/UX';
+    if (hasStatus('BA Start')) return 'BA Start';
+    // Done-family statuses bubble up as partial progress.
+    if (hasStatus('Growth Done')) return 'Growth Start';
+    if (hasStatus('FE Done') || hasStatus('BE Done')) return 'QC Handle';
+    if (hasStatus('DevOps Done')) return 'DevOps Done';
+    if (hasStatus('PD Done Visual') || hasStatus('PD Done UI/UX')) return 'FE Handle';
+    if (hasStatus('BA Done')) return 'PD Handle';
     // Then fallback to handle-stage precedence.
     if (hasStatus('Growth Handle')) return 'Growth Handle';
     if (hasStatus('QC Handle')) return 'QC Handle';
-    if (hasStatus('Dev Handle')) return 'Dev Handle';
+    if (hasStatus('FE Handle')) return 'FE Handle';
+    if (hasStatus('BE Handle')) return 'BE Handle';
+    if (hasStatus('DevOps Handle')) return 'DevOps Handle';
     if (hasStatus('PD Handle')) return 'PD Handle';
     if (hasStatus('BA Handle')) return 'BA Handle';
     // Mixed Done-family/Not Started without explicit stage means work has started.
-    if (DONE_STATUSES.some(ds => hasStatus(ds))) return 'Dev In Progress';
-    return 'Not Started';
+    if (DONE_STATUSES.some(ds => hasStatus(ds))) return 'FE Start';
+    return hasStatus('Not Started') ? 'Not Started' : 'None';
 };
+
 
 const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
     const item = stripTransientFields(rawItem);
@@ -105,16 +130,16 @@ const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
         : undefined;
 
     const effectiveStatus: ItemStatus = statusMode === 'manual'
-        ? (manualStatus || 'Not Started')
+        ? (manualStatus || 'None')
         : derivedStatus;
 
     let progress = item.progress || 0;
     if (hasChildren && updatedChildren && updatedChildren.length > 0) {
         const sumProgress = updatedChildren.reduce((sum, child) => sum + (child.progress || 0), 0);
         progress = Math.round(sumProgress / updatedChildren.length);
-    } else if (effectiveStatus === 'Done - Prod Env') {
+    } else if (effectiveStatus === 'QC Done - Pro') {
         progress = 100;
-    } else if (effectiveStatus === 'Not Started') {
+    } else if (effectiveStatus === 'Not Started' || effectiveStatus === 'None') {
         progress = 0;
     }
 

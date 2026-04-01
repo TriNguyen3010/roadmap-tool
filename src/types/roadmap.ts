@@ -1,20 +1,39 @@
 export type ItemType = 'category' | 'subcategory' | 'group' | 'team' | 'item';
 export type ItemStatus =
+  | 'None'
   | 'Not Started'
   | 'Sếp Vinh'
+  // BA
   | 'BA Handle'
-  | 'BA In Progress'
+  | 'BA Start'
+  | 'BA Done'
+  // PD
   | 'PD Handle'
-  | 'PD In Progress'
+  | 'PD Start UI/UX'
+  | 'PD Start Visual'
+  | 'PD Done UI/UX'
+  | 'PD Done Visual'
+  // DevOps
+  | 'DevOps Handle'
+  | 'DevOps Start'
+  | 'DevOps Done'
+  // FE
+  | 'FE Handle'
+  | 'FE Start'
+  | 'FE Done'
+  // BE
+  | 'BE Handle'
+  | 'BE Start'
+  | 'BE Done'
+  // QC
   | 'QC Handle'
-  | 'QC In Progress'
+  | 'QC Start'
+  | 'QC Done - Staging'
+  | 'QC Done - Pro'
+  // Growth
   | 'Growth Handle'
-  | 'Growth In Progress'
-  | 'Dev Handle'
-  | 'Dev In Progress'
-  | 'Dev Done'
-  | 'Done - Dev Env'
-  | 'Done - Prod Env';
+  | 'Growth Start'
+  | 'Growth Done';
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
 export type TimelineMode = 'day' | 'week' | 'month';
@@ -25,29 +44,62 @@ export const PHASE_FILTER_NONE = '__NONE__' as const;
 export type PhaseFilterValue = string | typeof PHASE_FILTER_NONE;
 export type SubcategoryType = 'Feature' | 'Bug' | 'Growth Camp';
 export type GroupItemType = 'Feature' | 'Improvement' | 'Bug' | 'Growth Camp';
-export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE' | 'QC';
-export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE', 'QC'];
+export type TeamRole = 'BA' | 'Growth' | 'PD' | 'BE' | 'FE' | 'QC' | 'DevOps';
+export const TEAM_ROLES: TeamRole[] = ['BA', 'Growth', 'PD', 'BE', 'FE', 'QC', 'DevOps'];
 export const PRIORITY_LEVELS: ItemPriority[] = ['High', 'Medium', 'Low', 'Reported'];
 export const STATUS_OPTIONS: ItemStatus[] = [
+  'None',
   'Not Started',
   'Sếp Vinh',
+  // BA
   'BA Handle',
-  'BA In Progress',
+  'BA Start',
+  'BA Done',
+  // PD
   'PD Handle',
-  'PD In Progress',
+  'PD Start UI/UX',
+  'PD Start Visual',
+  'PD Done UI/UX',
+  'PD Done Visual',
+  // DevOps
+  'DevOps Handle',
+  'DevOps Start',
+  'DevOps Done',
+  // FE
+  'FE Handle',
+  'FE Start',
+  'FE Done',
+  // BE
+  'BE Handle',
+  'BE Start',
+  'BE Done',
+  // QC
   'QC Handle',
-  'QC In Progress',
+  'QC Start',
+  'QC Done - Staging',
+  'QC Done - Pro',
+  // Growth
   'Growth Handle',
-  'Growth In Progress',
-  'Dev Handle',
-  'Dev In Progress',
-  'Dev Done',
-  'Done - Dev Env',
-  'Done - Prod Env',
+  'Growth Start',
+  'Growth Done',
 ];
 export const GROUP_ITEM_TYPE_OPTIONS: GroupItemType[] = ['Feature', 'Improvement', 'Bug', 'Growth Camp'];
 
 const ITEM_STATUS_SET = new Set<ItemStatus>(STATUS_OPTIONS);
+
+// Legacy status values from before the 2026-04 redesign → map to new names.
+// normalizeItemStatus() applies this at read time (lazy migration – no DB script needed).
+const LEGACY_STATUS_MAP: Record<string, ItemStatus> = {
+  'BA In Progress':     'BA Start',
+  'PD In Progress':     'PD Start UI/UX',
+  'Dev Handle':         'FE Handle',
+  'Dev In Progress':    'FE Start',
+  'Dev Done':           'FE Done',
+  'Done - Dev Env':     'QC Done - Staging',
+  'Done - Prod Env':    'QC Done - Pro',
+  'QC In Progress':     'QC Start',
+  'Growth In Progress': 'Growth Start',
+};
 
 export function normalizeItemType(type: string | undefined | null): ItemType {
   if (!type) return 'item';
@@ -120,9 +172,15 @@ export interface ItemImage {
 }
 
 export function normalizeItemStatus(status: string | undefined | null): ItemStatus {
-  if (status === 'In Progress') return 'Dev In Progress';
-  if (status === 'Done') return 'Done - Prod Env';
-  if (typeof status === 'string' && ITEM_STATUS_SET.has(status as ItemStatus)) {
+  if (typeof status !== 'string' || status.trim() === '') return 'None';
+  // Apply legacy rename map first (lazy migration – no DB script needed)
+  if (Object.prototype.hasOwnProperty.call(LEGACY_STATUS_MAP, status)) {
+    return LEGACY_STATUS_MAP[status];
+  }
+  // Handle very old single-word values
+  if (status === 'In Progress') return 'FE Start';
+  if (status === 'Done') return 'QC Done - Pro';
+  if (ITEM_STATUS_SET.has(status as ItemStatus)) {
     return status as ItemStatus;
   }
   return 'Not Started';

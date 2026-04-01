@@ -119,8 +119,8 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
 
     const handleStatusChange = (s: ItemStatus) => {
         setStatus(s);
-        if (s === 'Done - Prod Env') setProgress(100);
-        if (s === 'Not Started') setProgress(0);
+        if (s === 'QC Done - Pro') setProgress(100);
+        if (s === 'Not Started' || s === 'None') setProgress(0);
     };
 
     const toggleTeam = (role: TeamRole) => {
@@ -334,9 +334,9 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                         name: role,
                         type: 'team',
                         teamRole: role,
-                        status: 'Not Started',
+                        status: 'None',
                         statusMode: 'manual',
-                        manualStatus: 'Not Started',
+                        manualStatus: 'None',
                         progress: 0,
                         startDate: startDate || undefined,
                         endDate: endDate || undefined

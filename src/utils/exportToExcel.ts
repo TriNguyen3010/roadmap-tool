@@ -90,12 +90,23 @@ const LEGACY_COLUMNS: ExcelExportColumn[] = [
 
 const SUMMARY_SHEET_NAME = 'Summary by Object';
 const SUMMARY_HEADERS = ['ID', 'Nội dung'];
-const SUMMARY_GROUP_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Not Started', 'Dev Done', 'Done - Dev Env', 'Done - Prod Env'];
-const SUMMARY_DEV_TEAM_STATUSES: ItemStatus[] = ['Dev Handle', 'Dev In Progress', 'Dev Done', 'Done - Dev Env', 'Done - Prod Env'];
-const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA In Progress'];
-const SUMMARY_PD_STATUSES: ItemStatus[] = ['PD Handle', 'PD In Progress'];
-const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC In Progress'];
-const SUMMARY_GROWTH_STATUSES: ItemStatus[] = ['Growth Handle', 'Growth In Progress'];
+const SUMMARY_GROUP_STATUSES: ItemStatus[] = [
+  'FE Handle', 'FE Start', 'FE Done',
+  'BE Handle', 'BE Start', 'BE Done',
+  'DevOps Handle', 'DevOps Start', 'DevOps Done',
+  'QC Handle', 'QC Start', 'QC Done - Staging', 'QC Done - Pro',
+  'Not Started',
+  'None',
+];
+const SUMMARY_FE_STATUSES: ItemStatus[] = ['FE Handle', 'FE Start', 'FE Done'];
+const SUMMARY_BE_STATUSES: ItemStatus[] = ['BE Handle', 'BE Start', 'BE Done'];
+const SUMMARY_DEVOPS_STATUSES: ItemStatus[] = ['DevOps Handle', 'DevOps Start', 'DevOps Done'];
+const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA Start', 'BA Done'];
+const SUMMARY_PD_STATUSES: ItemStatus[] = [
+  'PD Handle', 'PD Start UI/UX', 'PD Start Visual', 'PD Done UI/UX', 'PD Done Visual',
+];
+const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC Start', 'QC Done - Staging', 'QC Done - Pro'];
+const SUMMARY_GROWTH_STATUSES: ItemStatus[] = ['Growth Handle', 'Growth Start', 'Growth Done'];
 
 function sanitizeFileBaseName(name: string | undefined): string {
     const fallback = 'roadmap';
@@ -176,7 +187,9 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
     web: SummaryRow[];
     teamBa: SummaryRow[];
     teamPd: SummaryRow[];
-    teamDev: SummaryRow[];
+    teamFe: SummaryRow[];
+    teamBe: SummaryRow[];
+    teamDevOps: SummaryRow[];
     teamQc: SummaryRow[];
     teamGrowth: SummaryRow[];
 } {
@@ -236,10 +249,30 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
             status: row.status,
         }));
 
-    const teamDev = rows
+    const teamFe = rows
         .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['BE', 'FE']))
-        .filter(row => matchesStatuses(row, SUMMARY_DEV_TEAM_STATUSES))
+        .filter(row => hasDescendantTeamRole(row, ['FE']))
+        .filter(row => matchesStatuses(row, SUMMARY_FE_STATUSES))
+        .map(row => ({
+            featureName: row.name,
+            groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
+        }));
+
+    const teamBe = rows
+        .filter(row => row.type === 'item')
+        .filter(row => hasDescendantTeamRole(row, ['BE']))
+        .filter(row => matchesStatuses(row, SUMMARY_BE_STATUSES))
+        .map(row => ({
+            featureName: row.name,
+            groupName: getSummaryGroupName(row, rowById),
+            status: row.status,
+        }));
+
+    const teamDevOps = rows
+        .filter(row => row.type === 'item')
+        .filter(row => hasDescendantTeamRole(row, ['DevOps']))
+        .filter(row => matchesStatuses(row, SUMMARY_DEVOPS_STATUSES))
         .map(row => ({
             featureName: row.name,
             groupName: getSummaryGroupName(row, rowById),
@@ -266,7 +299,7 @@ function buildSummaryRowsByObject(rows: FlattenedItem[]): {
             status: row.status,
         }));
 
-    return { app, core, web, teamBa, teamPd, teamDev, teamQc, teamGrowth };
+    return { app, core, web, teamBa, teamPd, teamFe, teamBe, teamDevOps, teamQc, teamGrowth };
 }
 
 function buildSummarySheetData(rows: FlattenedItem[]): (string | number)[][] {
@@ -298,7 +331,9 @@ function buildSummarySheetData(rows: FlattenedItem[]): (string | number)[][] {
     appendBlock('Web', blocks.web, 1);
     appendBlock('Team BA', blocks.teamBa, 1);
     appendBlock('Team PD (Product Design)', blocks.teamPd, 1);
-    appendBlock('Team Dev', blocks.teamDev, 1);
+    appendBlock('Team FE', blocks.teamFe, 1);
+    appendBlock('Team BE', blocks.teamBe, 1);
+    appendBlock('Team DevOps', blocks.teamDevOps, 1);
     appendBlock('Team QC', blocks.teamQc, 1);
     appendBlock('Team Growth', blocks.teamGrowth, 1);
     return data;
