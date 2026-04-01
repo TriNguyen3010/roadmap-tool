@@ -180,6 +180,7 @@ export default function RoadmapPage() {
   const [featuresColWidth, setFeaturesColWidth] = useState(DEFAULT_FEATURES_COL_WIDTH);
   const [featuresColWidthMode, setFeaturesColWidthMode] = useState<ColumnWidthMode>('auto');
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(DEFAULT_TIMELINE_MODE);
+  const [timelineOnly, setTimelineOnly] = useState(false);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [hiddenRowIds, setHiddenRowIds] = useState<Set<string>>(new Set());
@@ -264,6 +265,7 @@ export default function RoadmapPage() {
         currentVersionRef.current = version;
         setPendingRemoteVersion(null);
         setDismissedVersion(null);
+        setTimelineOnly(!!json.settings?.timelineOnly);
 
         if (json.settings) {
           if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
@@ -428,6 +430,7 @@ export default function RoadmapPage() {
       colFeaturesWidth: clampFeaturesColWidth(featuresColWidth),
       colFeaturesWidthMode: featuresColWidthMode,
       timelineMode,
+      timelineOnly,
       expandedIds: Array.from(expandedIds),
       hiddenRowIds: Array.from(hiddenRowIds),
     }
@@ -435,7 +438,7 @@ export default function RoadmapPage() {
     beforeWeeks, afterMonths, filterCategory, filterStatus, filterTeam,
     filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     isReportedMode, showWorkType, showPriority, showPhase, showStartDate,
-    showEndDate, featuresColWidth, featuresColWidthMode, timelineMode,
+    showEndDate, featuresColWidth, featuresColWidthMode, timelineMode, timelineOnly,
     expandedIds, hiddenRowIds,
   ]);
 
@@ -710,6 +713,7 @@ export default function RoadmapPage() {
 
     const normalized = normalizeDocument(parsed as RoadmapDocument);
     setData(normalized);
+    setTimelineOnly(!!parsed.settings?.timelineOnly);
     if (parsed.settings) {
       const settings = parsed.settings as Record<string, unknown>;
       const toStringArray = (value: unknown): string[] => (
@@ -947,6 +951,8 @@ export default function RoadmapPage() {
         onToggleQuickViewMode={handleToggleQuickViewMode}
         isReportedMode={isReportedMode}
         onExitReportedMode={handleExitReportedMode}
+        isTimelineOnly={timelineOnly}
+        onToggleTimelineOnly={() => setTimelineOnly(prev => !prev)}
         onBackToHome={() => router.push('/')}
       />
       <div className="flex-1 overflow-hidden">
@@ -959,6 +965,7 @@ export default function RoadmapPage() {
           viewStart={viewStart}
           viewEnd={viewEnd}
           timelineMode={timelineMode}
+          timelineOnly={timelineOnly}
           filterCategory={filterCategory}
           filterStatus={filterStatus}
           filterTeam={filterTeam}

@@ -61,6 +61,8 @@ interface ToolbarProps {
     onToggleQuickViewMode: (mode: QuickViewMode) => void;
     isReportedMode: boolean;
     onExitReportedMode: () => void;
+    isTimelineOnly: boolean;
+    onToggleTimelineOnly: () => void;
     onBackToHome?: () => void;
 }
 
@@ -71,7 +73,7 @@ export default function Toolbar({
     canEdit, authLoading, onUnlockEditor, onLockEditor,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
-    isReportedMode, onBackToHome
+    isReportedMode, isTimelineOnly, onToggleTimelineOnly, onBackToHome
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -315,6 +317,27 @@ export default function Toolbar({
                             </button>
                         ))}
                     </div>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (isReportedMode) return;
+                            onToggleTimelineOnly();
+                        }}
+                        disabled={isReportedMode}
+                        title={isReportedMode
+                            ? 'Timeline Only không dùng trong Reported mode'
+                            : 'Ẩn toàn bộ thông tin task, chỉ giữ timeline'
+                        }
+                        className={`flex h-8 shrink-0 items-center rounded-[9px] border px-3 text-xs font-semibold transition-colors ${isReportedMode
+                            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                            : isTimelineOnly
+                                ? 'border-emerald-600 bg-emerald-600 text-white'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                            }`}
+                    >
+                        Timeline Only
+                    </button>
 
                     <div className="relative shrink-0" ref={phasePickerRef}>
                         <button

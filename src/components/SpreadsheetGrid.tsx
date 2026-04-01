@@ -39,6 +39,7 @@ interface GridProps {
     viewStart: string;
     viewEnd: string;
     timelineMode: TimelineMode;
+    timelineOnly: boolean;
     today: Date;
     filterCategory: string[];
     filterStatus: string[];
@@ -87,6 +88,7 @@ const COL_PHASE_DEFAULT = 120;
 const COL_PHASE_MAX = 320;
 const COL_DATE_DEFAULT = 85;
 const GAP_H = 8;       // height of hidden-row gap indicator
+const TIMELINE_ONLY_LABEL_W = 220;
 
 // Gap render entry type
 type RenderEntry =
@@ -307,8 +309,15 @@ function estimatePhaseCellWidth(labels: string[]): number {
     }, 0) + Math.max(0, labels.length - 1) * 4 + 12;
 }
 
+function getRowDisplayDepth(row: Pick<FlattenedItem, 'depth' | 'type'>): number {
+    let displayDepth = row.depth;
+    if (row.type === 'item') displayDepth = row.depth + 1;
+    else if (row.type === 'team' && row.depth >= 4) displayDepth = row.depth + 1;
+    return displayDepth;
+}
+
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
-    timelineMode,
+    timelineMode, timelineOnly,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
     isSaving, saveState, saveTick, canEdit,
     showWorkType, setShowWorkType,
@@ -965,6 +974,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             labelBottom: format(start, 'yy'),
         }));
     }, [timelineDays, timelineMode]);
+    const timelineLeftOffset = timelineOnly ? TIMELINE_ONLY_LABEL_W : 0;
+    const timelineCanvasWidth = timelineLeftOffset + timelineUnits.length * timelineUnitWidth;
 
     const todayIndex = useMemo(() => {
         if (!today) return -1;
@@ -1555,6 +1566,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             ) : (
             <>
             {/* ── LEFT PANE ── */}
+            {!timelineOnly && (
             <div className="shrink-0 border-r-2 border-gray-500 flex flex-col overflow-hidden" style={{ width: totalLeftW }}>
 
                 {/* Left header */}
@@ -1793,12 +1805,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 <div
                                     className="flex items-center border-r border-gray-300 cursor-pointer select-none gap-1 overflow-hidden"
                                     style={{
-                                        paddingLeft: `${(() => {
-                                            let displayDepth = row.depth;
-                                            if (row.type === 'item') displayDepth = row.depth + 1;
-                                            else if (row.type === 'team' && row.depth >= 4) displayDepth = row.depth + 1;
-                                            return displayDepth * 14 + 6;
-                                        })()}px`, fontWeight: style.font
+                                        paddingLeft: `${getRowDisplayDepth(row) * 14 + 6}px`, fontWeight: style.font
                                     }}
                                     onClick={() => openEditor(row.id)}
                                 >
@@ -2219,20 +2226,27 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     )}
                 </div>
             </div>
+            )}
 
             {/* ── RIGHT PANE – GANTT ── */}
             <div ref={rightPaneRef} className="flex-1 overflow-auto relative" onScroll={handleScrollRight}>
-                <div style={{ width: timelineUnits.length * timelineUnitWidth, minWidth: '100%' }}>
+                <div style={{ width: timelineCanvasWidth, minWidth: '100%' }}>
 
                     {/* ── STICKY HEADER ── */}
                     <div className="sticky top-0 z-20 flex flex-col" style={{ height: TOTAL_HEADER_H }}>
 
                         {/* Row 0: Milestone labels */}
                         <div className="relative flex border-b border-gray-300 bg-white shrink-0 overflow-hidden" style={{ height: MILESTONE_HEADER_H }}>
+                            {timelineOnly && (
+                                <div
+                                    className="sticky left-0 z-30 shrink-0 border-r border-slate-200 bg-white"
+                                    style={{ width: timelineLeftOffset }}
+                                />
+                            )}
                             {timelineUnits.map((_, i) => <div key={i} className="shrink-0" style={{ width: timelineUnitWidth }} />)}
                             {milestoneRanges.map((m) => (
                                 <div key={m.id} className="absolute top-0 bottom-0 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden whitespace-nowrap px-1"
-                                    style={{ left: m.left, width: m.width, backgroundColor: m.color }} title={m.label}>
+                                    style={{ left: timelineLeftOffset + m.left, width: m.width, backgroundColor: m.color }} title={m.label}>
                                     {m.label}
                                 </div>
                             ))}
@@ -2240,6 +2254,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                         {/* Row 1: Week groups */}
                         <div className="relative flex border-b border-gray-400 bg-gray-200 shrink-0" style={{ height: ROW_HEIGHT }}>
+                            {timelineOnly && (
+                                <div
+                                    className="sticky left-0 z-30 flex shrink-0 items-center border-r border-gray-400 bg-gray-200 px-2 text-[10px] font-bold uppercase tracking-wide text-slate-500"
+                                    style={{ width: timelineLeftOffset }}
+                                >
+                                    Task
+                                </div>
+                            )}
                             {headerGroups.map((wk, i) => (
                                 <div key={i} className="shrink-0 border-r border-gray-400 flex items-center px-1 text-[10px] font-bold text-gray-700 overflow-hidden"
                                     style={{ width: wk.count * timelineUnitWidth }}>
@@ -2250,6 +2272,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                         {/* Row 2: Days */}
                         <div className="relative flex border-b-2 border-gray-500 shrink-0" style={{ height: ROW_HEIGHT }}>
+                            {timelineOnly && (
+                                <div
+                                    className="sticky left-0 z-30 shrink-0 border-r border-gray-300 bg-white"
+                                    style={{ width: timelineLeftOffset }}
+                                />
+                            )}
                             {timelineUnits.map((unit, idx) => {
                                 const isToday = today ? (today >= unit.start && today <= unit.end) : false;
                                 const isWeekend = timelineMode === 'day' && (unit.start.getDay() === 0 || unit.start.getDay() === 6);
@@ -2280,18 +2308,24 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         {/* Today line */}
                         {today && todayIndex >= 0 && (
                             <div className="absolute top-0 bottom-0 z-10 pointer-events-none"
-                                style={{ left: todayIndex * timelineUnitWidth + timelineUnitWidth / 2, width: 2, backgroundColor: '#ef4444' }} />
+                                style={{ left: timelineLeftOffset + todayIndex * timelineUnitWidth + timelineUnitWidth / 2, width: 2, backgroundColor: '#ef4444' }} />
                         )}
 
                         {/* Milestone column shading */}
                         {milestoneRanges.map(m => (
                             <div key={m.id} className="absolute top-0 bottom-0 pointer-events-none z-[2]"
-                                style={{ left: m.left, width: m.width, backgroundColor: hexToRgba(m.color, 0.12) }} />
+                                style={{ left: timelineLeftOffset + m.left, width: m.width, backgroundColor: hexToRgba(m.color, 0.12) }} />
                         ))}
 
                         {/* Weekend shading */}
                         {timelineMode === 'day' && (
                             <div className="absolute inset-0 flex pointer-events-none">
+                                {timelineOnly && (
+                                    <div
+                                        className="shrink-0 h-full border-r border-gray-100"
+                                        style={{ width: timelineLeftOffset }}
+                                    />
+                                )}
                                 {timelineUnits.map((unit, i) => {
                                     const isWeekend = unit.start.getDay() === 0 || unit.start.getDay() === 6;
                                     return <div key={i} className="shrink-0 border-r border-gray-100 h-full"
@@ -2316,6 +2350,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             }
 
                             const { row } = entry;
+                            const hasChildren = row.children && row.children.length > 0;
+                            const isExpanded = expandedIds.has(row.id);
+                            const displayDepth = getRowDisplayDepth(row);
                             let barLeft = -1, barWidth = 0, workdays = 0, sprintStr = '';
                             if (row.startDate && row.endDate) {
                                 const sd = parseISO(row.startDate);
@@ -2333,7 +2370,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     }
                                     if (firstIdx >= 0 && lastIdx >= 0) {
                                         const calendarDays = differenceInDays(ed, sd) + 1;
-                                        barLeft = firstIdx * timelineUnitWidth;
+                                        barLeft = timelineLeftOffset + firstIdx * timelineUnitWidth;
                                         barWidth = (lastIdx - firstIdx + 1) * timelineUnitWidth;
                                         workdays = countWorkdays(sd, ed);
 
@@ -2366,7 +2403,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     }
                                     if (cFirstIdx >= 0 && cLastIdx >= 0) {
                                         childSegments.push({
-                                            left: cFirstIdx * timelineUnitWidth,
+                                            left: timelineLeftOffset + cFirstIdx * timelineUnitWidth,
                                             width: (cLastIdx - cFirstIdx + 1) * timelineUnitWidth,
                                             color: STATUS_BAR_COLOR[child.status] || '#9ca3af',
                                             status: child.status,
@@ -2378,6 +2415,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 }
                             }
                             const hasChildSegments = childSegments.length > 0;
+                            const rowHasTimelineData = hasChildSegments || barLeft >= 0;
                             const segMinLeft = hasChildSegments ? Math.min(...childSegments.map(s => s.left)) : 0;
                             const segMaxRight = hasChildSegments ? Math.max(...childSegments.map(s => s.left + s.width)) : 0;
                             const segTotalWidth = segMaxRight - segMinLeft;
@@ -2398,6 +2436,38 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             return (
                                 <div key={row.id} className="flex relative border-b border-gray-200"
                                     style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}>
+                                    {timelineOnly && (
+                                        <div
+                                            className={`sticky left-0 z-[12] flex h-full shrink-0 items-center border-r border-slate-200 px-2 ${hasChildren || canEdit ? 'cursor-pointer hover:brightness-95' : ''}`}
+                                            style={{ width: timelineLeftOffset, backgroundColor: depthStyle.bg }}
+                                            onClick={hasChildren || canEdit ? (e) => {
+                                                e.stopPropagation();
+                                                if (hasChildren) {
+                                                    toggleExpand(row.id);
+                                                    return;
+                                                }
+                                                openEditor(row.id);
+                                            } : undefined}
+                                            title={hasChildren
+                                                ? (isExpanded ? 'Thu gọn children' : 'Mở rộng children')
+                                                : canEdit ? `Mở editor: ${row.name}` : rowHasTimelineData ? row.name : `${row.name} • No date`
+                                            }
+                                        >
+                                            <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: `${displayDepth * 12 + 2}px` }}>
+                                                {hasChildren
+                                                    ? (isExpanded
+                                                        ? <ChevronDown size={12} className="shrink-0 text-slate-500" />
+                                                        : <ChevronRight size={12} className="shrink-0 text-slate-500" />)
+                                                    : <span className="w-[12px] shrink-0" />}
+                                                <span className="min-w-0 truncate text-[11px] font-semibold text-slate-700">{row.name}</span>
+                                                {!rowHasTimelineData && (
+                                                    <span className="shrink-0 rounded-full bg-white/75 px-1.5 py-0.5 text-[9px] font-semibold text-slate-500">
+                                                        No date
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     {hasChildSegments ? (
                                         /* ── Multi-segment parent bar ── */
                                         <div
