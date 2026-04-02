@@ -26,6 +26,7 @@ import {
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp
 } from '@/utils/roadmapHelpers';
 import { resolveReportedImageReviewMainState } from '@/utils/reportedImageReviewStates';
+import { formatWorkdayDuration } from '@/utils/workdayFormat';
 import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval, addDays, subDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
 import EditPopup from './EditPopup';
@@ -2574,7 +2575,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 <span className="sticky left-2 text-[10.5px] font-bold text-slate-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] whitespace-nowrap px-1">
                                                     {row.status !== 'None' ? `${row.status} • ` : ''}
                                                     {row.endDate ? format(parseISO(row.endDate), 'dd/MM') : ''}
-                                                    {workdays > 0 ? ` • ${workdays}d` : ''}
+                                                    {workdays > 0 ? ` • ${formatWorkdayDuration(workdays)}` : ''}
                                                 </span>
                                             </div>
                                             {hasActiveInfo && (() => {
@@ -2586,9 +2587,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                     const sdCompare = new Date(sdRaw.getFullYear(), sdRaw.getMonth(), sdRaw.getDate());
                                                     const edCompare = new Date(edRaw.getFullYear(), edRaw.getMonth(), edRaw.getDate());
                                                     if (todayCompare > edCompare) {
-                                                        elapsedStr = `Đã hoàn tất (${countWorkdays(sdCompare, edCompare)} ngày làm việc)`;
+                                                        elapsedStr = `Đã hoàn tất (${formatWorkdayDuration(countWorkdays(sdCompare, edCompare))})`;
                                                     } else if (todayCompare >= sdCompare) {
-                                                        elapsedStr = `Đã chạy ${countWorkdays(sdCompare, todayCompare)} ngày (tính tới hn)`;
+                                                        elapsedStr = `Đã chạy ${formatWorkdayDuration(countWorkdays(sdCompare, todayCompare))} (tính tới hn)`;
                                                     }
                                                 }
 
@@ -2608,7 +2609,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                                 if (gapWorkdays > 0) {
                                                                     renderItems.push(
                                                                         <div key={`gap-${i}`} className="text-red-400 font-semibold px-1 py-0.5 rounded shadow-sm border border-red-500/30 bg-red-950/40 text-[9.5px] whitespace-nowrap mt-1 mb-1 flex items-center gap-1">
-                                                                            <span>⚠️</span> GAP {format(gapStart, 'dd/MM')} → {format(gapEnd, 'dd/MM')} ({gapWorkdays} ngày làm việc)
+                                                                            <span>⚠️</span> GAP {format(gapStart, 'dd/MM')} → {format(gapEnd, 'dd/MM')} ({formatWorkdayDuration(gapWorkdays)})
                                                                         </div>
                                                                     );
                                                                 }
@@ -2624,7 +2625,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                                     <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: seg.color }} />
                                                                     <span className="max-w-[120px] truncate">{seg.childName}</span>
                                                                 </div>
-                                                                <span className="text-gray-300 font-medium shrink-0 tabular-nums">End {format(curEnd, 'dd/MM/yyyy')} ({countWorkdays(curStart, curEnd)}d)</span>
+                                                                <span className="text-gray-300 font-medium shrink-0 tabular-nums">End {format(curEnd, 'dd/MM/yyyy')} ({formatWorkdayDuration(countWorkdays(curStart, curEnd))})</span>
                                                             </div>
                                                         );
                                                     }
