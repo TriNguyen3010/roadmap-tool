@@ -102,7 +102,7 @@ describe('roadmap save routes', () => {
         vi.useRealTimers();
     });
 
-    it('accepts admin save when baseVersion matches current version', async () => {
+    it('accepts admin save when baseVersion matches the same timestamp in a different format', async () => {
         authenticateAdminRequestMock.mockResolvedValue({
             sessionUser: { email: 'admin@example.com', role: 'admin', team: 'PM', label: 'Admin' },
         });
@@ -110,13 +110,13 @@ describe('roadmap save routes', () => {
         supabaseMock.from
             .mockReturnValueOnce({
                 select: vi.fn(() => createSelectQuery({
-                    data: { updated_at: '2026-04-02T19:59:00.000Z' },
+                    data: { updated_at: '2026-04-02T19:59:00.000+00:00' },
                     error: null,
                 })),
             })
             .mockReturnValueOnce({
                 update: vi.fn(() => createUpdateQuery({
-                    data: { updated_at: '2026-04-02T20:00:00.000Z' },
+                    data: { updated_at: '2026-04-02T20:00:00.000+00:00' },
                     error: null,
                 })),
             });
@@ -131,7 +131,7 @@ describe('roadmap save routes', () => {
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toMatchObject({
             success: true,
-            updatedAt: '2026-04-02T20:00:00.000Z',
+            updatedAt: '2026-04-02T20:00:00.000+00:00',
         });
     });
 
@@ -171,7 +171,7 @@ describe('roadmap save routes', () => {
             .mockReturnValueOnce({
                 select: vi.fn(() => createSelectQuery({
                     data: {
-                        updated_at: '2026-04-02T19:59:00.000Z',
+                        updated_at: '2026-04-02T19:59:00.000+00:00',
                         content: {
                             releaseName: 'Demo',
                             startDate: '',
@@ -185,7 +185,7 @@ describe('roadmap save routes', () => {
             })
             .mockReturnValueOnce({
                 update: vi.fn(() => createUpdateQuery({
-                    data: { updated_at: '2026-04-02T20:00:00.000Z' },
+                    data: { updated_at: '2026-04-02T20:00:00.000+00:00' },
                     error: null,
                 })),
             });
@@ -201,7 +201,7 @@ describe('roadmap save routes', () => {
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toMatchObject({
             success: true,
-            updatedAt: '2026-04-02T20:00:00.000Z',
+            updatedAt: '2026-04-02T20:00:00.000+00:00',
             document: {
                 milestones: [{
                     id: 'phase_1',
@@ -260,7 +260,7 @@ describe('roadmap save routes', () => {
         });
     });
 
-    it('accepts manager patch save when baseVersion matches current version', async () => {
+    it('accepts manager patch save when baseVersion matches the same timestamp in a different format', async () => {
         authenticateTeamRequestMock.mockResolvedValue({
             sessionUser: { email: 'fe@example.com', role: 'manager', team: 'FE', label: 'FE' },
             member: { email: 'fe@example.com', role: 'manager', team: 'FE', label: 'FE', is_active: true },
@@ -270,7 +270,7 @@ describe('roadmap save routes', () => {
             .mockReturnValueOnce({
                 select: vi.fn(() => createSelectQuery({
                     data: {
-                        updated_at: '2026-04-02T19:59:00.000Z',
+                        updated_at: '2026-04-02T19:59:00.000+00:00',
                         content: createManagerDocument(),
                     },
                     error: null,
@@ -278,7 +278,7 @@ describe('roadmap save routes', () => {
             })
             .mockReturnValueOnce({
                 update: vi.fn(() => createUpdateQuery({
-                    data: { updated_at: '2026-04-02T20:00:00.000Z' },
+                    data: { updated_at: '2026-04-02T20:00:00.000+00:00' },
                     error: null,
                 })),
             });
@@ -296,7 +296,7 @@ describe('roadmap save routes', () => {
         expect(response.status).toBe(200);
         await expect(response.json()).resolves.toMatchObject({
             success: true,
-            updatedAt: '2026-04-02T20:00:00.000Z',
+            updatedAt: '2026-04-02T20:00:00.000+00:00',
         });
     });
 

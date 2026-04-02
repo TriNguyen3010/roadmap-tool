@@ -220,6 +220,8 @@ export async function PATCH(
             return NextResponse.json(buildVersionConflictPayload(serverVersion), { status: 409 });
         }
 
+        const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
+
         logRoadmapSaveTelemetry({
             route: 'admin-patch',
             roadmapId: id,
@@ -227,11 +229,11 @@ export async function PATCH(
             status: 200,
             reason: patch.kind,
             baseVersion: patch.baseVersion,
-            serverVersion: updatedAt,
+            serverVersion: persistedVersion,
             actor: auth.sessionUser,
         });
 
-        return NextResponse.json({ success: true, document: nextDoc, updatedAt });
+        return NextResponse.json({ success: true, document: nextDoc, updatedAt: persistedVersion });
     } catch (err) {
         let roadmapId = 'unknown';
         try {

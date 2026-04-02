@@ -43,6 +43,8 @@ import {
   VERSION_CONFLICT_CODE,
   buildConflictDraftStorageKey,
   buildRoadmapChannelName,
+  isMatchingVersion,
+  isVersionNewer,
 } from '@/utils/roadmapConcurrency';
 import { normalizeMilestoneDateValue, normalizeMilestonesForSave } from '@/utils/milestones';
 import {
@@ -108,19 +110,6 @@ function stripQuickViewSubcategories(subcategories: string[]): string[] {
   next.delete('App');
   next.delete('Core');
   return Array.from(next);
-}
-
-/**
- * Compare two version timestamps by their epoch value, not string format.
- * Supabase realtime may return "2026-04-03T10:00:00.123+00:00" while
- * the API returns "2026-04-03T10:00:00.123Z" — same moment, different strings.
- */
-function isSameVersion(a: string | null, b: string | null): boolean {
-  if (a === b) return true; // fast path: exact match
-  if (!a || !b) return false;
-  const ta = Date.parse(a);
-  const tb = Date.parse(b);
-  return Number.isFinite(ta) && Number.isFinite(tb) && ta === tb;
 }
 
 function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] | undefined {
@@ -633,9 +622,10 @@ export default function RoadmapPage() {
     channel.onmessage = (event) => {
       const payload = event.data as { type?: string; version?: string } | null;
       if (payload?.type !== 'roadmap-updated') return;
-      if (typeof payload.version !== 'string' || isSameVersion(payload.version, currentVersionRef.current)) return;
+      const nextVersion = typeof payload.version === 'string' ? payload.version : null;
+      if (!isVersionNewer(nextVersion, currentVersionRef.current)) return;
       setDismissedVersion(null);
-      setPendingRemoteVersion(payload.version);
+      setPendingRemoteVersion(nextVersion);
     };
 
     return () => {
@@ -656,14 +646,8 @@ export default function RoadmapPage() {
       return;
     }
 
-    const currentTs = Date.parse(currentVersion);
-    const latestTs = Date.parse(latestVersion);
-    const hasNewerVersion = Number.isFinite(currentTs) && Number.isFinite(latestTs)
-      ? latestTs > currentTs
-      : latestVersion !== currentVersion;
-
-    if (!hasNewerVersion) return;
-    if (dismissedVersion === latestVersion) return;
+    if (!isVersionNewer(latestVersion, currentVersion)) return;
+    if (isMatchingVersion(dismissedVersion, latestVersion)) return;
 
     setPendingRemoteVersion(latestVersion);
   }, [dismissedVersion, fetchRoadmapVersion]);
@@ -700,7 +684,7 @@ export default function RoadmapPage() {
               return;
             }
 
-            if (isSameVersion(nextVersion, currentVersionRef.current)) return;
+            if (!isVersionNewer(nextVersion, currentVersionRef.current)) return;
             // Skip realtime events triggered by our own save — the HTTP response
             // handler will update currentVersionRef and clear pendingRemoteVersion.
             if (saveInFlightRef.current) return;

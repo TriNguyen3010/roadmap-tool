@@ -123,16 +123,18 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
+
         logRoadmapSaveTelemetry({
             route: 'legacy-admin-save',
             roadmapId: ROW_ID,
             outcome: 'success',
             status: 200,
             baseVersion,
-            serverVersion: updatedAt,
+            serverVersion: persistedVersion,
             actor: auth.sessionUser,
         });
-        return NextResponse.json({ success: true, updatedAt });
+        return NextResponse.json({ success: true, updatedAt: persistedVersion });
     } catch (err: unknown) {
         logRoadmapSaveTelemetry({
             route: 'legacy-admin-save',

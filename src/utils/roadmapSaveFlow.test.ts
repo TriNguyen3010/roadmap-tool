@@ -102,6 +102,11 @@ describe('roadmapSaveFlow', () => {
             ok: true,
             currentVersion: '2026-04-02T10:00:00.000Z',
         });
+
+        expect(validateBaseVersion('2026-04-02T10:00:00.000Z', '2026-04-02T10:00:00.000+00:00')).toEqual({
+            ok: true,
+            currentVersion: '2026-04-02T10:00:00.000+00:00',
+        });
     });
 
     it('normalizes shared save documents and strips view settings', () => {

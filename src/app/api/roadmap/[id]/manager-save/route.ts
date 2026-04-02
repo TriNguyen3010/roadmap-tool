@@ -145,6 +145,8 @@ export async function POST(
             }
 
             if (savedRow) {
+                const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
+
                 // SUCCESS
                 logRoadmapSaveTelemetry({
                     route: 'manager-save',
@@ -152,11 +154,11 @@ export async function POST(
                     outcome: 'success',
                     status: 200,
                     baseVersion,
-                    serverVersion: updatedAt,
+                    serverVersion: persistedVersion,
                     changeCount: changes.length,
                     actor: auth.sessionUser,
                 });
-                return NextResponse.json({ success: true, document: savedDoc, updatedAt });
+                return NextResponse.json({ success: true, document: savedDoc, updatedAt: persistedVersion });
             }
 
             // Conditional update missed → someone else saved first, retry
