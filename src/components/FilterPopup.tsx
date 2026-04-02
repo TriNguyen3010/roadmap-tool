@@ -90,11 +90,11 @@ export default function FilterPopup({
                     <button
                         onClick={onSaveView}
                         disabled={!canEdit}
-                        title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu view' : 'Lưu View'}
+                        title={!canEdit ? 'Không thể lưu view trong trạng thái hiện tại' : 'Lưu view cá nhân trên trình duyệt này'}
                         className="w-full flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded transition-colors text-white bg-blue-600 hover:bg-blue-700 shadow-sm disabled:bg-blue-300"
                     >
                         <Save size={12} />
-                        <span>Lưu View (Mặc định)</span>
+                        <span>Lưu View Cá Nhân</span>
                     </button>
                 </div>
             )}

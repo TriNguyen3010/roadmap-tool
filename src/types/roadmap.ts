@@ -375,35 +375,37 @@ export interface Milestone {
   color: string; // hex color, e.g. '#ef4444'
 }
 
+export interface RoadmapViewSettings {
+  beforeWeeks: number;
+  afterMonths: number;
+  filterCategory?: string[];
+  filterStatus?: string[];
+  filterTeam?: string[];
+  filterPriority?: string[];
+  filterPhase?: string[];
+  filterSubcategory?: string[];
+  filterGroupItemType?: string[];
+  colWorkType?: boolean;
+  colPriority?: boolean;
+  colPhase?: boolean;
+  colPct?: boolean;
+  colStartDate?: boolean;
+  colEndDate?: boolean;
+  colFeaturesWidth?: number;
+  colFeaturesWidthMode?: ColumnWidthMode;
+  timelineMode?: TimelineMode;
+  timelineOnly?: boolean;
+  timelineTaskWidth?: number;
+  reportedMode?: boolean;
+  expandedIds?: string[];
+  hiddenRowIds?: string[];
+}
+
 export interface RoadmapDocument {
   releaseName: string;
   startDate: string;
   endDate: string;
   milestones?: Milestone[];
-  settings?: {
-    beforeWeeks: number;
-    afterMonths: number;
-    filterCategory?: string[];
-    filterStatus?: string[];
-    filterTeam?: string[];
-    filterPriority?: string[];
-    filterPhase?: string[];
-    filterSubcategory?: string[];
-    filterGroupItemType?: string[];
-    colWorkType?: boolean;
-    colPriority?: boolean;
-    colPhase?: boolean;
-    colPct?: boolean;
-    colStartDate?: boolean;
-    colEndDate?: boolean;
-    colFeaturesWidth?: number;
-    colFeaturesWidthMode?: ColumnWidthMode;
-    timelineMode?: TimelineMode;
-    timelineOnly?: boolean;
-    timelineTaskWidth?: number;
-    reportedMode?: boolean;
-    expandedIds?: string[];
-    hiddenRowIds?: string[];
-  };
+  settings?: RoadmapViewSettings;
   items: RoadmapItem[];
 }

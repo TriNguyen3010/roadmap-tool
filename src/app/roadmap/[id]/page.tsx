@@ -20,6 +20,7 @@ import {
   PhaseOption,
   RoadmapDocument,
   RoadmapItem,
+  RoadmapViewSettings,
   TimelineMode,
   normalizeItemImages,
   normalizeGroupItemType,
@@ -34,7 +35,13 @@ import {
   normalizeStatusFilter,
   toLegacyImageFields
 } from '@/types/roadmap';
+import type { RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
 import { buildRoadmapExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
+import {
+  VERSION_CONFLICT_CODE,
+  buildConflictDraftStorageKey,
+  buildRoadmapChannelName,
+} from '@/utils/roadmapConcurrency';
 import {
   filterRoadmapTree,
   flattenRoadmap,
@@ -53,6 +60,7 @@ import {
   type PhaseDateAffectedGroup,
 } from '@/utils/phaseDateApply';
 import { getDocumentPermission } from '@/utils/permissions';
+import { buildViewSettingsStorageKey, parseStoredViewSettings, stripViewSettingsFromDocument } from '@/utils/roadmapViewSettings';
 
 const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
@@ -62,6 +70,7 @@ const DEFAULT_TIMELINE_TASK_WIDTH = 220;
 const MIN_TIMELINE_TASK_WIDTH = 140;
 const MAX_TIMELINE_TASK_WIDTH = 420;
 const VERSION_POLL_INTERVAL_MS = 20_000;
+const CONFLICT_DRAFT_FILE_PREFIX = 'roadmap-conflict-draft';
 
 function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
@@ -158,6 +167,43 @@ function buildPhaseApplySummaryMessage(result: ApplyPhaseDatesResult): string {
   return base;
 }
 
+function getDefaultViewSettings(): RoadmapViewSettings {
+  return {
+    beforeWeeks: 2,
+    afterMonths: 2,
+    filterCategory: [],
+    filterStatus: [],
+    filterTeam: [],
+    filterPriority: [],
+    filterPhase: [],
+    filterSubcategory: [],
+    filterGroupItemType: [],
+    colWorkType: true,
+    colPriority: true,
+    colPhase: true,
+    colStartDate: false,
+    colEndDate: false,
+    colFeaturesWidth: DEFAULT_FEATURES_COL_WIDTH,
+    colFeaturesWidthMode: 'auto',
+    timelineMode: DEFAULT_TIMELINE_MODE,
+    timelineOnly: false,
+    timelineTaskWidth: DEFAULT_TIMELINE_TASK_WIDTH,
+    reportedMode: false,
+    expandedIds: [],
+    hiddenRowIds: [],
+  };
+}
+
+function downloadJsonFile(fileName: string, content: unknown) {
+  const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function RoadmapPage() {
   const params = useParams();
   const router = useRouter();
@@ -174,7 +220,15 @@ export default function RoadmapPage() {
   const [guestMode, setGuestMode] = useState(false);
   const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
+  const [conflictState, setConflictState] = useState<{
+    message: string;
+    serverVersion: string | null;
+  } | null>(null);
+  const [hasStoredConflictDraft, setHasStoredConflictDraft] = useState(false);
   const currentVersionRef = useRef<string | null>(null);
+  const latestLoadedSettingsRef = useRef<Partial<RoadmapViewSettings> | null>(null);
+  const hasHydratedViewSettingsRef = useRef(false);
+  const syncChannelRef = useRef<BroadcastChannel | null>(null);
 
   const [beforeWeeks, setBeforeWeeks] = useState(2);
   const [afterMonths, setAfterMonths] = useState(2);
@@ -215,12 +269,192 @@ export default function RoadmapPage() {
   } = useGoogleAuth();
   const documentPermission = useMemo<EditPermission>(() => getDocumentPermission(authUser), [authUser]);
   const canManageRoadmap = documentPermission.canManageRoadmap;
+  const viewSettingsScope = useMemo(() => {
+    if (authUser?.email) return authUser.email.trim().toLowerCase();
+    if (guestMode) return 'guest';
+    return null;
+  }, [authUser?.email, guestMode]);
+  const viewSettingsStorageKey = useMemo(
+    () => (roadmapId && viewSettingsScope ? buildViewSettingsStorageKey(roadmapId, viewSettingsScope) : null),
+    [roadmapId, viewSettingsScope]
+  );
+  const conflictDraftStorageKey = useMemo(
+    () => (roadmapId && viewSettingsScope ? buildConflictDraftStorageKey(roadmapId, viewSettingsScope) : null),
+    [roadmapId, viewSettingsScope]
+  );
 
   const ensureCanManageRoadmap = useCallback(() => {
     if (canManageRoadmap) return true;
     addToast('Tài khoản hiện tại không có quyền chỉnh sửa cấu trúc roadmap.', 'error');
     return false;
   }, [addToast, canManageRoadmap]);
+
+  const readStoredViewSettings = useCallback((): Partial<RoadmapViewSettings> | null => {
+    if (!viewSettingsStorageKey) return null;
+    try {
+      return parseStoredViewSettings(window.localStorage.getItem(viewSettingsStorageKey));
+    } catch {
+      return null;
+    }
+  }, [viewSettingsStorageKey]);
+
+  const buildCurrentViewSettings = useCallback((): RoadmapViewSettings => ({
+    beforeWeeks,
+    afterMonths,
+    filterCategory,
+    filterStatus: normalizeStatusFilter(filterStatus),
+    filterTeam,
+    filterPriority: normalizePriorityFilterValues(filterPriority),
+    filterPhase: normalizePhaseFilterValues(filterPhase),
+    filterSubcategory,
+    filterGroupItemType: normalizeGroupItemTypeFilter(filterGroupItemType),
+    reportedMode: isReportedMode,
+    colWorkType: showWorkType,
+    colPriority: showPriority,
+    colPhase: showPhase,
+    colStartDate: showStartDate,
+    colEndDate: showEndDate,
+    colFeaturesWidth: clampFeaturesColWidth(featuresColWidth),
+    colFeaturesWidthMode: featuresColWidthMode,
+    timelineMode,
+    timelineOnly,
+    timelineTaskWidth: clampTimelineTaskWidth(timelineTaskWidth),
+    expandedIds: Array.from(expandedIds),
+    hiddenRowIds: Array.from(hiddenRowIds),
+  }), [
+    beforeWeeks, afterMonths, filterCategory, filterStatus, filterTeam,
+    filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
+    isReportedMode, showWorkType, showPriority, showPhase, showStartDate,
+    showEndDate, featuresColWidth, featuresColWidthMode, timelineMode, timelineOnly,
+    timelineTaskWidth, expandedIds, hiddenRowIds,
+  ]);
+
+  const persistCurrentViewSettings = useCallback((settings?: RoadmapViewSettings) => {
+    if (!viewSettingsStorageKey) return;
+    try {
+      window.localStorage.setItem(viewSettingsStorageKey, JSON.stringify(settings ?? buildCurrentViewSettings()));
+    } catch {
+      // Ignore storage errors; view persistence is best-effort only.
+    }
+  }, [buildCurrentViewSettings, viewSettingsStorageKey]);
+
+  const applyViewSettings = useCallback((settings?: Partial<RoadmapViewSettings> | null) => {
+    const defaults = getDefaultViewSettings();
+    const next = { ...defaults, ...(settings || {}) };
+    const normalizedPriority = normalizePriorityFilterValues(next.filterPriority);
+    const shouldResetReportedMode = next.reportedMode === true;
+
+    setBeforeWeeks(typeof next.beforeWeeks === 'number' ? next.beforeWeeks : defaults.beforeWeeks);
+    setAfterMonths(typeof next.afterMonths === 'number' ? next.afterMonths : defaults.afterMonths);
+    setFilterCategory(Array.isArray(next.filterCategory) ? next.filterCategory : defaults.filterCategory || []);
+    setFilterStatus(normalizeStatusFilter(next.filterStatus));
+    setFilterTeam(Array.isArray(next.filterTeam) ? next.filterTeam : defaults.filterTeam || []);
+    setFilterPriority(shouldResetReportedMode ? removeReportedPriority(normalizedPriority) : normalizedPriority);
+    setFilterPhase(normalizePhaseFilterValues(next.filterPhase));
+    setFilterSubcategory(Array.isArray(next.filterSubcategory)
+      ? stripQuickViewSubcategories(next.filterSubcategory)
+      : defaults.filterSubcategory || []);
+    setFilterGroupItemType(normalizeGroupItemTypeFilter(next.filterGroupItemType));
+    setIsReportedMode(false);
+    setShowWorkType(typeof next.colWorkType === 'boolean' ? next.colWorkType : defaults.colWorkType ?? true);
+    setShowPriority(typeof next.colPriority === 'boolean' ? next.colPriority : defaults.colPriority ?? true);
+    setShowPhase(typeof next.colPhase === 'boolean' ? next.colPhase : defaults.colPhase ?? true);
+    setShowStartDate(typeof next.colStartDate === 'boolean' ? next.colStartDate : defaults.colStartDate ?? false);
+    setShowEndDate(typeof next.colEndDate === 'boolean' ? next.colEndDate : defaults.colEndDate ?? false);
+    setFeaturesColWidth(clampFeaturesColWidth(
+      typeof next.colFeaturesWidth === 'number'
+        ? next.colFeaturesWidth
+        : defaults.colFeaturesWidth ?? DEFAULT_FEATURES_COL_WIDTH
+    ));
+    if (next.colFeaturesWidthMode === 'auto' || next.colFeaturesWidthMode === 'manual') {
+      setFeaturesColWidthMode(next.colFeaturesWidthMode);
+    } else {
+      setFeaturesColWidthMode(defaults.colFeaturesWidthMode ?? 'auto');
+    }
+    if (next.timelineMode === 'day' || next.timelineMode === 'week' || next.timelineMode === 'month') {
+      setTimelineMode(next.timelineMode);
+    } else {
+      setTimelineMode(defaults.timelineMode ?? DEFAULT_TIMELINE_MODE);
+    }
+    setTimelineOnly(!!next.timelineOnly);
+    setTimelineTaskWidth(clampTimelineTaskWidth(
+      typeof next.timelineTaskWidth === 'number'
+        ? next.timelineTaskWidth
+        : defaults.timelineTaskWidth ?? DEFAULT_TIMELINE_TASK_WIDTH
+    ));
+    if (Array.isArray(next.expandedIds)) {
+      setExpandedIds(new Set(next.expandedIds));
+      hasInitializedExpansion.current = true;
+    } else if (Array.isArray(defaults.expandedIds)) {
+      setExpandedIds(new Set(defaults.expandedIds));
+    }
+    if (Array.isArray(next.hiddenRowIds)) {
+      setHiddenRowIds(new Set(next.hiddenRowIds));
+    } else if (Array.isArray(defaults.hiddenRowIds)) {
+      setHiddenRowIds(new Set(defaults.hiddenRowIds));
+    }
+    hasHydratedViewSettingsRef.current = true;
+  }, []);
+
+  const buildSharedDocumentSnapshot = useCallback((baseData: RoadmapDocument): RoadmapDocument => {
+    return stripViewSettingsFromDocument({
+      ...baseData,
+      milestones: normalizeMilestones(baseData.milestones),
+      items: baseData.items,
+    });
+  }, []);
+
+  const buildJsonBackupSnapshot = useCallback((baseData: RoadmapDocument): RoadmapDocument => ({
+    ...buildSharedDocumentSnapshot(baseData),
+    settings: buildCurrentViewSettings(),
+  }), [buildCurrentViewSettings, buildSharedDocumentSnapshot]);
+
+  const persistConflictDraft = useCallback((snapshot: RoadmapDocument) => {
+    if (!conflictDraftStorageKey) return;
+    try {
+      window.sessionStorage.setItem(conflictDraftStorageKey, JSON.stringify({
+        capturedAt: new Date().toISOString(),
+        snapshot,
+      }));
+      setHasStoredConflictDraft(true);
+    } catch {
+      // Ignore session storage failures.
+    }
+  }, [conflictDraftStorageKey]);
+
+  const clearStoredConflictDraft = useCallback(() => {
+    if (!conflictDraftStorageKey) return;
+    try {
+      window.sessionStorage.removeItem(conflictDraftStorageKey);
+      setHasStoredConflictDraft(false);
+    } catch {
+      // Ignore session storage failures.
+    }
+  }, [conflictDraftStorageKey]);
+
+  const downloadStoredConflictDraft = useCallback(() => {
+    if (!conflictDraftStorageKey) return;
+    try {
+      const raw = window.sessionStorage.getItem(conflictDraftStorageKey);
+      if (!raw) {
+        addToast('Không tìm thấy conflict draft đã lưu tạm.', 'info');
+        setHasStoredConflictDraft(false);
+        return;
+      }
+
+      const payload = JSON.parse(raw) as { capturedAt?: string; snapshot?: RoadmapDocument } | null;
+      if (!payload?.snapshot) {
+        addToast('Conflict draft bị hỏng hoặc không hợp lệ.', 'error');
+        setHasStoredConflictDraft(false);
+        return;
+      }
+
+      const timestamp = (payload.capturedAt || new Date().toISOString()).replace(/[:.]/g, '-');
+      downloadJsonFile(`${CONFLICT_DRAFT_FILE_PREFIX}-${roadmapId || 'roadmap'}-${timestamp}.json`, payload.snapshot);
+    } catch {
+      addToast('Không thể tải conflict draft đã lưu tạm.', 'error');
+    }
+  }, [addToast, conflictDraftStorageKey, roadmapId]);
 
   const normalizeDocument = useCallback((doc: RoadmapDocument): RoadmapDocument => ({
     ...doc,
@@ -275,57 +509,16 @@ export default function RoadmapPage() {
 
   const hydrateRoadmap = useCallback((json: RoadmapDocument, version: string | null) => {
     const normalized = normalizeDocument(json);
-    setData(normalized);
+    const legacySettings = normalized.settings ? { ...normalized.settings } : null;
+    latestLoadedSettingsRef.current = legacySettings;
+    setData(stripViewSettingsFromDocument(normalized));
     currentVersionRef.current = version;
     setPendingRemoteVersion(null);
     setDismissedVersion(null);
-    setTimelineOnly(!!json.settings?.timelineOnly);
-    setTimelineTaskWidth(clampTimelineTaskWidth(
-      typeof json.settings?.timelineTaskWidth === 'number'
-        ? json.settings.timelineTaskWidth
-        : DEFAULT_TIMELINE_TASK_WIDTH
-    ));
+    setConflictState(null);
 
-    if (json.settings) {
-      if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
-      if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
-      if (json.settings.filterCategory) setFilterCategory(json.settings.filterCategory);
-      if (json.settings.filterStatus) setFilterStatus(normalizeStatusFilter(json.settings.filterStatus));
-      if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
-      const normalizedPriority = json.settings.filterPriority
-        ? normalizePriorityFilterValues(json.settings.filterPriority)
-        : [];
-      const shouldResetReportedMode = json.settings.reportedMode === true;
-      setFilterPriority(shouldResetReportedMode ? removeReportedPriority(normalizedPriority) : normalizedPriority);
-      if (json.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(json.settings.filterPhase));
-      if (json.settings.filterSubcategory) setFilterSubcategory(stripQuickViewSubcategories(json.settings.filterSubcategory));
-      if (json.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(json.settings.filterGroupItemType));
-      setIsReportedMode(false);
-      if (typeof json.settings.colWorkType === 'boolean') setShowWorkType(json.settings.colWorkType);
-      if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
-      if (typeof json.settings.colPhase === 'boolean') setShowPhase(json.settings.colPhase);
-      if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
-      if (typeof json.settings.colEndDate === 'boolean') setShowEndDate(json.settings.colEndDate);
-      if (typeof json.settings.colFeaturesWidth === 'number') {
-        setFeaturesColWidth(clampFeaturesColWidth(json.settings.colFeaturesWidth));
-      }
-      if (json.settings.colFeaturesWidthMode === 'auto' || json.settings.colFeaturesWidthMode === 'manual') {
-        setFeaturesColWidthMode(json.settings.colFeaturesWidthMode);
-      } else if (typeof json.settings.colFeaturesWidth === 'number') {
-        setFeaturesColWidthMode('manual');
-      }
-      if (json.settings.timelineMode === 'day' || json.settings.timelineMode === 'week' || json.settings.timelineMode === 'month') {
-        setTimelineMode(json.settings.timelineMode);
-      }
-      if (typeof json.settings.timelineTaskWidth === 'number') {
-        setTimelineTaskWidth(clampTimelineTaskWidth(json.settings.timelineTaskWidth));
-      }
-      if (json.settings.expandedIds) {
-        setExpandedIds(new Set(json.settings.expandedIds));
-        hasInitializedExpansion.current = true;
-      }
-      if (json.settings.hiddenRowIds) setHiddenRowIds(new Set(json.settings.hiddenRowIds));
-    }
+    const storedSettings = readStoredViewSettings();
+    applyViewSettings(storedSettings ?? legacySettings);
 
     if (!hasInitializedExpansion.current && normalized.items) {
       const ids = new Set<string>();
@@ -338,7 +531,7 @@ export default function RoadmapPage() {
       setExpandedIds(ids);
       hasInitializedExpansion.current = true;
     }
-  }, [normalizeDocument]);
+  }, [applyViewSettings, normalizeDocument, readStoredViewSettings]);
 
   const loadRoadmap = useCallback(async () => {
     if (!roadmapId) return false;
@@ -388,6 +581,56 @@ export default function RoadmapPage() {
       cancelled = true;
     };
   }, [roadmapId, addToast, hydrateRoadmap, fetchRoadmapVersion]);
+
+  useEffect(() => {
+    if (!roadmapId || !viewSettingsScope) return;
+
+    const storedSettings = readStoredViewSettings();
+    if (storedSettings) {
+      applyViewSettings(storedSettings);
+    } else if (latestLoadedSettingsRef.current) {
+      applyViewSettings(latestLoadedSettingsRef.current);
+    }
+  }, [applyViewSettings, readStoredViewSettings, roadmapId, viewSettingsScope]);
+
+  useEffect(() => {
+    if (!viewSettingsScope || !hasHydratedViewSettingsRef.current) return;
+    persistCurrentViewSettings();
+  }, [persistCurrentViewSettings, viewSettingsScope]);
+
+  useEffect(() => {
+    if (!conflictDraftStorageKey) {
+      setHasStoredConflictDraft(false);
+      return;
+    }
+
+    try {
+      setHasStoredConflictDraft(!!window.sessionStorage.getItem(conflictDraftStorageKey));
+    } catch {
+      setHasStoredConflictDraft(false);
+    }
+  }, [conflictDraftStorageKey]);
+
+  useEffect(() => {
+    if (!roadmapId || typeof BroadcastChannel === 'undefined') return;
+
+    const channel = new BroadcastChannel(buildRoadmapChannelName(roadmapId));
+    syncChannelRef.current = channel;
+    channel.onmessage = (event) => {
+      const payload = event.data as { type?: string; version?: string } | null;
+      if (payload?.type !== 'roadmap-updated') return;
+      if (typeof payload.version !== 'string' || payload.version === currentVersionRef.current) return;
+      setDismissedVersion(null);
+      setPendingRemoteVersion(payload.version);
+    };
+
+    return () => {
+      channel.close();
+      if (syncChannelRef.current === channel) {
+        syncChannelRef.current = null;
+      }
+    };
+  }, [roadmapId]);
 
   const checkRemoteVersion = useCallback(async () => {
     const latestVersion = await fetchRoadmapVersion();
@@ -450,41 +693,6 @@ export default function RoadmapPage() {
     setGuestMode(false);
   }, [logoutGoogle]);
 
-  const buildDocumentSnapshot = useCallback((baseData: RoadmapDocument): RoadmapDocument => ({
-    ...baseData,
-    settings: {
-      beforeWeeks,
-      afterMonths,
-      filterCategory,
-      filterStatus: normalizeStatusFilter(filterStatus),
-      filterTeam,
-      filterPriority: normalizePriorityFilterValues(filterPriority),
-      filterPhase: normalizePhaseFilterValues(filterPhase),
-      filterSubcategory,
-      filterGroupItemType: normalizeGroupItemTypeFilter(filterGroupItemType),
-      reportedMode: isReportedMode,
-      colWorkType: showWorkType,
-      colPriority: showPriority,
-      colPhase: showPhase,
-      colStartDate: showStartDate,
-      colEndDate: showEndDate,
-      colFeaturesWidth: clampFeaturesColWidth(featuresColWidth),
-      colFeaturesWidthMode: featuresColWidthMode,
-      timelineMode,
-      timelineOnly,
-      timelineTaskWidth: clampTimelineTaskWidth(timelineTaskWidth),
-      expandedIds: Array.from(expandedIds),
-      hiddenRowIds: Array.from(hiddenRowIds),
-    }
-  }), [
-    beforeWeeks, afterMonths, filterCategory, filterStatus, filterTeam,
-    filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
-    isReportedMode, showWorkType, showPriority, showPhase, showStartDate,
-    showEndDate, featuresColWidth, featuresColWidthMode, timelineMode, timelineOnly,
-    timelineTaskWidth,
-    expandedIds, hiddenRowIds,
-  ]);
-
   const exportVisibleRows = useMemo(() => {
     if (!data) return [];
     const filters = {
@@ -521,16 +729,56 @@ export default function RoadmapPage() {
     return cols;
   }, [showWorkType, showPriority, showPhase, showStartDate, showEndDate]);
 
+  const broadcastVersionUpdate = useCallback((version: string | null) => {
+    if (!version || !syncChannelRef.current) return;
+    syncChannelRef.current.postMessage({
+      type: 'roadmap-updated',
+      version,
+    });
+  }, []);
+
+  const resolveBaseVersion = useCallback(async (): Promise<string | null> => {
+    if (currentVersionRef.current) return currentVersionRef.current;
+    return fetchRoadmapVersion();
+  }, [fetchRoadmapVersion]);
+
+  const ensureCanSaveCurrentVersion = useCallback(() => {
+    if (conflictState) {
+      addToast('Roadmap đang bị conflict với bản mới hơn trên hệ thống. Hãy tải bản mới nhất trước khi lưu tiếp.', 'error');
+      return false;
+    }
+
+    if (pendingRemoteVersion || dismissedVersion) {
+      addToast('Đã có phiên bản mới hơn trên hệ thống. Hãy tải bản mới nhất trước khi lưu để tránh ghi đè dữ liệu.', 'error');
+      return false;
+    }
+
+    return true;
+  }, [addToast, conflictState, dismissedVersion, pendingRemoteVersion]);
+
+  const handleSaveViewPreferences = useCallback(() => {
+    persistCurrentViewSettings();
+    addToast('Đã lưu view cá nhân trên trình duyệt này.', 'success');
+  }, [addToast, persistCurrentViewSettings]);
+
   const handleSave = useCallback(async (currentData: RoadmapDocument) => {
     if (!ensureCanManageRoadmap()) return;
     if (!authUser || !accessToken) {
       addToast('Bạn cần đăng nhập lại để lưu roadmap.', 'error');
       return;
     }
+    if (!ensureCanSaveCurrentVersion()) return;
+
+    const baseVersion = await resolveBaseVersion();
+    if (!baseVersion) {
+      addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+      return;
+    }
+
     setSaving(true);
     setSaveState('idle');
     try {
-      const dataToSave = buildDocumentSnapshot(currentData);
+      const dataToSave = buildSharedDocumentSnapshot(currentData);
 
       const res = await fetch(`/api/roadmap/${roadmapId}/save`, {
         method: 'POST',
@@ -538,8 +786,12 @@ export default function RoadmapPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(dataToSave),
+        body: JSON.stringify({
+          document: dataToSave,
+          baseVersion,
+        } satisfies RoadmapSaveRequest),
       });
+      const payload = await res.json().catch(() => ({}));
       if (res.status === 401) {
         addToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
         setSaveState('error');
@@ -552,14 +804,34 @@ export default function RoadmapPage() {
         setSaveTick(prev => prev + 1);
         return;
       }
+      if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
+        persistConflictDraft(buildJsonBackupSnapshot(currentData));
+        setConflictState({
+          message: typeof payload?.message === 'string'
+            ? payload.message
+            : 'Roadmap đã được cập nhật bởi người khác.',
+          serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
+        });
+        if (typeof payload?.serverVersion === 'string') {
+          setPendingRemoteVersion(payload.serverVersion);
+        }
+        addToast('Lưu bị chặn để tránh ghi đè dữ liệu mới hơn. Bản local đã được giữ tạm để bạn backup.', 'error');
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        return;
+      }
       if (!res.ok) throw new Error();
       addToast('Đã lưu thành công.', 'success');
-      const latestVersion = await fetchRoadmapVersion();
+      const latestVersion = typeof payload?.updatedAt === 'string'
+        ? payload.updatedAt
+        : await fetchRoadmapVersion();
       if (latestVersion) {
         currentVersionRef.current = latestVersion;
+        broadcastVersionUpdate(latestVersion);
       }
       setPendingRemoteVersion(null);
       setDismissedVersion(null);
+      setConflictState(null);
       setSaveState('success');
       setSaveTick(prev => prev + 1);
     } catch {
@@ -569,16 +841,36 @@ export default function RoadmapPage() {
     } finally {
       setSaving(false);
     }
-  }, [accessToken, addToast, authUser, buildDocumentSnapshot, ensureCanManageRoadmap, fetchRoadmapVersion, roadmapId]);
+  }, [
+    accessToken,
+    addToast,
+    authUser,
+    broadcastVersionUpdate,
+    buildJsonBackupSnapshot,
+    buildSharedDocumentSnapshot,
+    ensureCanManageRoadmap,
+    ensureCanSaveCurrentVersion,
+    fetchRoadmapVersion,
+    persistConflictDraft,
+    resolveBaseVersion,
+    roadmapId,
+  ]);
 
   const handleManagerFieldChanges = useCallback(async (changes: ManagerFieldChange[], optimisticData: RoadmapDocument) => {
     if (!authUser || !accessToken) {
       addToast('Bạn cần đăng nhập lại để lưu thay đổi.', 'error');
       return;
     }
+    if (!ensureCanSaveCurrentVersion()) return;
+
+    const baseVersion = await resolveBaseVersion();
+    if (!baseVersion) {
+      addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+      return;
+    }
 
     const normalizedOptimistic = normalizeDocument(optimisticData);
-    setData(normalizedOptimistic);
+    setData(stripViewSettingsFromDocument(normalizedOptimistic));
     setSaving(true);
     setSaveState('idle');
 
@@ -589,10 +881,30 @@ export default function RoadmapPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ changes }),
+        body: JSON.stringify({
+          changes,
+          baseVersion,
+        } satisfies RoadmapManagerSaveRequest),
       });
 
       const payload = await res.json().catch(() => ({}));
+      if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
+        persistConflictDraft(buildJsonBackupSnapshot(normalizedOptimistic));
+        setConflictState({
+          message: typeof payload?.message === 'string'
+            ? payload.message
+            : 'Roadmap đã được cập nhật bởi người khác.',
+          serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
+        });
+        if (typeof payload?.serverVersion === 'string') {
+          setPendingRemoteVersion(payload.serverVersion);
+        }
+        addToast('Thay đổi local đã được giữ tạm. Hãy tải bản mới nhất trước khi lưu tiếp để tránh conflict.', 'error');
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        return;
+      }
+
       if (!res.ok) {
         const violations = Array.isArray(payload?.violations) ? payload.violations.join('\n') : '';
         throw new Error(violations || payload?.error || 'Không thể lưu thay đổi');
@@ -602,6 +914,11 @@ export default function RoadmapPage() {
         hydrateRoadmap(payload.document as RoadmapDocument, typeof payload?.updatedAt === 'string' ? payload.updatedAt : null);
       } else {
         await loadRoadmap();
+      }
+
+      if (typeof payload?.updatedAt === 'string') {
+        currentVersionRef.current = payload.updatedAt;
+        broadcastVersionUpdate(payload.updatedAt);
       }
 
       setSaveState('success');
@@ -614,7 +931,20 @@ export default function RoadmapPage() {
     } finally {
       setSaving(false);
     }
-  }, [accessToken, addToast, authUser, hydrateRoadmap, loadRoadmap, normalizeDocument, roadmapId]);
+  }, [
+    accessToken,
+    addToast,
+    authUser,
+    broadcastVersionUpdate,
+    buildJsonBackupSnapshot,
+    ensureCanSaveCurrentVersion,
+    hydrateRoadmap,
+    loadRoadmap,
+    normalizeDocument,
+    persistConflictDraft,
+    resolveBaseVersion,
+    roadmapId,
+  ]);
 
   const handleExportExcelCurrentView = async () => {
     if (!data) return;
@@ -684,7 +1014,7 @@ export default function RoadmapPage() {
     if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     const newData = normalizeDocument({ ...data, milestones });
-    setData(newData);
+    setData(stripViewSettingsFromDocument(newData));
     handleSave(newData);
   };
 
@@ -706,7 +1036,7 @@ export default function RoadmapPage() {
     setIsApplyingPhaseDates(true);
     try {
       const nextData = normalizeDocument({ ...data, items: result.items });
-      setData(nextData);
+      setData(stripViewSettingsFromDocument(nextData));
       addToast(buildPhaseApplySummaryMessage(result), 'success');
       await handleSave(nextData);
     } finally {
@@ -789,7 +1119,7 @@ export default function RoadmapPage() {
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
     if (!canManageRoadmap) return;
     const normalized = normalizeDocument(newData);
-    setData(normalized);
+    setData(stripViewSettingsFromDocument(normalized));
     if (shouldSave) {
       handleSave(normalized);
     }
@@ -798,10 +1128,10 @@ export default function RoadmapPage() {
   const handleRootAdd = (newItem: RoadmapItem) => {
     if (!ensureCanManageRoadmap()) return;
     if (!data) return;
-    setData(normalizeDocument({ ...data, items: [...data.items, newItem] }));
+    setData(stripViewSettingsFromDocument(normalizeDocument({ ...data, items: [...data.items, newItem] })));
   };
 
-  const handleLoadJson = async (jsonData: unknown) => {
+  const handleLoadJson = useCallback(async (jsonData: unknown) => {
     if (!ensureCanManageRoadmap()) return;
     const parsed = jsonData as Partial<RoadmapDocument> | null;
     if (!parsed || !Array.isArray(parsed.items)) {
@@ -812,62 +1142,17 @@ export default function RoadmapPage() {
     if (!yes) return;
 
     const normalized = normalizeDocument(parsed as RoadmapDocument);
-    setData(normalized);
-    setTimelineOnly(!!parsed.settings?.timelineOnly);
-    setTimelineTaskWidth(clampTimelineTaskWidth(
-      typeof parsed.settings?.timelineTaskWidth === 'number'
-        ? parsed.settings.timelineTaskWidth
-        : DEFAULT_TIMELINE_TASK_WIDTH
-    ));
-    if (parsed.settings) {
-      const settings = parsed.settings as Record<string, unknown>;
-      const toStringArray = (value: unknown): string[] => (
-        Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
-      );
-      if (typeof settings.beforeWeeks === 'number') setBeforeWeeks(settings.beforeWeeks);
-      if (typeof settings.afterMonths === 'number') setAfterMonths(settings.afterMonths);
-      if (Array.isArray(settings.filterCategory)) setFilterCategory(toStringArray(settings.filterCategory));
-      if (Array.isArray(settings.filterStatus)) setFilterStatus(normalizeStatusFilter(toStringArray(settings.filterStatus)));
-      if (Array.isArray(settings.filterTeam)) setFilterTeam(toStringArray(settings.filterTeam));
-      if (Array.isArray(settings.filterPriority)) setFilterPriority(normalizePriorityFilterValues(toStringArray(settings.filterPriority)));
-      if (Array.isArray(settings.filterPhase)) setFilterPhase(normalizePhaseFilterValues(toStringArray(settings.filterPhase)));
-      if (Array.isArray(settings.filterSubcategory)) setFilterSubcategory(toStringArray(settings.filterSubcategory));
-      if (Array.isArray(settings.filterGroupItemType)) setFilterGroupItemType(normalizeGroupItemTypeFilter(toStringArray(settings.filterGroupItemType)));
-      if (typeof settings.reportedMode === 'boolean') setIsReportedMode(settings.reportedMode);
-      if (typeof settings.colWorkType === 'boolean') setShowWorkType(settings.colWorkType);
-      if (typeof settings.colPriority === 'boolean') setShowPriority(settings.colPriority);
-      if (typeof settings.colPhase === 'boolean') setShowPhase(settings.colPhase);
-      if (typeof settings.colStartDate === 'boolean') setShowStartDate(settings.colStartDate);
-      if (typeof settings.colEndDate === 'boolean') setShowEndDate(settings.colEndDate);
-      if (typeof settings.colFeaturesWidth === 'number') {
-        setFeaturesColWidth(clampFeaturesColWidth(settings.colFeaturesWidth));
-      }
-      if (settings.colFeaturesWidthMode === 'auto' || settings.colFeaturesWidthMode === 'manual') {
-        setFeaturesColWidthMode(settings.colFeaturesWidthMode);
-      } else if (typeof settings.colFeaturesWidth === 'number') {
-        setFeaturesColWidthMode('manual');
-      }
-      if (settings.timelineMode === 'day' || settings.timelineMode === 'week' || settings.timelineMode === 'month') {
-        setTimelineMode(settings.timelineMode as TimelineMode);
-      }
-      if (typeof settings.timelineTaskWidth === 'number') {
-        setTimelineTaskWidth(clampTimelineTaskWidth(settings.timelineTaskWidth));
-      }
-      if (Array.isArray(settings.expandedIds)) {
-        setExpandedIds(new Set(toStringArray(settings.expandedIds)));
-        hasInitializedExpansion.current = true;
-      }
-      if (Array.isArray(settings.hiddenRowIds)) {
-        setHiddenRowIds(new Set(toStringArray(settings.hiddenRowIds)));
-      }
-    }
+    latestLoadedSettingsRef.current = normalized.settings ? { ...normalized.settings } : null;
+    setData(stripViewSettingsFromDocument(normalized));
+    applyViewSettings(normalized.settings);
+    persistCurrentViewSettings(normalized.settings ? { ...getDefaultViewSettings(), ...normalized.settings } : getDefaultViewSettings());
     await handleSave(normalized);
-  };
+  }, [applyViewSettings, ensureCanManageRoadmap, handleSave, normalizeDocument, persistCurrentViewSettings, showConfirm, addToast]);
 
   const handleDownloadJson = async () => {
     if (!data) return;
     try {
-      const snapshot = buildDocumentSnapshot(data);
+      const snapshot = buildJsonBackupSnapshot(data);
       const res = await fetch('/api/export/json-backup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -939,14 +1224,30 @@ export default function RoadmapPage() {
     });
   }, [data]);
 
+  const downloadCurrentLocalDraft = useCallback(() => {
+    if (!data) return;
+    downloadJsonFile(
+      `${CONFLICT_DRAFT_FILE_PREFIX}-${roadmapId || 'roadmap'}-local.json`,
+      buildJsonBackupSnapshot(data)
+    );
+  }, [buildJsonBackupSnapshot, data, roadmapId]);
+
   const dismissVersionNotice = useCallback(() => {
     if (pendingRemoteVersion) setDismissedVersion(pendingRemoteVersion);
     setPendingRemoteVersion(null);
   }, [pendingRemoteVersion]);
 
-  const refreshForLatestData = useCallback(() => {
-    window.location.reload();
-  }, []);
+  const refreshForLatestData = useCallback(async () => {
+    if (data) {
+      persistConflictDraft(buildJsonBackupSnapshot(data));
+      addToast('Đã lưu local draft tạm trước khi tải bản mới nhất.', 'info');
+    }
+
+    const loaded = await loadRoadmap();
+    if (loaded) {
+      addToast('Đã tải phiên bản mới nhất từ hệ thống.', 'success');
+    }
+  }, [addToast, buildJsonBackupSnapshot, data, loadRoadmap, persistConflictDraft]);
 
   if (loading || !data) {
     return (
@@ -1003,7 +1304,7 @@ export default function RoadmapPage() {
         <FilterPopup
         isOpen={showFilterPopup}
         onClose={() => setShowFilterPopup(false)}
-          canEdit={canManageRoadmap}
+          canEdit={true}
           availableCategories={availableCategories}
           availableTeams={availableTeams}
           availableSubcategories={availableSubcategories}
@@ -1016,15 +1317,72 @@ export default function RoadmapPage() {
           filterSubcategory={filterSubcategory}
           filterGroupItemType={filterGroupItemType}
           onFilterChange={handleFilterChange}
-          onSaveView={() => handleSave(data)}
+          onSaveView={handleSaveViewPreferences}
         />
       )}
 
-      {pendingRemoteVersion && (
+      {hasStoredConflictDraft && (
+        <div className="shrink-0 border-b border-sky-300 bg-sky-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-medium text-sky-800">
+              Có một local draft đã được lưu tạm sau khi gặp conflict hoặc refresh an toàn.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded border border-sky-300 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
+                onClick={clearStoredConflictDraft}
+              >
+                Xóa backup
+              </button>
+              <button
+                type="button"
+                className="rounded bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-700"
+                onClick={downloadStoredConflictDraft}
+              >
+                Tải backup JSON
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {conflictState && (
+        <div className="shrink-0 border-b border-rose-300 bg-rose-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-rose-800">
+                {conflictState.message}
+              </p>
+              <p className="mt-0.5 text-[11px] text-rose-700">
+                Bản local đang được giữ lại tạm thời. Hãy tải backup hoặc tải phiên bản mới nhất trước khi lưu tiếp.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="rounded border border-rose-300 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
+                onClick={downloadCurrentLocalDraft}
+              >
+                Tải backup local
+              </button>
+              <button
+                type="button"
+                className="rounded bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
+                onClick={() => { void refreshForLatestData(); }}
+              >
+                Tải bản mới nhất
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!conflictState && pendingRemoteVersion && (
         <div className="shrink-0 border-b border-amber-300 bg-amber-50 px-3 py-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-medium text-amber-800">
-              Có dữ liệu mới trên hệ thống. Bấm Refresh để lấy phiên bản mới nhất.
+              Có dữ liệu mới trên hệ thống. Hãy tải bản mới nhất trước khi lưu để tránh ghi đè dữ liệu.
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -1037,9 +1395,9 @@ export default function RoadmapPage() {
               <button
                 type="button"
                 className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700"
-                onClick={refreshForLatestData}
+                onClick={() => { void refreshForLatestData(); }}
               >
-                Refresh
+                Tải bản mới nhất
               </button>
             </div>
           </div>
