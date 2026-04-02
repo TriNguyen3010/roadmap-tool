@@ -49,6 +49,12 @@ interface ToolbarProps {
     authLoading?: boolean;
     onUnlockEditor: (password: string) => Promise<{ success: boolean; message?: string }>;
     onLockEditor: () => Promise<void> | void;
+    isGoogleAuthenticated?: boolean;
+    googleAuthLoading?: boolean;
+    authLabel?: string | null;
+    authTeamLabel?: string | null;
+    onGoogleLogin?: () => Promise<void> | void;
+    onGoogleLogout?: () => Promise<void> | void;
     filterCategory: string[];
     filterStatus: string[];
     filterTeam: string[];
@@ -71,6 +77,7 @@ export default function Toolbar({
     onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
     canEdit, authLoading, onUnlockEditor, onLockEditor,
+    isGoogleAuthenticated, googleAuthLoading, authLabel, authTeamLabel, onGoogleLogin, onGoogleLogout,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
     isReportedMode, isTimelineOnly, onToggleTimelineOnly, onBackToHome
@@ -444,6 +451,32 @@ export default function Toolbar({
                 </div>
 
                 <div className="ml-auto flex shrink-0 items-center gap-2">
+                    {isGoogleAuthenticated ? (
+                        <div className="flex h-9 items-center gap-2 rounded-[10px] border border-slate-200 bg-slate-50 px-3">
+                            <div className="flex flex-col leading-none">
+                                <span className="text-[11px] font-semibold text-slate-700">{authLabel || 'Authenticated'}</span>
+                                {authTeamLabel && <span className="text-[10px] text-slate-500">{authTeamLabel}</span>}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => void onGoogleLogout?.()}
+                                className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => void onGoogleLogin?.()}
+                            disabled={!!googleAuthLoading}
+                            className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                        >
+                            {googleAuthLoading ? <Loader2 size={13} className="animate-spin text-slate-400" /> : <Unlock size={13} className="text-slate-500" />}
+                            <span>Dang nhap</span>
+                        </button>
+                    )}
+
                     {canEdit ? (
                         <button
                             onClick={() => void onLockEditor()}

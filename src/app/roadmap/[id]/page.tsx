@@ -10,7 +10,9 @@ import FilterPopup from '@/components/FilterPopup';
 import TimelineModeFab from '@/components/TimelineModeFab';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { LoginForm } from '@/components/LoginForm';
 import { useToast } from '@/hooks/useToast';
+import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import {
   ColumnWidthMode,
   Milestone,
@@ -168,7 +170,8 @@ export default function RoadmapPage() {
   const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [isEditor, setIsEditor] = useState(false);
   const [isApplyingPhaseDates, setIsApplyingPhaseDates] = useState(false);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [editorAuthLoading, setEditorAuthLoading] = useState(true);
+  const [guestMode, setGuestMode] = useState(false);
   const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
   const currentVersionRef = useRef<string | null>(null);
@@ -201,6 +204,14 @@ export default function RoadmapPage() {
   const hasInitializedExpansion = useRef(false);
 
   const { toasts, addToast, removeToast } = useToast();
+  const {
+    user: authUser,
+    loading: googleAuthLoading,
+    error: googleAuthError,
+    clearError: clearGoogleAuthError,
+    loginWithGoogle,
+    logout: logoutGoogle,
+  } = useGoogleAuth();
 
   const ensureEditor = useCallback(() => {
     if (isEditor) return true;
@@ -399,8 +410,26 @@ export default function RoadmapPage() {
       .then(res => res.json())
       .then(json => setIsEditor(!!json?.isEditor))
       .catch(() => setIsEditor(false))
-      .finally(() => setAuthLoading(false));
+      .finally(() => setEditorAuthLoading(false));
   }, []);
+
+  const handleGoogleLogin = useCallback(async () => {
+    try {
+      await loginWithGoogle(window.location.pathname);
+    } catch {
+      addToast('Khong the dang nhap bang Google. Vui long thu lai.', 'error');
+    }
+  }, [addToast, loginWithGoogle]);
+
+  const handleGuestView = useCallback(() => {
+    clearGoogleAuthError();
+    setGuestMode(true);
+  }, [clearGoogleAuthError]);
+
+  const handleGoogleLogout = useCallback(async () => {
+    await logoutGoogle();
+    setGuestMode(false);
+  }, [logoutGoogle]);
 
   const handleUnlockEditor = useCallback(async (password: string): Promise<{ success: boolean; message?: string }> => {
     try {
@@ -880,6 +909,24 @@ export default function RoadmapPage() {
     );
   }
 
+  if (!googleAuthLoading && !authUser && !guestMode) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+        <LoginForm
+          onGoogleLogin={handleGoogleLogin}
+          onGuestView={handleGuestView}
+          error={googleAuthError}
+        />
+      </main>
+    );
+  }
+
+  const authTeamLabel = authUser?.role === 'admin'
+    ? 'Admin'
+    : authUser?.team
+      ? `${authUser.team} Manager`
+      : null;
+
   return (
     <main className="flex flex-col h-screen max-w-full overflow-hidden bg-white text-gray-900">
       <Toast toasts={toasts} onRemove={removeToast} />
@@ -968,9 +1015,15 @@ export default function RoadmapPage() {
         onLoadJson={handleLoadJson}
         isSaving={saving}
         canEdit={isEditor}
-        authLoading={authLoading}
+        authLoading={editorAuthLoading}
         onUnlockEditor={handleUnlockEditor}
         onLockEditor={handleLockEditor}
+        isGoogleAuthenticated={!!authUser}
+        googleAuthLoading={googleAuthLoading}
+        authLabel={authUser?.label ?? null}
+        authTeamLabel={authTeamLabel}
+        onGoogleLogin={handleGoogleLogin}
+        onGoogleLogout={handleGoogleLogout}
         filterCategory={filterCategory}
         filterStatus={filterStatus}
         filterTeam={filterTeam}
