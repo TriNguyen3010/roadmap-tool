@@ -25,6 +25,8 @@ import {
     FlattenedItem, findNodeById, filterRoadmapTree, flattenRoadmap, getExpandedFlattenedRows,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp
 } from '@/utils/roadmapHelpers';
+import type { EditPermission, ManagerFieldChange, SessionUser } from '@/types/auth';
+import { getEditPermission } from '@/utils/permissions';
 import { resolveReportedImageReviewMainState } from '@/utils/reportedImageReviewStates';
 import { calcLayeredArcHeight, sortArcsByWidth } from '@/utils/timelineArc';
 import { formatWorkdayDuration } from '@/utils/workdayFormat';
@@ -58,7 +60,9 @@ interface GridProps {
     isSaving: boolean;
     saveState: 'idle' | 'success' | 'error';
     saveTick: number;
-    canEdit: boolean;
+    currentUser: SessionUser | null;
+    documentPermission: EditPermission;
+    onManagerFieldChanges: (changes: ManagerFieldChange[], optimisticData: RoadmapDocument) => Promise<void> | void;
     // Column visibility (lifted to parent for persistence)
     showWorkType: boolean;
     setShowWorkType: (v: boolean) => void;
@@ -331,7 +335,7 @@ function getRowDisplayDepth(row: Pick<FlattenedItem, 'depth' | 'type'>): number 
 export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     timelineMode, timelineOnly, timelineTaskW, setTimelineTaskW,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
-    isSaving, saveState, saveTick, canEdit,
+    isSaving, saveState, saveTick, currentUser, documentPermission, onManagerFieldChanges,
     showWorkType, setShowWorkType,
     showPriority, setShowPriority, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
@@ -378,6 +382,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         message: string;
         startedAtSaveTick: number;
     } | null>(null);
+    const canEditStructure = documentPermission.canEditStructure;
+    const getRowPermission = useCallback((itemId: string): EditPermission => {
+        return getEditPermission(currentUser, itemId, data.items);
+    }, [currentUser, data.items]);
     const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
     const [quickNoteDraft, setQuickNoteDraft] = useState('');
     const [quickNoteSaving, setQuickNoteSaving] = useState(false);
@@ -658,12 +666,20 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (!activeNotePreview) return null;
         return findNodeById(data.items, activeNotePreview.id);
     }, [activeNotePreview, data.items]);
+    const activeNotePermission = useMemo(
+        () => activeNoteItem ? getRowPermission(activeNoteItem.id) : null,
+        [activeNoteItem, getRowPermission]
+    );
     const activeNoteText = activeNoteItem?.quickNote?.trim() || '';
     const activeNoteOriginal = activeNoteItem?.quickNote || '';
     const activeImagePreviewItem = useMemo(() => {
         if (!activeImagePreviewId) return null;
         return findNodeById(data.items, activeImagePreviewId);
     }, [activeImagePreviewId, data.items]);
+    const activeImagePreviewPermission = useMemo(
+        () => activeImagePreviewItem ? getRowPermission(activeImagePreviewItem.id) : null,
+        [activeImagePreviewItem, getRowPermission]
+    );
     const activeImagePreviewImages = useMemo(() => {
         if (!activeImagePreviewItem) return [];
         return normalizeItemImages(activeImagePreviewItem);
@@ -684,11 +700,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     );
     const activeImagePreviewPhaseIdSet = useMemo(() => new Set(activeImagePreviewPhaseIds), [activeImagePreviewPhaseIds]);
     const isActiveImageStatusInlineEditable = !!activeImagePreviewItem
-        && canEdit
+        && !!activeImagePreviewPermission?.canEditStatus
         && activeImagePreviewItem.type !== 'category'
         && activeImagePreviewItem.type !== 'subcategory'
         && activeImagePreviewItem.statusMode !== 'auto';
-    const canEditActiveImagePhase = !!activeImagePreviewItem && canEdit && phaseOptions.length > 0;
+    const canEditActiveImagePhase = !!activeImagePreviewItem && canEditStructure && phaseOptions.length > 0;
+    const canEditActiveImageNote = !!activeImagePreviewPermission?.canEditNotes;
     const activeImagePreviewStatus = activeImagePreviewItem?.status || 'Not Started';
     const isQuickNoteDirty = !!activeNoteItem && quickNoteDraft !== activeNoteOriginal;
 
@@ -722,13 +739,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     const closeQuickNotePreview = useCallback(async (skipDirtyCheck = false): Promise<boolean> => {
         if (!activeNotePreview) return true;
-        if (!skipDirtyCheck && canEdit && isQuickNoteEditing && isQuickNoteDirty) {
+        if (!skipDirtyCheck && !!activeNotePermission?.canEditNotes && isQuickNoteEditing && isQuickNoteDirty) {
             const confirmClose = await showConfirm('Quick note đang có thay đổi chưa lưu. Đóng mà không lưu?');
             if (!confirmClose) return false;
         }
         resetQuickNoteState();
         return true;
-    }, [activeNotePreview, canEdit, isQuickNoteDirty, isQuickNoteEditing, resetQuickNoteState, showConfirm]);
+    }, [activeNotePermission, activeNotePreview, isQuickNoteDirty, isQuickNoteEditing, resetQuickNoteState, showConfirm]);
 
     useEffect(() => {
         if (!activeNotePreview) return;
@@ -915,10 +932,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     useEffect(() => {
         if (!dateMiniPopup) return;
-        if (!canEdit || !findNodeById(data.items, dateMiniPopup.itemId)) {
+        if (!currentUser || !findNodeById(data.items, dateMiniPopup.itemId)) {
             setDateMiniPopup(null);
         }
-    }, [canEdit, data.items, dateMiniPopup]);
+    }, [currentUser, data.items, dateMiniPopup]);
 
     // Tự động căn chỉnh độ rộng cột FEATURES theo nội dung hiển thị (có giới hạn min max)
     useEffect(() => {
@@ -1077,19 +1094,19 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // ── CRUD handlers ──
     const handleEditSave = (updated: RoadmapItem) => {
-        if (!canEdit) return;
+        if (!canEditStructure) return;
         onDataChange({ ...data, items: updateNodeById(data.items, updated.id, touchItemTimestamp(updated)) });
         if (updated.children && updated.children.length > 0) {
             setExpandedIds(prev => new Set([...prev, updated.id]));
         }
     };
     const handleDelete = async (id: string) => {
-        if (!canEdit) return;
+        if (!canEditStructure) return;
         if (!(await showConfirm('Bạn có chắc muốn xoá mục này và toàn bộ nội dung con của nó không?'))) return;
         onDataChange({ ...data, items: deleteNodeById(data.items, id) });
     };
     const handleAddChild = (parentId: string, newItem: RoadmapItem) => {
-        if (!canEdit) return;
+        if (!canEditStructure) return;
         if (parentId === '__ROOT__') { onRootAdd(newItem); return; }
         const newItems = addChildToNode(data.items, parentId, newItem);
 
@@ -1115,14 +1132,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     // ── Drag & Drop Handlers ──
     const handleDragStart = (e: React.DragEvent, id: string) => {
-        if (!canEdit) return;
+        if (!canEditStructure) return;
         setDraggedId(id);
         setDragOverId(null);
         e.dataTransfer.effectAllowed = 'move';
         // Setting transparent image helps styling custom drag ghost if needed
     };
     const handleDragOver = (e: React.DragEvent, id: string) => {
-        if (!canEdit) return;
+        if (!canEditStructure) return;
         e.preventDefault(); // enable drop
         if (draggedId && isValidSameLayerDrop(draggedId, id)) {
             e.dataTransfer.dropEffect = 'move';
@@ -1136,7 +1153,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setDragOverId(null);
     };
     const handleDrop = (e: React.DragEvent, targetId: string) => {
-        if (!canEdit) return;
+        if (!canEditStructure) return;
         e.preventDefault();
         if (draggedId && isValidSameLayerDrop(draggedId, targetId)) {
             const reorderedItems = reorderItems(data.items, draggedId, targetId);
@@ -1175,10 +1192,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         const left = Math.max(8, Math.min(triggerRect.left, window.innerWidth - popoverWidth - 8));
         const top = Math.min(triggerRect.bottom + 8, window.innerHeight - 220);
         const note = row.quickNote || '';
+        const rowPermission = getRowPermission(row.id);
 
         setActiveNotePreview({ id: row.id, top, left });
         setQuickNoteDraft(note);
-        setIsQuickNoteEditing(canEdit && note.trim().length === 0);
+        setIsQuickNoteEditing(rowPermission.canEditNotes && note.trim().length === 0);
         setQuickNoteSaving(false);
     };
 
@@ -1186,7 +1204,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         event.stopPropagation();
         const rowImages = normalizeItemImages(row);
         if (rowImages.length === 0) {
-            if (!canEdit) return;
+            if (!canEditStructure) return;
             if (activeNotePreview) {
                 const closed = await closeQuickNotePreview();
                 if (!closed) return;
@@ -1230,13 +1248,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     };
 
     const openEditor = (id: string) => {
-        if (!canEdit) return;
+        if (!canEditStructure) return;
         const node = findNodeById(data.items, id);
         if (node) setEditingItem(node);
     };
 
     const openFullEditorFromQuickNote = async () => {
-        if (!canEdit || !activeNoteItem) return;
+        if (!canEditStructure || !activeNoteItem) return;
         if (isQuickNoteEditing && isQuickNoteDirty) {
             const confirmDiscard = await showConfirm('Quick note đang có thay đổi chưa lưu. Mở Edit mà không lưu?');
             if (!confirmDiscard) return;
@@ -1247,7 +1265,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     };
 
     const toggleQuickNoteEditMode = async () => {
-        if (!canEdit || !activeNoteItem) return;
+        if (!activeNoteItem || !activeNotePermission?.canEditNotes) return;
         if (isQuickNoteEditing) {
             if (isQuickNoteDirty) {
                 const confirmDiscard = await showConfirm('Quick note đang có thay đổi chưa lưu. Huỷ chỉnh sửa nhanh?');
@@ -1260,17 +1278,51 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         setIsQuickNoteEditing(true);
     };
 
+    const updateFromSource = (
+        id: string,
+        mapper: (source: RoadmapItem) => RoadmapItem,
+        shouldSave = false
+    ) => {
+        if (!canEditStructure) return;
+        const source = findNodeById(data.items, id);
+        if (!source) return;
+        onDataChange({ ...data, items: updateNodeById(data.items, id, touchItemTimestamp(mapper(source))) }, shouldSave);
+    };
+
+    const applyEditableFieldChanges = useCallback((
+        id: string,
+        changes: ManagerFieldChange[],
+        mapper: (source: RoadmapItem) => RoadmapItem
+    ) => {
+        const source = findNodeById(data.items, id);
+        if (!source) return;
+
+        const nextItem = touchItemTimestamp(mapper(source));
+        const nextData = { ...data, items: updateNodeById(data.items, id, nextItem) };
+
+        if (canEditStructure) {
+            onDataChange(nextData, true);
+            return;
+        }
+
+        onManagerFieldChanges(changes, nextData);
+    }, [canEditStructure, data, onDataChange, onManagerFieldChanges]);
+
     const handleQuickNoteSave = async () => {
-        if (!canEdit || !activeNoteItem || quickNoteSaving || !isQuickNoteDirty) return;
+        if (!activeNoteItem || !activeNotePermission?.canEditNotes || quickNoteSaving || !isQuickNoteDirty) return;
         setQuickNoteSaving(true);
         try {
             const normalizedNote = quickNoteDraft.trim();
-            updateFromSource(activeNoteItem.id, source => {
-                const next = { ...source };
-                if (normalizedNote.length > 0) next.quickNote = normalizedNote;
-                else delete next.quickNote;
-                return next;
-            }, true);
+            applyEditableFieldChanges(
+                activeNoteItem.id,
+                [{ itemId: activeNoteItem.id, field: 'quickNote', value: normalizedNote || null }],
+                source => {
+                    const next = { ...source };
+                    if (normalizedNote.length > 0) next.quickNote = normalizedNote;
+                    else delete next.quickNote;
+                    return next;
+                }
+            );
             setQuickNoteDraft(normalizedNote);
             setIsQuickNoteEditing(false);
         } finally {
@@ -1279,35 +1331,27 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     };
 
     const handleImagePreviewNoteSave = () => {
-        if (!canEdit || !activeImagePreviewItem) return;
+        if (!activeImagePreviewItem || !canEditActiveImageNote) return;
         const trimmed = imagePreviewNoteDraft.trim();
         const current = (activeImagePreviewItem.quickNote || '').trim();
         if (trimmed === current) return;
-        updateActivePreviewItemWithSaveFeedback(source => {
-            const next = { ...source };
-            if (trimmed.length > 0) next.quickNote = trimmed;
-            else delete next.quickNote;
-            return next;
-        });
-    };
-
-    const updateFromSource = (
-        id: string,
-        mapper: (source: RoadmapItem) => RoadmapItem,
-        shouldSave = false
-    ) => {
-        if (!canEdit) return;
-        const source = findNodeById(data.items, id);
-        if (!source) return;
-        onDataChange({ ...data, items: updateNodeById(data.items, id, touchItemTimestamp(mapper(source))) }, shouldSave);
+        updateActivePreviewItemWithSaveFeedback(
+            source => {
+                const next = { ...source };
+                if (trimmed.length > 0) next.quickNote = trimmed;
+                else delete next.quickNote;
+                return next;
+            },
+            [{ itemId: activeImagePreviewItem.id, field: 'quickNote', value: trimmed || null }]
+        );
     };
 
     const isDateInlineEditable = useCallback((row: FlattenedItem): boolean => {
-        if (!canEdit) return false;
+        if (!getRowPermission(row.id).canEditDates) return false;
         const hasNonTeamChildren = !!(row.children && row.children.some(child => child.type !== 'team'));
         const isCategoryManual = row.type === 'category' && row.statusMode === 'manual';
         return !hasNonTeamChildren || isCategoryManual;
-    }, [canEdit]);
+    }, [getRowPermission]);
 
     const openDateMiniPopup = useCallback((
         event: React.MouseEvent<HTMLDivElement>,
@@ -1333,13 +1377,20 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         });
     }, [dateMiniPopup, isDateInlineEditable]);
 
-    const updateActivePreviewItemWithSaveFeedback = (mapper: (source: RoadmapItem) => RoadmapItem) => {
+    const updateActivePreviewItemWithSaveFeedback = (
+        mapper: (source: RoadmapItem) => RoadmapItem,
+        changes?: ManagerFieldChange[]
+    ) => {
         if (!activeImagePreviewItem) return;
         setViewerInlineSaveFeedback({
             state: 'saving',
             message: 'Đang lưu thay đổi...',
             startedAtSaveTick: saveTick,
         });
+        if (changes && changes.length > 0) {
+            applyEditableFieldChanges(activeImagePreviewItem.id, changes, mapper);
+            return;
+        }
         updateFromSource(activeImagePreviewItem.id, mapper, true);
     };
 
@@ -1406,7 +1457,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     return (
         <div className="flex h-full w-full bg-white overflow-hidden text-[12px] text-gray-900 font-sans">
-            {canEdit && editingItem && (
+            {canEditStructure && editingItem && (
                 <EditPopup
                     item={editingItem}
                     phases={phaseOptions}
@@ -1414,7 +1465,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     onClose={() => setEditingItem(null)}
                 />
             )}
-            {canEdit && addingToParent && (
+            {canEditStructure && addingToParent && (
                 <AddNodePopup parentId={addingToParent.id} parentName={addingToParent.name} childType={addingToParent.childType}
                     onAdd={handleAddChild} onClose={() => setAddingToParent(null)} />
             )}
@@ -1491,11 +1542,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         {/* Content area */}
                         <div className="flex min-h-0 flex-col overflow-hidden">
                             {/* Inline alerts */}
-                            {(!canEdit || isSaving || (!isSaving && saveState === 'error') || reportedImageErrorCount > 0 || (reportedMainState === 'ready' && visibleReportedWithoutImageCount > 0)) && (
+                            {(!documentPermission.canEditStatus || isSaving || (!isSaving && saveState === 'error') || reportedImageErrorCount > 0 || (reportedMainState === 'ready' && visibleReportedWithoutImageCount > 0)) && (
                                 <div className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200 bg-white px-4 py-2">
-                                    {!canEdit && (
+                                    {!documentPermission.canEditStatus && (
                                         <div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700">
-                                            Viewer mode — Unlock Editor để chỉnh Status/Week trực tiếp.
+                                            Viewer mode - Dang nhap dung team de chinh status va note.
                                         </div>
                                     )}
                                     {isSaving && (
@@ -1817,8 +1868,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             label: phaseLabelById.get(phaseId) || 'Unknown',
                             color: phaseColorById.get(phaseId) || normalizeWeekColor('', chipIndex),
                         }));
-                        const isCategoryOrSubcategory = row.type === 'category' || row.type === 'subcategory';
-                        const isStatusInlineEditable = canEdit && row.statusMode !== 'auto';
+                        const rowPermission = getRowPermission(row.id);
+                        const isStatusInlineEditable = rowPermission.canEditStatus && row.statusMode !== 'auto';
                         const isDateCellEditable = isDateInlineEditable(row);
                         const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
                         const groupInlinePhaseTags = groupInlinePhaseIds.map((phaseId, tagIndex) => ({
@@ -1837,7 +1888,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const reviewedMarkerNumber = row.type === 'group' ? reviewedGroupNumberById[row.id] : undefined;
                         const isGroupReviewed = typeof reviewedMarkerNumber === 'number';
 
-                        const canDragRow = canEdit;
+                        const canDragRow = canEditStructure;
                         const isDragged = draggedId === row.id;
                         const isDragOver = dragOverId === row.id;
 
@@ -1975,11 +2026,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {showWorkType && (
                                     <div
                                         data-worktype-trigger="true"
-                                        className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit && row.type === 'group' ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                        className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEditStructure && row.type === 'group' ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
                                         style={{ width: COL_WORK_TYPE_W }}
                                         title={row.type === 'group' ? 'Click để đổi WorkType' : ''}
                                         onClick={e => {
-                                            if (!canEdit || row.type !== 'group') return;
+                                            if (!canEditStructure || row.type !== 'group') return;
                                             e.stopPropagation();
                                             setOpenPriorityId(null);
                                             setOpenStatusId(null);
@@ -2002,7 +2053,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             <span className="mx-auto text-[10px] text-gray-300"> </span>
                                         )}
 
-                                        {canEdit && row.type === 'group' && openWorkTypeId === row.id && (
+                                        {canEditStructure && row.type === 'group' && openWorkTypeId === row.id && (
                                             <div
                                                 data-worktype-dropdown="true"
                                                 className="absolute bottom-full left-0 z-50 mb-1 min-w-[150px] rounded border border-gray-200 bg-white shadow-lg"
@@ -2050,11 +2101,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     (row.type === 'group' || row.type === 'item' || row.type === 'subcategory') ? (
                                         <div
                                             data-priority-trigger="true"
-                                            className="flex items-center justify-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors relative"
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEditStructure ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
                                             style={{ width: COL_PRIORITY_W }}
                                             title="Click để đổi priority"
                                             onClick={e => {
-                                            if (!canEdit) return;
+                                            if (!canEditStructure) return;
                                             e.stopPropagation();
                                             setOpenWorkTypeId(null);
                                             setOpenStatusId(null);
@@ -2071,7 +2122,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             >
                                                 {normalizedRowPriority ?? '—'}
                                             </span>
-                                            {canEdit && openPriorityId === row.id && (
+                                            {canEditStructure && openPriorityId === row.id && (
                                                 <div data-priority-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]">
                                                     {PRIORITY_LEVELS.map(p => {
                                                         const dropdownColor: Record<string, string> = {
@@ -2115,12 +2166,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {/* Status */}
                                 <div
                                     data-status-trigger="true"
-                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEdit ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${rowPermission.canEditStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
                                     onClick={e => {
-                                        if (!canEdit) return;
+                                        if (!rowPermission.canEditStatus) return;
                                         e.stopPropagation();
                                         if (!isStatusInlineEditable) {
-                                            openEditor(row.id);
                                             return;
                                         }
                                         setOpenWorkTypeId(null);
@@ -2152,12 +2202,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                     onMouseDown={e => {
                                                         e.preventDefault();
                                                         e.stopPropagation();
-                                                        updateFromSource(row.id, source => ({
-                                                            ...source,
-                                                            statusMode: 'manual',
-                                                            manualStatus: statusOption,
-                                                            status: statusOption,
-                                                        }));
+                                                        applyEditableFieldChanges(
+                                                            row.id,
+                                                            [{ itemId: row.id, field: 'status', value: statusOption }],
+                                                            source => ({
+                                                                ...source,
+                                                                statusMode: 'manual',
+                                                                manualStatus: statusOption,
+                                                                status: statusOption,
+                                                            })
+                                                        );
                                                         setOpenStatusId(null);
                                                     }}
                                                 >
@@ -2172,10 +2226,10 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 {showPhase && (
                                     <div
                                         data-phase-trigger="true"
-                                        className={`flex items-center border-r border-gray-300 px-1 relative ${canEdit && phaseOptions.length > 0 ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                        className={`flex items-center border-r border-gray-300 px-1 relative ${canEditStructure && phaseOptions.length > 0 ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
                                         title={rowPhaseTitle || 'Chưa gán week'}
                                         onClick={e => {
-                                            if (!canEdit || phaseOptions.length === 0) return;
+                                            if (!canEditStructure || phaseOptions.length === 0) return;
                                             e.stopPropagation();
                                             setOpenWorkTypeId(null);
                                             setOpenPriorityId(null);
@@ -2202,7 +2256,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             </div>
                                         )}
 
-                                        {canEdit && openPhaseId === row.id && phaseOptions.length > 0 && (
+                                        {canEditStructure && openPhaseId === row.id && phaseOptions.length > 0 && (
                                             <div
                                                 data-phase-dropdown="true"
                                                 className="absolute bottom-full left-0 z-50 mb-1 min-w-[200px] max-w-[260px] rounded border border-gray-200 bg-white shadow-lg"
@@ -2285,7 +2339,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 )}
 
                                 {/* Actions */}
-                                {canEdit && (
+                                {canEditStructure && (
                                     <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button title="Sửa" className="text-blue-500 hover:text-blue-700" onClick={() => openEditor(row.id)}><Pencil size={12} /></button>
                                         {childType && (
@@ -2300,7 +2354,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             </div>
                         );
                     })}
-                    {canEdit && (
+                    {canEditStructure && (
                         <div className="p-2">
                             <button className="text-xs text-green-700 hover:text-green-900 flex items-center gap-1 font-semibold"
                                 onClick={() => setAddingToParent({ id: '__ROOT__', name: 'Roadmap', childType: 'category' })}>
@@ -2521,9 +2575,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}>
                                     {timelineOnly && (
                                         <div
-                                            className={`sticky left-0 z-[12] flex h-full shrink-0 items-center border-r border-slate-200 px-2 ${hasChildren || canEdit ? 'cursor-pointer hover:brightness-95' : ''}`}
+                                            className={`sticky left-0 z-[12] flex h-full shrink-0 items-center border-r border-slate-200 px-2 ${hasChildren || canEditStructure ? 'cursor-pointer hover:brightness-95' : ''}`}
                                             style={{ width: timelineLeftOffset, backgroundColor: depthStyle.bg }}
-                                            onClick={hasChildren || canEdit ? (e) => {
+                                            onClick={hasChildren || canEditStructure ? (e) => {
                                                 e.stopPropagation();
                                                 if (hasChildren) {
                                                     toggleExpand(row.id);
@@ -2533,7 +2587,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             } : undefined}
                                             title={hasChildren
                                                 ? (isExpanded ? 'Thu gọn children' : 'Mở rộng children')
-                                                : canEdit ? `Mở editor: ${row.name}` : row.name
+                                                : canEditStructure ? `Mở editor: ${row.name}` : row.name
                                             }
                                         >
                                             <div className="flex min-w-0 items-center gap-1.5" style={{ paddingLeft: `${displayDepth * 12 + 2}px` }}>
@@ -2751,7 +2805,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     className="fixed z-50 w-[320px] rounded-lg border border-slate-200 bg-white shadow-xl p-3 text-xs"
                     style={{ top: activeNotePreview.top, left: activeNotePreview.left }}
                 >
-                    {canEdit ? (
+                    {!!activeNotePermission?.canEditNotes ? (
                         <div className="flex items-center justify-between mb-1">
                             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Note</p>
                             <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-0.5">
@@ -2781,7 +2835,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1">Note</p>
                     )}
 
-                    {canEdit && isQuickNoteEditing ? (
+                    {!!activeNotePermission?.canEditNotes && isQuickNoteEditing ? (
                         <div>
                             <div className="flex justify-end mb-1">
                                 <span className="text-[10px] text-slate-400">{quickNoteDraft.length}/{MAX_QUICK_NOTE_LENGTH}</span>
@@ -2941,9 +2995,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 <div className="flex flex-col overflow-hidden border-l border-slate-200 bg-white">
                                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-4">
                                         {/* Feedback messages */}
-                                        {!canEdit && (
+                                        {!documentPermission.canEditStatus && (
                                             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
-                                                Viewer mode — Unlock Editor để đổi Status/Week.
+                                                Viewer mode - Dang nhap dung team de chinh status va note.
                                             </div>
                                         )}
                                         {viewerInlineSaveFeedback && (
@@ -3015,7 +3069,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                                             statusMode: 'manual',
                                                                             manualStatus: statusOption,
                                                                             status: statusOption,
-                                                                        })
+                                                                        }),
+                                                                        [{ itemId: activeImagePreviewItem.id, field: 'status', value: statusOption }]
                                                                     );
                                                                     setOpenStatusId(null);
                                                                 }}
@@ -3130,14 +3185,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 placeholder="Thêm ghi chú..."
                                                 onChange={e => setImagePreviewNoteDraft(e.target.value.slice(0, MAX_QUICK_NOTE_LENGTH))}
                                                 onBlur={handleImagePreviewNoteSave}
-                                                disabled={!canEdit}
+                                                disabled={!canEditActiveImageNote}
                                             />
                                         </div>
                                     </div>
 
                                     {/* Action buttons */}
                                     <div className="shrink-0 border-t border-slate-200 px-4 py-3 flex flex-col gap-2">
-                                        {canEdit && (
+                                        {canEditStructure && (
                                             <button
                                                 type="button"
                                                 className="w-full rounded-lg bg-amber-500 px-3 py-2.5 text-[12px] font-bold text-white transition-colors hover:bg-amber-600"

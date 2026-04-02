@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LoginForm } from '@/components/LoginForm';
 import { useToast } from '@/hooks/useToast';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import type { EditPermission, ManagerFieldChange } from '@/types/auth';
 import {
   ColumnWidthMode,
   Milestone,
@@ -51,6 +52,7 @@ import {
   type ApplyPhaseDatesResult,
   type PhaseDateAffectedGroup,
 } from '@/utils/phaseDateApply';
+import { getDocumentPermission } from '@/utils/permissions';
 
 const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
@@ -168,9 +170,7 @@ export default function RoadmapPage() {
   const [saveTick, setSaveTick] = useState(0);
   const [showMilestones, setShowMilestones] = useState(false);
   const [showFilterPopup, setShowFilterPopup] = useState(false);
-  const [isEditor, setIsEditor] = useState(false);
   const [isApplyingPhaseDates, setIsApplyingPhaseDates] = useState(false);
-  const [editorAuthLoading, setEditorAuthLoading] = useState(true);
   const [guestMode, setGuestMode] = useState(false);
   const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
@@ -206,18 +206,21 @@ export default function RoadmapPage() {
   const { toasts, addToast, removeToast } = useToast();
   const {
     user: authUser,
+    accessToken,
     loading: googleAuthLoading,
     error: googleAuthError,
     clearError: clearGoogleAuthError,
     loginWithGoogle,
     logout: logoutGoogle,
   } = useGoogleAuth();
+  const documentPermission = useMemo<EditPermission>(() => getDocumentPermission(authUser), [authUser]);
+  const canManageRoadmap = documentPermission.canManageRoadmap;
 
-  const ensureEditor = useCallback(() => {
-    if (isEditor) return true;
-    addToast('Bạn đang ở chế độ Viewer. Hãy unlock Editor để chỉnh sửa.', 'error');
+  const ensureCanManageRoadmap = useCallback(() => {
+    if (canManageRoadmap) return true;
+    addToast('Tài khoản hiện tại không có quyền chỉnh sửa cấu trúc roadmap.', 'error');
     return false;
-  }, [isEditor, addToast]);
+  }, [addToast, canManageRoadmap]);
 
   const normalizeDocument = useCallback((doc: RoadmapDocument): RoadmapDocument => ({
     ...doc,
@@ -270,11 +273,99 @@ export default function RoadmapPage() {
     return format(e, 'yyyy-MM-dd');
   }, [today, afterMonths]);
 
+  const hydrateRoadmap = useCallback((json: RoadmapDocument, version: string | null) => {
+    const normalized = normalizeDocument(json);
+    setData(normalized);
+    currentVersionRef.current = version;
+    setPendingRemoteVersion(null);
+    setDismissedVersion(null);
+    setTimelineOnly(!!json.settings?.timelineOnly);
+    setTimelineTaskWidth(clampTimelineTaskWidth(
+      typeof json.settings?.timelineTaskWidth === 'number'
+        ? json.settings.timelineTaskWidth
+        : DEFAULT_TIMELINE_TASK_WIDTH
+    ));
+
+    if (json.settings) {
+      if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
+      if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
+      if (json.settings.filterCategory) setFilterCategory(json.settings.filterCategory);
+      if (json.settings.filterStatus) setFilterStatus(normalizeStatusFilter(json.settings.filterStatus));
+      if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
+      const normalizedPriority = json.settings.filterPriority
+        ? normalizePriorityFilterValues(json.settings.filterPriority)
+        : [];
+      const shouldResetReportedMode = json.settings.reportedMode === true;
+      setFilterPriority(shouldResetReportedMode ? removeReportedPriority(normalizedPriority) : normalizedPriority);
+      if (json.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(json.settings.filterPhase));
+      if (json.settings.filterSubcategory) setFilterSubcategory(stripQuickViewSubcategories(json.settings.filterSubcategory));
+      if (json.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(json.settings.filterGroupItemType));
+      setIsReportedMode(false);
+      if (typeof json.settings.colWorkType === 'boolean') setShowWorkType(json.settings.colWorkType);
+      if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
+      if (typeof json.settings.colPhase === 'boolean') setShowPhase(json.settings.colPhase);
+      if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
+      if (typeof json.settings.colEndDate === 'boolean') setShowEndDate(json.settings.colEndDate);
+      if (typeof json.settings.colFeaturesWidth === 'number') {
+        setFeaturesColWidth(clampFeaturesColWidth(json.settings.colFeaturesWidth));
+      }
+      if (json.settings.colFeaturesWidthMode === 'auto' || json.settings.colFeaturesWidthMode === 'manual') {
+        setFeaturesColWidthMode(json.settings.colFeaturesWidthMode);
+      } else if (typeof json.settings.colFeaturesWidth === 'number') {
+        setFeaturesColWidthMode('manual');
+      }
+      if (json.settings.timelineMode === 'day' || json.settings.timelineMode === 'week' || json.settings.timelineMode === 'month') {
+        setTimelineMode(json.settings.timelineMode);
+      }
+      if (typeof json.settings.timelineTaskWidth === 'number') {
+        setTimelineTaskWidth(clampTimelineTaskWidth(json.settings.timelineTaskWidth));
+      }
+      if (json.settings.expandedIds) {
+        setExpandedIds(new Set(json.settings.expandedIds));
+        hasInitializedExpansion.current = true;
+      }
+      if (json.settings.hiddenRowIds) setHiddenRowIds(new Set(json.settings.hiddenRowIds));
+    }
+
+    if (!hasInitializedExpansion.current && normalized.items) {
+      const ids = new Set<string>();
+      const collect = (items: RoadmapItem[]) => {
+        for (const item of items) {
+          if (item.children?.length) { ids.add(item.id); collect(item.children); }
+        }
+      };
+      collect(normalized.items);
+      setExpandedIds(ids);
+      hasInitializedExpansion.current = true;
+    }
+  }, [normalizeDocument]);
+
+  const loadRoadmap = useCallback(async () => {
+    if (!roadmapId) return false;
+
+    try {
+      const [roadmapRes, version] = await Promise.all([
+        fetch(`/api/roadmap/${roadmapId}`, { cache: 'no-store' }),
+        fetchRoadmapVersion(),
+      ]);
+      if (!roadmapRes.ok) throw new Error('roadmap fetch failed');
+
+      const json = await roadmapRes.json();
+      hydrateRoadmap(json, version);
+      return true;
+    } catch {
+      addToast('Không thể tải dữ liệu roadmap.', 'error');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast, fetchRoadmapVersion, hydrateRoadmap, roadmapId]);
+
   useEffect(() => {
-    if (!roadmapId) return;
     let cancelled = false;
 
-    const loadRoadmap = async () => {
+    const run = async () => {
+      if (!roadmapId) return;
       try {
         const [roadmapRes, version] = await Promise.all([
           fetch(`/api/roadmap/${roadmapId}`, { cache: 'no-store' }),
@@ -284,71 +375,7 @@ export default function RoadmapPage() {
 
         const json = await roadmapRes.json();
         if (cancelled) return;
-
-        const normalized = normalizeDocument(json);
-        setData(normalized);
-        currentVersionRef.current = version;
-        setPendingRemoteVersion(null);
-        setDismissedVersion(null);
-        setTimelineOnly(!!json.settings?.timelineOnly);
-        setTimelineTaskWidth(clampTimelineTaskWidth(
-          typeof json.settings?.timelineTaskWidth === 'number'
-            ? json.settings.timelineTaskWidth
-            : DEFAULT_TIMELINE_TASK_WIDTH
-        ));
-
-        if (json.settings) {
-          if (typeof json.settings.beforeWeeks === 'number') setBeforeWeeks(json.settings.beforeWeeks);
-          if (typeof json.settings.afterMonths === 'number') setAfterMonths(json.settings.afterMonths);
-          if (json.settings.filterCategory) setFilterCategory(json.settings.filterCategory);
-          if (json.settings.filterStatus) setFilterStatus(normalizeStatusFilter(json.settings.filterStatus));
-          if (json.settings.filterTeam) setFilterTeam(json.settings.filterTeam);
-          const normalizedPriority = json.settings.filterPriority
-            ? normalizePriorityFilterValues(json.settings.filterPriority)
-            : [];
-          const shouldResetReportedMode = json.settings.reportedMode === true;
-          setFilterPriority(shouldResetReportedMode ? removeReportedPriority(normalizedPriority) : normalizedPriority);
-          if (json.settings.filterPhase) setFilterPhase(normalizePhaseFilterValues(json.settings.filterPhase));
-          if (json.settings.filterSubcategory) setFilterSubcategory(stripQuickViewSubcategories(json.settings.filterSubcategory));
-          if (json.settings.filterGroupItemType) setFilterGroupItemType(normalizeGroupItemTypeFilter(json.settings.filterGroupItemType));
-          setIsReportedMode(false);
-          if (typeof json.settings.colWorkType === 'boolean') setShowWorkType(json.settings.colWorkType);
-          if (typeof json.settings.colPriority === 'boolean') setShowPriority(json.settings.colPriority);
-          if (typeof json.settings.colPhase === 'boolean') setShowPhase(json.settings.colPhase);
-          if (typeof json.settings.colStartDate === 'boolean') setShowStartDate(json.settings.colStartDate);
-          if (typeof json.settings.colEndDate === 'boolean') setShowEndDate(json.settings.colEndDate);
-          if (typeof json.settings.colFeaturesWidth === 'number') {
-            setFeaturesColWidth(clampFeaturesColWidth(json.settings.colFeaturesWidth));
-          }
-          if (json.settings.colFeaturesWidthMode === 'auto' || json.settings.colFeaturesWidthMode === 'manual') {
-            setFeaturesColWidthMode(json.settings.colFeaturesWidthMode);
-          } else if (typeof json.settings.colFeaturesWidth === 'number') {
-            setFeaturesColWidthMode('manual');
-          }
-          if (json.settings.timelineMode === 'day' || json.settings.timelineMode === 'week' || json.settings.timelineMode === 'month') {
-            setTimelineMode(json.settings.timelineMode);
-          }
-          if (typeof json.settings.timelineTaskWidth === 'number') {
-            setTimelineTaskWidth(clampTimelineTaskWidth(json.settings.timelineTaskWidth));
-          }
-          if (json.settings.expandedIds) {
-            setExpandedIds(new Set(json.settings.expandedIds));
-            hasInitializedExpansion.current = true;
-          }
-          if (json.settings.hiddenRowIds) setHiddenRowIds(new Set(json.settings.hiddenRowIds));
-        }
-
-        if (!hasInitializedExpansion.current && normalized.items) {
-          const ids = new Set<string>();
-          const collect = (items: RoadmapItem[]) => {
-            for (const item of items) {
-              if (item.children?.length) { ids.add(item.id); collect(item.children); }
-            }
-          };
-          collect(normalized.items);
-          setExpandedIds(ids);
-          hasInitializedExpansion.current = true;
-        }
+        hydrateRoadmap(json, version);
       } catch {
         if (!cancelled) addToast('Không thể tải dữ liệu roadmap.', 'error');
       } finally {
@@ -356,11 +383,11 @@ export default function RoadmapPage() {
       }
     };
 
-    void loadRoadmap();
+    void run();
     return () => {
       cancelled = true;
     };
-  }, [roadmapId, addToast, normalizeDocument, fetchRoadmapVersion]);
+  }, [roadmapId, addToast, hydrateRoadmap, fetchRoadmapVersion]);
 
   const checkRemoteVersion = useCallback(async () => {
     const latestVersion = await fetchRoadmapVersion();
@@ -405,14 +432,6 @@ export default function RoadmapPage() {
     };
   }, [checkRemoteVersion, loading]);
 
-  useEffect(() => {
-    fetch('/api/auth/editor/session')
-      .then(res => res.json())
-      .then(json => setIsEditor(!!json?.isEditor))
-      .catch(() => setIsEditor(false))
-      .finally(() => setEditorAuthLoading(false));
-  }, []);
-
   const handleGoogleLogin = useCallback(async () => {
     try {
       await loginWithGoogle(window.location.pathname);
@@ -430,35 +449,6 @@ export default function RoadmapPage() {
     await logoutGoogle();
     setGuestMode(false);
   }, [logoutGoogle]);
-
-  const handleUnlockEditor = useCallback(async (password: string): Promise<{ success: boolean; message?: string }> => {
-    try {
-      const res = await fetch('/api/auth/editor/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        return { success: false, message: payload?.error || 'Mật khẩu không đúng' };
-      }
-      setIsEditor(true);
-      addToast('Đã mở khóa chế độ Editor.', 'success');
-      return { success: true };
-    } catch {
-      return { success: false, message: 'Không thể xác thực. Vui lòng thử lại.' };
-    }
-  }, [addToast]);
-
-  const handleLockEditor = useCallback(async () => {
-    try {
-      await fetch('/api/auth/editor/logout', { method: 'POST' });
-    } finally {
-      setIsEditor(false);
-      setShowMilestones(false);
-      addToast('Đã chuyển về chế độ Viewer.', 'success');
-    }
-  }, [addToast]);
 
   const buildDocumentSnapshot = useCallback((baseData: RoadmapDocument): RoadmapDocument => ({
     ...baseData,
@@ -532,7 +522,11 @@ export default function RoadmapPage() {
   }, [showWorkType, showPriority, showPhase, showStartDate, showEndDate]);
 
   const handleSave = useCallback(async (currentData: RoadmapDocument) => {
-    if (!ensureEditor()) return;
+    if (!ensureCanManageRoadmap()) return;
+    if (!authUser || !accessToken) {
+      addToast('Bạn cần đăng nhập lại để lưu roadmap.', 'error');
+      return;
+    }
     setSaving(true);
     setSaveState('idle');
     try {
@@ -540,12 +534,20 @@ export default function RoadmapPage() {
 
       const res = await fetch(`/api/roadmap/${roadmapId}/save`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(dataToSave),
       });
       if (res.status === 401) {
-        setIsEditor(false);
-        addToast('Phiên Editor đã hết hạn. Vui lòng unlock lại.', 'error');
+        addToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        return;
+      }
+      if (res.status === 403) {
+        addToast('Tài khoản hiện tại không có quyền full-save roadmap.', 'error');
         setSaveState('error');
         setSaveTick(prev => prev + 1);
         return;
@@ -567,7 +569,52 @@ export default function RoadmapPage() {
     } finally {
       setSaving(false);
     }
-  }, [addToast, buildDocumentSnapshot, ensureEditor, fetchRoadmapVersion, roadmapId]);
+  }, [accessToken, addToast, authUser, buildDocumentSnapshot, ensureCanManageRoadmap, fetchRoadmapVersion, roadmapId]);
+
+  const handleManagerFieldChanges = useCallback(async (changes: ManagerFieldChange[], optimisticData: RoadmapDocument) => {
+    if (!authUser || !accessToken) {
+      addToast('Bạn cần đăng nhập lại để lưu thay đổi.', 'error');
+      return;
+    }
+
+    const normalizedOptimistic = normalizeDocument(optimisticData);
+    setData(normalizedOptimistic);
+    setSaving(true);
+    setSaveState('idle');
+
+    try {
+      const res = await fetch(`/api/roadmap/${roadmapId}/manager-save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ changes }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const violations = Array.isArray(payload?.violations) ? payload.violations.join('\n') : '';
+        throw new Error(violations || payload?.error || 'Không thể lưu thay đổi');
+      }
+
+      if (payload?.document) {
+        hydrateRoadmap(payload.document as RoadmapDocument, typeof payload?.updatedAt === 'string' ? payload.updatedAt : null);
+      } else {
+        await loadRoadmap();
+      }
+
+      setSaveState('success');
+      setSaveTick(prev => prev + 1);
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Lỗi khi lưu thay đổi manager.', 'error');
+      setSaveState('error');
+      setSaveTick(prev => prev + 1);
+      await loadRoadmap();
+    } finally {
+      setSaving(false);
+    }
+  }, [accessToken, addToast, authUser, hydrateRoadmap, loadRoadmap, normalizeDocument, roadmapId]);
 
   const handleExportExcelCurrentView = async () => {
     if (!data) return;
@@ -628,13 +675,13 @@ export default function RoadmapPage() {
   };
 
   const handleNameChange = (name: string) => {
-    if (!ensureEditor()) return;
+    if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     setData({ ...data, releaseName: name });
   };
 
   const handleMilestonesSave = (milestones: Milestone[]) => {
-    if (!ensureEditor()) return;
+    if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     const newData = normalizeDocument({ ...data, milestones });
     setData(newData);
@@ -668,20 +715,20 @@ export default function RoadmapPage() {
   }, [addToast, data, handleSave, normalizeDocument, showConfirm]);
 
   const handleApplyDatesByPhase = useCallback(async (phaseId: string, milestonesDraft: Milestone[]) => {
-    if (!ensureEditor()) return;
+    if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     const resolvedMilestones = normalizeMilestones(milestonesDraft) || [];
     const result = applyDatesByPhase(data.items, resolvedMilestones, phaseId);
     await executePhaseDateApply(result, 'Không có group nào cần cập nhật theo week này.');
-  }, [data, ensureEditor, executePhaseDateApply]);
+  }, [data, ensureCanManageRoadmap, executePhaseDateApply]);
 
   const handleApplyDatesByAllPhases = useCallback(async (milestonesDraft: Milestone[]) => {
-    if (!ensureEditor()) return;
+    if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     const resolvedMilestones = normalizeMilestones(milestonesDraft) || [];
     const result = applyDatesByAllPhases(data.items, resolvedMilestones);
     await executePhaseDateApply(result, 'Không có group nào cần cập nhật theo các week hiện tại.');
-  }, [data, ensureEditor, executePhaseDateApply]);
+  }, [data, ensureCanManageRoadmap, executePhaseDateApply]);
 
   const openFilterPopup = useCallback(() => { setShowFilterPopup(true); }, []);
   const openMilestonesPopup = useCallback(() => { setShowMilestones(true); }, []);
@@ -740,7 +787,7 @@ export default function RoadmapPage() {
   }, [isReportedMode]);
 
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
-    if (!isEditor) return;
+    if (!canManageRoadmap) return;
     const normalized = normalizeDocument(newData);
     setData(normalized);
     if (shouldSave) {
@@ -749,13 +796,13 @@ export default function RoadmapPage() {
   };
 
   const handleRootAdd = (newItem: RoadmapItem) => {
-    if (!ensureEditor()) return;
+    if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     setData(normalizeDocument({ ...data, items: [...data.items, newItem] }));
   };
 
   const handleLoadJson = async (jsonData: unknown) => {
-    if (!ensureEditor()) return;
+    if (!ensureCanManageRoadmap()) return;
     const parsed = jsonData as Partial<RoadmapDocument> | null;
     if (!parsed || !Array.isArray(parsed.items)) {
       addToast('File JSON không hợp lệ, thiếu `items`', 'error');
@@ -921,6 +968,8 @@ export default function RoadmapPage() {
     );
   }
 
+  const isAuthenticated = !!authUser;
+
   const authTeamLabel = authUser?.role === 'admin'
     ? 'Admin'
     : authUser?.team
@@ -952,9 +1001,9 @@ export default function RoadmapPage() {
 
       {showFilterPopup && (
         <FilterPopup
-          isOpen={showFilterPopup}
-          onClose={() => setShowFilterPopup(false)}
-          canEdit={isEditor}
+        isOpen={showFilterPopup}
+        onClose={() => setShowFilterPopup(false)}
+          canEdit={canManageRoadmap}
           availableCategories={availableCategories}
           availableTeams={availableTeams}
           availableSubcategories={availableSubcategories}
@@ -1014,11 +1063,8 @@ export default function RoadmapPage() {
         onAfterMonthsChange={setAfterMonths}
         onLoadJson={handleLoadJson}
         isSaving={saving}
-        canEdit={isEditor}
-        authLoading={editorAuthLoading}
-        onUnlockEditor={handleUnlockEditor}
-        onLockEditor={handleLockEditor}
-        isGoogleAuthenticated={!!authUser}
+        canEdit={canManageRoadmap}
+        isGoogleAuthenticated={isAuthenticated}
         googleAuthLoading={googleAuthLoading}
         authLabel={authUser?.label ?? null}
         authTeamLabel={authTeamLabel}
@@ -1042,7 +1088,7 @@ export default function RoadmapPage() {
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
-          key={isEditor ? 'editor-grid' : 'viewer-grid'}
+          key={canManageRoadmap ? 'admin-grid' : authUser ? 'manager-grid' : 'viewer-grid'}
           data={data}
           onDataChange={handleDataChange}
           onRootAdd={handleRootAdd}
@@ -1064,7 +1110,9 @@ export default function RoadmapPage() {
           isSaving={saving}
           saveState={saveState}
           saveTick={saveTick}
-          canEdit={isEditor}
+          currentUser={authUser}
+          documentPermission={documentPermission}
+          onManagerFieldChanges={handleManagerFieldChanges}
           showWorkType={showWorkType} setShowWorkType={setShowWorkType}
           showPriority={showPriority} setShowPriority={setShowPriority}
           showPhase={showPhase} setShowPhase={setShowPhase}

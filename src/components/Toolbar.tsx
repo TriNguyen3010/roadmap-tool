@@ -3,9 +3,8 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
     Save, Download, FileJson, Loader2, Flag, Check,
-    Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Lock, Unlock, ArrowLeft
+    Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft
 } from 'lucide-react';
-import SidePanelShell from './SidePanelShell';
 import { normalizeWeekColor, PhaseOption } from '@/types/roadmap';
 
 export type QuickViewMode = 'web' | 'app' | 'reported';
@@ -46,9 +45,6 @@ interface ToolbarProps {
     onDownloadJson?: () => void;
     isSaving?: boolean;
     canEdit: boolean;
-    authLoading?: boolean;
-    onUnlockEditor: (password: string) => Promise<{ success: boolean; message?: string }>;
-    onLockEditor: () => Promise<void> | void;
     isGoogleAuthenticated?: boolean;
     googleAuthLoading?: boolean;
     authLabel?: string | null;
@@ -76,7 +72,7 @@ export default function Toolbar({
     documentName, onNameChange, onSave, onExportExcelCurrentView, onExportExcelFullData,
     onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
     onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
-    canEdit, authLoading, onUnlockEditor, onLockEditor,
+    canEdit,
     isGoogleAuthenticated, googleAuthLoading, authLabel, authTeamLabel, onGoogleLogin, onGoogleLogout,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
@@ -85,14 +81,9 @@ export default function Toolbar({
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [authOpen, setAuthOpen] = useState(false);
     const [phasePickerOpen, setPhasePickerOpen] = useState(false);
     const [phaseSearch, setPhaseSearch] = useState('');
-    const [password, setPassword] = useState('');
-    const [authError, setAuthError] = useState('');
-    const [authSubmitting, setAuthSubmitting] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
-    const passwordRef = useRef<HTMLInputElement>(null);
     const settingsRef = useRef<HTMLDivElement>(null);
     const phasePickerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -129,12 +120,6 @@ export default function Toolbar({
             window.removeEventListener('keydown', onKeyDown);
         };
     }, [phasePickerOpen, closePhasePicker]);
-
-    useEffect(() => {
-        if (!authOpen) return;
-        const timer = setTimeout(() => passwordRef.current?.focus(), 20);
-        return () => clearTimeout(timer);
-    }, [authOpen]);
 
     const activeFilterCount = (
         filterCategory.length
@@ -188,20 +173,6 @@ export default function Toolbar({
         setEditing(false);
     };
 
-    const handleUnlockSubmit = async () => {
-        if (!password || authSubmitting) return;
-        setAuthSubmitting(true);
-        setAuthError('');
-        const result = await onUnlockEditor(password);
-        setAuthSubmitting(false);
-        if (!result.success) {
-            setAuthError(result.message || 'Mật khẩu không đúng');
-            return;
-        }
-        setPassword('');
-        setAuthOpen(false);
-    };
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!canEdit) return;
         const file = e.target.files?.[0];
@@ -226,44 +197,6 @@ export default function Toolbar({
     return (
         <div className="relative shrink-0 border-b border-slate-200 bg-slate-100 px-3 py-2">
             <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileChange} />
-
-            {authOpen && (
-                <SidePanelShell
-                    isOpen={authOpen}
-                    onClose={() => setAuthOpen(false)}
-                    title="Unlock Editor"
-                    subtitle="Nhập mật khẩu để bật chế độ chỉnh sửa"
-                    widthClassName="w-[360px]"
-                    footer={(
-                        <div className="flex justify-end gap-2">
-                            <button
-                                onClick={() => setAuthOpen(false)}
-                                className="rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => void handleUnlockSubmit()}
-                                disabled={authSubmitting || !password}
-                                className="rounded bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300"
-                            >
-                                {authSubmitting ? 'Checking...' : 'Unlock'}
-                            </button>
-                        </div>
-                    )}
-                >
-                    <input
-                        ref={passwordRef}
-                        type="password"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && void handleUnlockSubmit()}
-                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        placeholder="Editor password"
-                    />
-                    {authError && <p className="mt-2 text-xs text-red-600">{authError}</p>}
-                </SidePanelShell>
-            )}
 
             <div className="flex items-center justify-between gap-3 rounded-[14px] border border-slate-200 bg-white px-3 py-2">
                 <div className="flex min-w-0 items-center gap-3">
@@ -474,27 +407,6 @@ export default function Toolbar({
                         >
                             {googleAuthLoading ? <Loader2 size={13} className="animate-spin text-slate-400" /> : <Unlock size={13} className="text-slate-500" />}
                             <span>Dang nhap</span>
-                        </button>
-                    )}
-
-                    {canEdit ? (
-                        <button
-                            onClick={() => void onLockEditor()}
-                            className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                            title="Đang ở chế độ Editor. Click để khóa."
-                        >
-                            <Lock size={13} className="text-slate-500" />
-                            <span>Editor</span>
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => { setAuthOpen(true); setSettingsOpen(false); closePhasePicker(); }}
-                            className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                            title="Viewer mode. Unlock để chỉnh sửa."
-                            disabled={!!authLoading}
-                        >
-                            {authLoading ? <Loader2 size={13} className="animate-spin text-slate-500" /> : <Unlock size={13} className="text-slate-500" />}
-                            <span>Viewer</span>
                         </button>
                     )}
 
