@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateTeamRequest } from '@/lib/serverTeamAuth';
-import { isAdminLevel, type AuthManagerTeam, type ManagerFieldChange } from '@/types/auth';
+import { isAdminLevel, type AuthManagerTeam } from '@/types/auth';
 import { TEAM_ROLES, type RoadmapDocument } from '@/types/roadmap';
-import type { RoadmapManagerSaveRequest } from '@/types/roadmapSave';
-import { buildVersionConflictPayload, isMatchingVersion, normalizeVersion } from '@/utils/roadmapConcurrency';
+import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
 import { applyChangesToTree, validateManagerChanges } from '@/utils/permissionCheck';
 import { normalizeRoadmapItemTimestamps, recalculateRoadmap } from '@/utils/roadmapHelpers';
-import { stripViewSettingsFromDocument } from '@/utils/roadmapViewSettings';
+import {
+    resolveManagerSaveRequest,
+    sanitizeSharedRoadmapDocument,
+    validateBaseVersion,
+} from '@/utils/roadmapSaveFlow';
 
 export const runtime = 'nodejs';
 
@@ -30,14 +33,10 @@ export async function POST(
             return NextResponse.json({ error: 'Not a manager account' }, { status: 403 });
         }
 
-        const body = await request.json().catch(() => ({})) as Partial<RoadmapManagerSaveRequest>;
-        const changes = Array.isArray(body?.changes) ? body.changes as ManagerFieldChange[] : [];
-        const baseVersion = normalizeVersion(body?.baseVersion);
+        const body = await request.json().catch(() => ({}));
+        const { changes, baseVersion } = resolveManagerSaveRequest(body);
         if (changes.length === 0) {
             return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
-        }
-        if (!baseVersion) {
-            return NextResponse.json({ error: 'Missing baseVersion' }, { status: 400 });
         }
 
         const { id } = await params;
@@ -51,10 +50,14 @@ export async function POST(
             return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
         }
 
-        const currentVersion = normalizeVersion(typeof row.updated_at === 'string' ? row.updated_at : null);
-        if (!isMatchingVersion(baseVersion, currentVersion)) {
-            return NextResponse.json(buildVersionConflictPayload(currentVersion), { status: 409 });
+        const versionCheck = validateBaseVersion(
+            baseVersion,
+            typeof row.updated_at === 'string' ? row.updated_at : null
+        );
+        if (!versionCheck.ok) {
+            return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
         }
+        const currentVersion = versionCheck.currentVersion;
 
         const currentDoc = row.content as RoadmapDocument;
         const currentItems = normalizeRoadmapItemTimestamps(Array.isArray(currentDoc.items) ? currentDoc.items : []);
@@ -70,7 +73,7 @@ export async function POST(
         const updatedItems = applyChangesToTree(currentItems, changes);
         const recalculatedItems = recalculateRoadmap(updatedItems);
         const savedDoc: RoadmapDocument = {
-            ...stripViewSettingsFromDocument(currentDoc),
+            ...sanitizeSharedRoadmapDocument(currentDoc),
             items: recalculatedItems,
         };
 

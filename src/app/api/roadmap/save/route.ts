@@ -1,29 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
-import type { RoadmapDocument } from '@/types/roadmap';
-import type { RoadmapSaveRequest } from '@/types/roadmapSave';
-import { buildVersionConflictPayload, isMatchingVersion, normalizeVersion } from '@/utils/roadmapConcurrency';
-import { stripViewSettingsFromDocument } from '@/utils/roadmapViewSettings';
+import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
+import {
+    resolveDocumentSaveRequest,
+    sanitizeSharedRoadmapDocument,
+    validateBaseVersion,
+} from '@/utils/roadmapSaveFlow';
 
 const ROW_ID = 'main';
 
 export const runtime = 'nodejs';
-
-function resolveSaveRequest(body: unknown): RoadmapSaveRequest {
-    if (body && typeof body === 'object' && 'document' in body) {
-        const payload = body as Partial<RoadmapSaveRequest>;
-        return {
-            document: payload.document as RoadmapDocument,
-            baseVersion: normalizeVersion(payload.baseVersion),
-        };
-    }
-
-    return {
-        document: body as RoadmapDocument,
-        baseVersion: null,
-    };
-}
 
 export async function POST(request: NextRequest) {
     try {
@@ -32,11 +19,8 @@ export async function POST(request: NextRequest) {
         }
 
         const requestBody = await request.json();
-        const { document: rawDocument, baseVersion } = resolveSaveRequest(requestBody);
-        const data = stripViewSettingsFromDocument(rawDocument);
-        if (!baseVersion) {
-            return NextResponse.json({ error: 'Missing baseVersion' }, { status: 400 });
-        }
+        const { document: rawDocument, baseVersion } = resolveDocumentSaveRequest(requestBody);
+        const data = sanitizeSharedRoadmapDocument(rawDocument);
 
         const { data: currentRow, error: readError } = await supabase
             .from('roadmap_data')
@@ -53,10 +37,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
         }
 
-        const currentVersion = normalizeVersion(typeof currentRow.updated_at === 'string' ? currentRow.updated_at : null);
-        if (!isMatchingVersion(baseVersion, currentVersion)) {
-            return NextResponse.json(buildVersionConflictPayload(currentVersion), { status: 409 });
+        const versionCheck = validateBaseVersion(
+            baseVersion,
+            typeof currentRow.updated_at === 'string' ? currentRow.updated_at : null
+        );
+        if (!versionCheck.ok) {
+            return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
         }
+        const currentVersion = versionCheck.currentVersion;
 
         const updatedAt = new Date().toISOString();
         let updateQuery = supabase
