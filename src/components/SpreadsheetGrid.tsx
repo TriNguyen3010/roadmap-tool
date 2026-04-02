@@ -26,12 +26,14 @@ import {
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp
 } from '@/utils/roadmapHelpers';
 import { resolveReportedImageReviewMainState } from '@/utils/reportedImageReviewStates';
+import { calcLayeredArcHeight, sortArcsByWidth } from '@/utils/timelineArc';
 import { formatWorkdayDuration } from '@/utils/workdayFormat';
 import { format, differenceInDays, parseISO, endOfWeek, endOfMonth, eachWeekOfInterval, eachMonthOfInterval, addDays, subDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, ChevronDown, Pencil, Trash2, PlusCircle, MessageSquare, ExternalLink, Image as ImageIcon, X } from 'lucide-react';
 import EditPopup from './EditPopup';
 import AddNodePopup from './AddNodePopup';
 import DateMiniPopup from './DateMiniPopup';
+import TimelineArc from './TimelineArc';
 
 interface GridProps {
     data: RoadmapDocument;
@@ -94,6 +96,7 @@ const COL_DATE_DEFAULT = 85;
 const GAP_H = 8;       // height of hidden-row gap indicator
 const MIN_TIMELINE_TASK_W = 140;
 const MAX_TIMELINE_TASK_W = 420;
+const ARC_EDGE_PAD = 4;
 
 // Gap render entry type
 type RenderEntry =
@@ -304,6 +307,10 @@ function countWorkdays(start: Date, end: Date): number {
         d.setDate(d.getDate() + 1);
     }
     return count;
+}
+
+function getArcEndpointPadding(spanWidth: number): number {
+    return Math.min(ARC_EDGE_PAD, Math.max(2, Math.floor(spanWidth / 4)));
 }
 
 function estimatePhaseCellWidth(labels: string[]): number {
@@ -2438,12 +2445,13 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             const hasChildren = row.children && row.children.length > 0;
                             const isExpanded = expandedIds.has(row.id);
                             const displayDepth = getRowDisplayDepth(row);
-                            let barLeft = -1, barWidth = 0, workdays = 0, sprintStr = '';
+                            let barLeft = -1, barWidth = 0, workdays = 0, sprintStr = '', isSingleDayBar = false;
                             if (row.startDate && row.endDate) {
                                 const sd = parseISO(row.startDate);
                                 const edRaw = parseISO(row.endDate);
                                 if (!Number.isNaN(sd.getTime())) {
                                     const ed = Number.isNaN(edRaw.getTime()) ? sd : edRaw;
+                                    isSingleDayBar = format(sd, 'yyyy-MM-dd') === format(ed, 'yyyy-MM-dd');
                                     let firstIdx = -1;
                                     let lastIdx = -1;
                                     for (let i = 0; i < timelineUnits.length; i++) {
@@ -2470,7 +2478,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             const isGrowthCamp = row.type === 'subcategory' && row.subcategoryType === 'Growth Camp';
 
                             // ── Multi-segment bar: one segment per direct child with dates ──
-                            const childSegments: { left: number; width: number; color: string; status: string; childName: string; startDate: string; endDate: string }[] = [];
+                            const childSegments: { left: number; width: number; color: string; status: string; childName: string; startDate: string; endDate: string; isSingleDay: boolean }[] = [];
                             if (row.children && row.children.length > 0) {
                                 for (const child of row.children) {
                                     if (!child.startDate || !child.endDate) continue;
@@ -2495,6 +2503,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             childName: child.name,
                                             startDate: child.startDate,
                                             endDate: child.endDate,
+                                            isSingleDay: format(csd, 'yyyy-MM-dd') === format(ced, 'yyyy-MM-dd'),
                                         });
                                     }
                                 }
@@ -2503,17 +2512,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             const segMinLeft = hasChildSegments ? Math.min(...childSegments.map(s => s.left)) : 0;
                             const segMaxRight = hasChildSegments ? Math.max(...childSegments.map(s => s.left + s.width)) : 0;
                             const segTotalWidth = segMaxRight - segMinLeft;
-
-                            const barStyle: React.CSSProperties = {
-                                left: barLeft,
-                                width: barWidth,
-                                backgroundColor: barColor,
-                                opacity: 0.9,
-                            };
-
-                            if (isGrowthCamp) {
-                                barStyle.backgroundImage = `repeating-linear-gradient(45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 8px, transparent 8px, transparent 16px)`;
-                            }
+                            const layeredChildSegments = hasChildSegments ? sortArcsByWidth(childSegments) : [];
 
                             const hasActiveInfo = activeBarInfoId === row.id;
 
@@ -2548,29 +2547,38 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         </div>
                                     )}
                                     {hasChildSegments ? (
-                                        /* ── Multi-segment parent bar ── */
+                                        /* ── Multi-arc parent row ── */
                                         <div
-                                            className="absolute top-[4px] bottom-[4px] cursor-pointer hover:z-20 group-hover/gantt:z-10"
+                                            className="absolute inset-y-0 cursor-pointer hover:z-20 group-hover/gantt:z-10"
                                             style={{ left: segMinLeft, width: segTotalWidth, zIndex: hasActiveInfo ? 150 : 5 }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
                                             }}
                                         >
-                                            <div className="absolute inset-0 rounded overflow-hidden shadow-sm pointer-events-none" style={{ backgroundColor: 'rgba(0,0,0,0.09)' }}>
-                                                {childSegments.map((seg, i) => (
-                                                    <div
-                                                        key={i}
-                                                        className="absolute top-0 bottom-0 pointer-events-none"
-                                                        style={{
-                                                            left: seg.left - segMinLeft,
-                                                            width: seg.width,
-                                                            backgroundColor: seg.color,
-                                                            opacity: 0.85,
-                                                        }}
-                                                    />
-                                                ))}
-                                            </div>
+                                            <svg
+                                                width={segTotalWidth}
+                                                height={ROW_HEIGHT}
+                                                className="absolute inset-0"
+                                                style={{ overflow: 'visible' }}
+                                            >
+                                                {layeredChildSegments.map((seg, index) => {
+                                                    const localLeft = seg.left - segMinLeft;
+                                                    const arcPad = getArcEndpointPadding(seg.width);
+                                                    return (
+                                                        <TimelineArc
+                                                            key={`${row.id}-${seg.childName}-${seg.startDate}-${seg.endDate}-${index}`}
+                                                            startX={localLeft + arcPad}
+                                                            endX={localLeft + Math.max(arcPad, seg.width - arcPad)}
+                                                            color={seg.color}
+                                                            rowHeight={ROW_HEIGHT}
+                                                            arcHeight={calcLayeredArcHeight(index, layeredChildSegments.length, ROW_HEIGHT)}
+                                                            isActive={hasActiveInfo}
+                                                            forceDot={seg.isSingleDay}
+                                                        />
+                                                    );
+                                                })}
+                                            </svg>
                                             <div className="absolute inset-0 z-10 flex items-center overflow-hidden pointer-events-none">
                                                 <span className="sticky left-2 text-[10.5px] font-bold text-slate-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] whitespace-nowrap px-1">
                                                     {row.status !== 'None' ? `${row.status} • ` : ''}
@@ -2580,14 +2588,40 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             </div>
                                             {hasActiveInfo && (() => {
                                                 const sdRaw = row.startDate ? parseISO(row.startDate) : null;
-                                                const edRaw = row.endDate ? parseISO(row.endDate) : sdRaw;
+                                                const edRaw = row.endDate ? parseISO(row.endDate) : null;
+                                                const childDateBounds = childSegments.reduce<{
+                                                    minStart: Date | null;
+                                                    maxEnd: Date | null;
+                                                }>((acc, seg) => {
+                                                    const segStart = parseISO(seg.startDate);
+                                                    const segEnd = parseISO(seg.endDate);
+                                                    if (!Number.isNaN(segStart.getTime())) {
+                                                        if (!acc.minStart || segStart < acc.minStart) acc.minStart = segStart;
+                                                    }
+                                                    if (!Number.isNaN(segEnd.getTime())) {
+                                                        if (!acc.maxEnd || segEnd > acc.maxEnd) acc.maxEnd = segEnd;
+                                                    }
+                                                    return acc;
+                                                }, { minStart: null, maxEnd: null });
+                                                const summaryStartRaw = sdRaw && !Number.isNaN(sdRaw.getTime()) ? sdRaw : childDateBounds.minStart;
+                                                const summaryEndRaw = edRaw && !Number.isNaN(edRaw.getTime()) ? edRaw : childDateBounds.maxEnd;
+                                                const hasValidStart = !!summaryStartRaw;
+                                                const hasValidEnd = !!summaryEndRaw;
+                                                const overallStartLabel = hasValidStart ? format(summaryStartRaw, 'dd/MM/yyyy') : null;
+                                                const overallEndLabel = hasValidEnd ? format(summaryEndRaw, 'dd/MM/yyyy') : null;
+                                                const overallDurationLabel = hasValidStart && hasValidEnd
+                                                    ? formatWorkdayDuration(countWorkdays(
+                                                        new Date(summaryStartRaw.getFullYear(), summaryStartRaw.getMonth(), summaryStartRaw.getDate()),
+                                                        new Date(summaryEndRaw.getFullYear(), summaryEndRaw.getMonth(), summaryEndRaw.getDate())
+                                                    ))
+                                                    : null;
                                                 let elapsedStr = "Chưa diễn ra";
-                                                if (sdRaw && edRaw && !Number.isNaN(sdRaw.getTime()) && !Number.isNaN(edRaw.getTime())) {
+                                                if (hasValidStart && hasValidEnd) {
                                                     const todayCompare = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                                                    const sdCompare = new Date(sdRaw.getFullYear(), sdRaw.getMonth(), sdRaw.getDate());
-                                                    const edCompare = new Date(edRaw.getFullYear(), edRaw.getMonth(), edRaw.getDate());
+                                                    const sdCompare = new Date(summaryStartRaw.getFullYear(), summaryStartRaw.getMonth(), summaryStartRaw.getDate());
+                                                    const edCompare = new Date(summaryEndRaw.getFullYear(), summaryEndRaw.getMonth(), summaryEndRaw.getDate());
                                                     if (todayCompare > edCompare) {
-                                                        elapsedStr = `Đã hoàn tất (${formatWorkdayDuration(countWorkdays(sdCompare, edCompare))})`;
+                                                        elapsedStr = 'Đã hoàn tất';
                                                     } else if (todayCompare >= sdCompare) {
                                                         elapsedStr = `Đã chạy ${formatWorkdayDuration(countWorkdays(sdCompare, todayCompare))} (tính tới hn)`;
                                                     }
@@ -2634,11 +2668,24 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 return (
                                                     <div className="absolute z-20 top-full mt-1 left-0 bg-slate-900 border border-slate-700 text-white text-[10.5px] font-medium px-2.5 py-2 rounded-lg select-none pointer-events-none shadow-xl flex flex-col gap-1.5"
                                                         style={{ minWidth: 200, maxWidth: 260 }}>
-                                                        <div>
+                                                        <div className="border-b border-slate-700 pb-1.5">
                                                             <div className="font-bold text-slate-100 text-[11px] mb-0.5 truncate">{row.name}</div>
-                                                            <div className="text-emerald-400 font-semibold text-[9.5px] pb-1.5 border-b border-slate-700">
+                                                            <div className="text-emerald-400 font-semibold text-[9.5px]">
                                                                 {elapsedStr}
                                                             </div>
+                                                            {(overallStartLabel || overallEndLabel) && (
+                                                                <div className="mt-1 flex flex-col gap-0.5 text-[9.5px] text-slate-300">
+                                                                    {overallStartLabel && (
+                                                                        <div>Start {overallStartLabel}</div>
+                                                                    )}
+                                                                    {overallEndLabel && (
+                                                                        <div>
+                                                                            End {overallEndLabel}
+                                                                            {overallDurationLabel ? ` (${overallDurationLabel})` : ''}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         <div className="flex flex-col">
                                                             {renderItems}
@@ -2648,23 +2695,40 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             })()}
                                         </div>
                                     ) : (
-                                        /* ── Single bar (leaf or no child dates) ── */
+                                        /* ── Single arc (leaf or no child dates) ── */
                                         barLeft >= 0 && (
                                             <div
-                                                className="absolute top-[4px] bottom-[4px] rounded shadow-sm cursor-pointer transition-all flex items-center justify-center hover:z-20 group-hover/gantt:z-10"
-                                                style={{ ...barStyle, zIndex: hasActiveInfo ? 150 : 5 }}
+                                                className="absolute inset-y-0 cursor-pointer transition-all hover:z-20 group-hover/gantt:z-10"
+                                                style={{ left: barLeft, width: barWidth, zIndex: hasActiveInfo ? 150 : 5 }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
                                                 }}
                                             >
-                                                {isGrowthCamp && <span className="absolute left-1 text-[10px]">🚀</span>}
+                                                <svg
+                                                    width={barWidth}
+                                                    height={ROW_HEIGHT}
+                                                    className="absolute inset-0"
+                                                    style={{ overflow: 'visible' }}
+                                                >
+                                                    <TimelineArc
+                                                        startX={getArcEndpointPadding(barWidth)}
+                                                        endX={Math.max(getArcEndpointPadding(barWidth), barWidth - getArcEndpointPadding(barWidth))}
+                                                        color={barColor}
+                                                        rowHeight={ROW_HEIGHT}
+                                                        isActive={hasActiveInfo}
+                                                        forceDot={isSingleDayBar}
+                                                        strokeDasharray={isGrowthCamp ? '4 3' : undefined}
+                                                    />
+                                                </svg>
+                                                {isGrowthCamp && <span className="absolute left-1 bottom-[1px] text-[10px] pointer-events-none">🚀</span>}
                                                 {hasActiveInfo && (
                                                     <div className="absolute z-20 top-full mt-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
                                                         <div>{row.name}</div>
-                                                        <div>{row.startDate} → {row.endDate}</div>
+                                                        {row.startDate && <div>Start {row.startDate}</div>}
+                                                        {row.endDate && <div>End {row.endDate} {workdays > 0 ? `(${formatWorkdayDuration(workdays)})` : ''}</div>}
                                                         <div>
-                                                            {sprintStr} sprint · {workdays} ngày · {row.progress}%
+                                                            {sprintStr} sprint · {row.progress}%
                                                             {row.type === 'category' || row.type === 'subcategory' ? '' : ` · ${row.status}`}
                                                         </div>
                                                     </div>
