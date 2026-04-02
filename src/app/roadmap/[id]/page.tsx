@@ -763,9 +763,17 @@ export default function RoadmapPage() {
   }, [clearGoogleAuthError]);
 
   const handleGoogleLogout = useCallback(async () => {
+    if (hasUnsavedSharedChanges) {
+      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local trước khi đăng xuất. Tiếp tục?');
+      if (!confirmed) return;
+      if (data) {
+        persistConflictDraft(buildJsonBackupSnapshot(data));
+        addToast('Đã lưu local draft tạm trước khi đăng xuất.', 'info');
+      }
+    }
     await logoutGoogle();
     setGuestMode(false);
-  }, [logoutGoogle]);
+  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, logoutGoogle, persistConflictDraft, showConfirm]);
 
   const exportVisibleRows = useMemo(() => {
     if (!data) return [];
@@ -1337,6 +1345,19 @@ export default function RoadmapPage() {
     }
   }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, loadRoadmap, persistConflictDraft, showConfirm]);
 
+  const handleBackToHome = useCallback(async () => {
+    if (hasUnsavedSharedChanges) {
+      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local trước khi quay về trang chủ. Tiếp tục?');
+      if (!confirmed) return;
+      if (data) {
+        persistConflictDraft(buildJsonBackupSnapshot(data));
+        addToast('Đã lưu local draft tạm trước khi quay về trang chủ.', 'info');
+      }
+    }
+
+    router.push('/');
+  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, persistConflictDraft, router, showConfirm]);
+
   if (loading || !data) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 text-gray-500 text-sm">
@@ -1530,7 +1551,7 @@ export default function RoadmapPage() {
         onExitReportedMode={handleExitReportedMode}
         isTimelineOnly={timelineOnly}
         onToggleTimelineOnly={() => setTimelineOnly(prev => !prev)}
-        onBackToHome={() => router.push('/')}
+        onBackToHome={() => { void handleBackToHome(); }}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
