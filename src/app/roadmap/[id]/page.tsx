@@ -56,6 +56,7 @@ import {
   ensureReportedPriority,
   removeReportedPriority,
 } from '@/utils/reportedMode';
+import { normalizeTeamStatusesTree } from '@/utils/teamStatusHelpers';
 import {
   applyDatesByAllPhases,
   applyDatesByPhase,
@@ -209,6 +210,7 @@ export default function RoadmapPage() {
   } | null>(null);
   const [hasStoredConflictDraft, setHasStoredConflictDraft] = useState(false);
   const currentVersionRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef(false);
   const latestLoadedSettingsRef = useRef<Partial<RoadmapViewSettings> | null>(null);
   const hasHydratedViewSettingsRef = useRef(false);
   const syncChannelRef = useRef<BroadcastChannel | null>(null);
@@ -450,7 +452,7 @@ export default function RoadmapPage() {
         filterGroupItemType: normalizeGroupItemTypeFilter(doc.settings.filterGroupItemType),
       }
       : doc.settings,
-    items: recalculateRoadmap(normalizeItemTree(normalizeRoadmapItemTimestamps(doc.items || []))),
+    items: recalculateRoadmap(normalizeTeamStatusesTree(normalizeItemTree(normalizeRoadmapItemTimestamps(doc.items || [])))),
   }), []);
 
   const fetchRoadmapVersion = useCallback(async (): Promise<string | null> => {
@@ -619,6 +621,7 @@ export default function RoadmapPage() {
       const payload = event.data as { type?: string; version?: string } | null;
       if (payload?.type !== 'roadmap-updated') return;
       if (typeof payload.version !== 'string' || payload.version === currentVersionRef.current) return;
+      console.warn('[CONFLICT-DEBUG] broadcast handler setPendingRemoteVersion', { version: payload.version, currentVersion: currentVersionRef.current });
       setDismissedVersion(null);
       setPendingRemoteVersion(payload.version);
     };
@@ -650,6 +653,7 @@ export default function RoadmapPage() {
     if (!hasNewerVersion) return;
     if (dismissedVersion === latestVersion) return;
 
+    console.warn('[CONFLICT-DEBUG] checkRemoteVersion setPendingRemoteVersion', { latestVersion, currentVersion: currentVersionRef.current });
     setPendingRemoteVersion(latestVersion);
   }, [dismissedVersion, fetchRoadmapVersion]);
 
@@ -686,6 +690,10 @@ export default function RoadmapPage() {
             }
 
             if (nextVersion === currentVersionRef.current) return;
+            // Skip realtime events triggered by our own save — the HTTP response
+            // handler will update currentVersionRef and clear pendingRemoteVersion.
+            if (saveInFlightRef.current) return;
+            console.warn('[CONFLICT-DEBUG] realtime handler setPendingRemoteVersion', { nextVersion, currentVersion: currentVersionRef.current, saveInFlight: saveInFlightRef.current });
             setDismissedVersion(null);
             setPendingRemoteVersion(nextVersion);
           }
@@ -812,6 +820,7 @@ export default function RoadmapPage() {
     }
 
     if (pendingRemoteVersion || dismissedVersion) {
+      console.warn('[CONFLICT-DEBUG] ensureCanSaveCurrentVersion BLOCKED', { pendingRemoteVersion, dismissedVersion, currentVersion: currentVersionRef.current });
       addToast('Đã có phiên bản mới hơn trên hệ thống. Hãy tải bản mới nhất trước khi lưu để tránh ghi đè dữ liệu.', 'error');
       return false;
     }
@@ -842,6 +851,7 @@ export default function RoadmapPage() {
     }
 
     setSaving(true);
+    saveInFlightRef.current = true;
     setSaveState('idle');
     try {
       if (hasPendingReleaseMetaPatch && !options?.forceFullSave) {
@@ -961,6 +971,7 @@ export default function RoadmapPage() {
       const latestVersion = typeof payload?.updatedAt === 'string'
         ? payload.updatedAt
         : await fetchRoadmapVersion();
+      console.log('[CONFLICT-DEBUG] save success, latestVersion:', latestVersion, 'previous:', currentVersionRef.current);
       if (latestVersion) {
         currentVersionRef.current = latestVersion;
         broadcastVersionUpdate(latestVersion);
@@ -977,6 +988,7 @@ export default function RoadmapPage() {
       setSaveState('error');
       setSaveTick(prev => prev + 1);
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   }, [
@@ -1014,6 +1026,7 @@ export default function RoadmapPage() {
     setData(stripViewSettingsFromDocument(normalizedOptimistic));
     setHasUnsavedSharedChanges(true);
     setSaving(true);
+    saveInFlightRef.current = true;
     setSaveState('idle');
 
     try {
@@ -1072,6 +1085,7 @@ export default function RoadmapPage() {
       setSaveTick(prev => prev + 1);
       await loadRoadmap();
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   }, [
@@ -1182,6 +1196,7 @@ export default function RoadmapPage() {
       }
 
       setSaving(true);
+      saveInFlightRef.current = true;
       setSaveState('idle');
 
       try {
@@ -1241,6 +1256,7 @@ export default function RoadmapPage() {
         setSaveTick(prev => prev + 1);
         await loadRoadmap();
       } finally {
+        saveInFlightRef.current = false;
         setSaving(false);
       }
     })();

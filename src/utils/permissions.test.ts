@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionUser } from '@/types/auth';
 import type { RoadmapItem } from '@/types/roadmap';
-import { getDocumentPermission, getEditPermission, getItemTeam } from './permissions';
+import { getDocumentPermission, getEditPermission, getItemTeam, getItemTeams } from './permissions';
 
 function makeTree(): RoadmapItem[] {
     return [
@@ -99,5 +99,69 @@ describe('permissions', () => {
             canManageRoadmap: false,
         });
         expect(getEditPermission(feManager, 'item-be-1', items).canEditStatus).toBe(false);
+    });
+
+    it('getItemTeams returns assignedTeams when present', () => {
+        const items: RoadmapItem[] = [
+            {
+                id: 'multi-1',
+                name: 'Multi-team Item',
+                type: 'item',
+                status: 'None',
+                progress: 0,
+                assignedTeams: ['FE', 'BE'],
+                teamStatuses: {
+                    FE: { status: 'FE Start' },
+                    BE: { status: 'BE Start' },
+                },
+            },
+        ];
+        expect(getItemTeams('multi-1', items)).toEqual(['FE', 'BE']);
+    });
+
+    it('getItemTeams falls back to team-node ancestor', () => {
+        const items = makeTree();
+        expect(getItemTeams('item-fe-1', items)).toEqual(['FE']);
+        expect(getItemTeams('item-be-1', items)).toEqual(['BE']);
+    });
+
+    it('getItemTeams returns empty array for item with no team', () => {
+        const items = makeTree();
+        expect(getItemTeams('cat-1', items)).toEqual([]);
+    });
+
+    it('FE manager can edit multi-team item that includes FE', () => {
+        const items: RoadmapItem[] = [
+            {
+                id: 'multi-1',
+                name: 'Multi-team Item',
+                type: 'item',
+                status: 'None',
+                progress: 0,
+                assignedTeams: ['FE', 'BE'],
+                teamStatuses: {
+                    FE: { status: 'FE Start' },
+                    BE: { status: 'BE Start' },
+                },
+            },
+        ];
+        expect(getEditPermission(feManager, 'multi-1', items).canEditStatus).toBe(true);
+    });
+
+    it('FE manager cannot edit item assigned only to BE', () => {
+        const items: RoadmapItem[] = [
+            {
+                id: 'be-only',
+                name: 'BE Only Item',
+                type: 'item',
+                status: 'None',
+                progress: 0,
+                assignedTeams: ['BE'],
+                teamStatuses: {
+                    BE: { status: 'BE Start' },
+                },
+            },
+        ];
+        expect(getEditPermission(feManager, 'be-only', items).canEditStatus).toBe(false);
     });
 });

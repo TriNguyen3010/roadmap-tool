@@ -3,6 +3,7 @@ import {
     type ItemStatus,
     type RoadmapItem,
     type TeamRole as RoadmapTeamRole,
+    type TeamStatusEntry,
 } from '@/types/roadmap';
 import type {
     AuthManagerTeam,
@@ -10,7 +11,8 @@ import type {
     ManagerFieldChange,
 } from '@/types/auth';
 import { touchItemTimestamp } from '@/utils/roadmapHelpers';
-import { getItemTeam } from '@/utils/permissions';
+import { getItemTeam, getItemTeams } from '@/utils/permissions';
+import { isMultiTeamItem } from '@/utils/teamStatusHelpers';
 
 const MANAGER_ALLOWED_FIELDS = new Set<ManagerFieldChange['field']>(['status', 'startDate', 'endDate', 'quickNote']);
 const STATUS_SET = new Set<ItemStatus>(STATUS_OPTIONS);
@@ -64,9 +66,18 @@ export function validateManagerChanges(
             continue;
         }
 
-        const itemTeam = getItemTeamFromTree(change.itemId, items);
-        if (itemTeam !== managerTeam) {
-            violations.push(`Item ${change.itemId} thuộc team ${itemTeam}, không phải ${managerTeam}`);
+        // If change specifies a team, validate that team matches manager's team
+        if (change.team && change.team !== managerTeam) {
+            violations.push(`Manager ${managerTeam} không thể sửa team ${change.team}`);
+            continue;
+        }
+
+        const itemTeams = getItemTeams(change.itemId, items);
+        const targetTeam = change.team || managerTeam;
+        if (!itemTeams.includes(targetTeam)) {
+            violations.push(
+                `Item ${change.itemId} thuộc teams [${itemTeams.join(', ')}], không bao gồm ${targetTeam}`
+            );
         }
     }
 
@@ -93,6 +104,40 @@ export function applyChangesToTree(
                 updated = { ...item };
 
                 for (const change of itemChanges) {
+                    const team = change.team as RoadmapTeamRole | undefined;
+
+                    // Multi-team path: write to teamStatuses[team]
+                    if (team && (isMultiTeamItem(updated) || updated.assignedTeams?.includes(team))) {
+                        const currentTeamStatus: TeamStatusEntry =
+                            updated.teamStatuses?.[team] || { status: 'None' };
+                        let newTeamStatus = { ...currentTeamStatus };
+
+                        if (change.field === 'status') {
+                            newTeamStatus = {
+                                ...newTeamStatus,
+                                statusMode: 'manual',
+                                manualStatus: change.value as ItemStatus,
+                                status: change.value as ItemStatus,
+                            };
+                        } else if (change.field === 'startDate') {
+                            newTeamStatus.startDate = normalizeNullableString(change.value) || undefined;
+                        } else if (change.field === 'endDate') {
+                            newTeamStatus.endDate = normalizeNullableString(change.value) || undefined;
+                        } else if (change.field === 'quickNote') {
+                            newTeamStatus.quickNote = normalizeNullableString(change.value) || undefined;
+                        }
+
+                        updated = {
+                            ...updated,
+                            teamStatuses: {
+                                ...updated.teamStatuses,
+                                [team]: newTeamStatus,
+                            },
+                        };
+                        continue;
+                    }
+
+                    // Legacy path: write directly to item fields
                     if (change.field === 'status') {
                         updated = {
                             ...updated,

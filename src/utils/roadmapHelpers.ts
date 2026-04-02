@@ -14,6 +14,7 @@ import {
     normalizePriorityFilterValues,
     normalizeStatusFilter
 } from '../types/roadmap';
+import { isMultiTeamItem, deriveOverallStatus, deriveOverallDates, deriveOverallProgress } from './teamStatusHelpers';
 import { addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
 export interface FlattenedItem extends RoadmapItem {
@@ -174,6 +175,30 @@ const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
     const hasChildren = !!(item.children && item.children.length > 0);
     const updatedChildren = item.children?.map(recalculateItem);
 
+    // === Multi-team items: derive overall status/dates/progress from teamStatuses ===
+    if (isMultiTeamItem(item) && item.teamStatuses) {
+        const overallStatus = deriveOverallStatus(item.teamStatuses);
+        const overallDates = deriveOverallDates(item.teamStatuses);
+        let overallProgress = deriveOverallProgress(item.teamStatuses);
+
+        // If item has children, children progress takes precedence
+        if (hasChildren && updatedChildren && updatedChildren.length > 0) {
+            const sumProgress = updatedChildren.reduce((sum, child) => sum + (child.progress || 0), 0);
+            overallProgress = Math.round(sumProgress / updatedChildren.length);
+        }
+
+        return {
+            ...item,
+            ...(item.children !== undefined ? { children: updatedChildren } : {}),
+            priority: normalizeItemPriority(item.priority),
+            status: overallStatus,
+            startDate: overallDates.startDate,
+            endDate: overallDates.endDate,
+            progress: overallProgress,
+        };
+    }
+
+    // === Legacy single-team path (unchanged) ===
     const fallbackMode: StatusMode = hasChildren ? 'auto' : 'manual';
     const statusMode: StatusMode = hasChildren ? (item.statusMode ?? fallbackMode) : 'manual';
 

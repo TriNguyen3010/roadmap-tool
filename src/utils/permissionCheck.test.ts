@@ -65,7 +65,7 @@ describe('permissionCheck', () => {
 
         const result = validateManagerChanges('FE', changes, makeItems());
         expect(result.valid).toBe(false);
-        expect(result.violations[0]).toContain('không phải FE');
+        expect(result.violations[0]).toContain('không bao gồm FE');
     });
 
     it('rejects invalid status values', () => {

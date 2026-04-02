@@ -8,6 +8,7 @@ import {
     normalizeWeekLabel,
     RoadmapDocument,
 } from '@/types/roadmap';
+import { isMultiTeamItem } from '@/utils/teamStatusHelpers';
 import { flattenRoadmap, FlattenedItem } from '@/utils/roadmapHelpers';
 
 export type ExcelExportColumnId =
@@ -362,6 +363,11 @@ function getCellValue(
         }
         case 'status':
             if (respectCurrentViewRules && (row.type === 'category' || row.type === 'subcategory')) return '';
+            if (isMultiTeamItem(row) && row.assignedTeams && row.teamStatuses) {
+                return row.assignedTeams
+                    .map(team => `${team}: ${row.teamStatuses?.[team]?.status || 'None'}`)
+                    .join(' | ');
+            }
             return row.status;
         case 'phase': {
             const labels = normalizePhaseIds(row.phaseIds).map(phaseId => phaseLabelById.get(phaseId) || 'Unknown');
@@ -370,8 +376,18 @@ function getCellValue(
         case 'progress':
             return row.progress ?? 0;
         case 'startDate':
+            if (isMultiTeamItem(row) && row.assignedTeams && row.teamStatuses) {
+                return row.assignedTeams
+                    .map(team => `${team}: ${row.teamStatuses?.[team]?.startDate || '—'}`)
+                    .join(' | ');
+            }
             return row.startDate || '';
         case 'endDate':
+            if (isMultiTeamItem(row) && row.assignedTeams && row.teamStatuses) {
+                return row.assignedTeams
+                    .map(team => `${team}: ${row.teamStatuses?.[team]?.endDate || '—'}`)
+                    .join(' | ');
+            }
             return row.endDate || '';
         default:
             return '';

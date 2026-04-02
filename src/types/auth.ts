@@ -45,6 +45,6 @@ export function isManagerLevel(user: SessionUser | null): user is SessionUser & 
 }
 
 export type ManagerFieldChange =
-    | { itemId: ItemId; field: 'status'; value: ItemStatus }
-    | { itemId: ItemId; field: 'startDate' | 'endDate'; value: string | null }
-    | { itemId: ItemId; field: 'quickNote'; value: string | null };
+    | { itemId: ItemId; team?: RoadmapTeamRole; field: 'status'; value: ItemStatus }
+    | { itemId: ItemId; team?: RoadmapTeamRole; field: 'startDate' | 'endDate'; value: string | null }
+    | { itemId: ItemId; team?: RoadmapTeamRole; field: 'quickNote'; value: string | null };

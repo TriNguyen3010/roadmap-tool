@@ -41,132 +41,155 @@ export async function POST(
         }
 
         const { id } = await params;
-        const { data: row, error: fetchError } = await supabase
-            .from('roadmap_data')
-            .select('content, updated_at')
-            .eq('id', id)
-            .maybeSingle();
+        const MAX_RETRY = 3;
+        let attempt = 0;
+        let lastRetryError: string | null = null;
 
-        if (fetchError || !row?.content) {
-            return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
-        }
+        while (attempt < MAX_RETRY) {
+            attempt++;
 
-        const versionCheck = validateBaseVersion(
-            baseVersion,
-            typeof row.updated_at === 'string' ? row.updated_at : null
-        );
-        if (!versionCheck.ok) {
-            logRoadmapSaveTelemetry({
-                route: 'manager-save',
-                roadmapId: id,
-                outcome: versionCheck.status === 409 ? 'conflict' : 'rejected',
-                status: versionCheck.status,
-                reason: versionCheck.status === 409 ? 'stale-base-version' : 'missing-base-version',
-                baseVersion,
-                serverVersion: versionCheck.payload.serverVersion ?? null,
-                changeCount: changes.length,
-                actor: auth.sessionUser,
-            });
-            return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
-        }
-        const currentVersion = versionCheck.currentVersion;
-
-        const currentDoc = row.content as RoadmapDocument;
-        const currentItems = normalizeRoadmapItemTimestamps(Array.isArray(currentDoc.items) ? currentDoc.items : []);
-        const validation = validateManagerChanges(managerTeam as AuthManagerTeam, changes, currentItems);
-
-        if (!validation.valid) {
-            logRoadmapSaveTelemetry({
-                route: 'manager-save',
-                roadmapId: id,
-                outcome: 'rejected',
-                status: 403,
-                reason: 'permission-denied',
-                baseVersion,
-                changeCount: changes.length,
-                actor: auth.sessionUser,
-            });
-            return NextResponse.json({
-                error: 'Permission denied',
-                violations: validation.violations,
-            }, { status: 403 });
-        }
-
-        const updatedItems = applyChangesToTree(currentItems, changes);
-        const recalculatedItems = recalculateRoadmap(updatedItems);
-        const savedDoc: RoadmapDocument = {
-            ...sanitizeSharedRoadmapDocument(currentDoc),
-            items: recalculatedItems,
-        };
-
-        const updatedAt = new Date().toISOString();
-        let saveQuery = supabase
-            .from('roadmap_data')
-            .update({
-                content: savedDoc,
-                updated_at: updatedAt,
-            })
-            .eq('id', id);
-
-        saveQuery = currentVersion
-            ? saveQuery.eq('updated_at', currentVersion)
-            : saveQuery.is('updated_at', null);
-
-        const { data: savedRow, error: saveError } = await saveQuery
-            .select('updated_at')
-            .maybeSingle();
-
-        if (saveError) {
-            logRoadmapSaveTelemetry({
-                route: 'manager-save',
-                roadmapId: id,
-                outcome: 'error',
-                status: 500,
-                reason: 'conditional-update-failed',
-                baseVersion,
-                changeCount: changes.length,
-                actor: auth.sessionUser,
-            });
-            return NextResponse.json({ error: 'Failed to save roadmap', message: saveError.message }, { status: 500 });
-        }
-
-        if (!savedRow) {
-            const { data: latestRow } = await supabase
+            // 1. Read latest document from DB
+            const { data: row, error: fetchError } = await supabase
                 .from('roadmap_data')
-                .select('updated_at')
+                .select('content, updated_at')
                 .eq('id', id)
                 .maybeSingle();
 
-            const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
-            logRoadmapSaveTelemetry({
-                route: 'manager-save',
-                roadmapId: id,
-                outcome: 'conflict',
-                status: 409,
-                reason: 'conditional-update-miss',
-                baseVersion,
-                serverVersion,
-                changeCount: changes.length,
-                actor: auth.sessionUser,
-            });
+            if (fetchError || !row?.content) {
+                return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
+            }
 
-            return NextResponse.json(
-                buildVersionConflictPayload(serverVersion),
-                { status: 409 }
-            );
+            // On first attempt, validate baseVersion from client
+            if (attempt === 1) {
+                const versionCheck = validateBaseVersion(
+                    baseVersion,
+                    typeof row.updated_at === 'string' ? row.updated_at : null
+                );
+                if (!versionCheck.ok) {
+                    logRoadmapSaveTelemetry({
+                        route: 'manager-save',
+                        roadmapId: id,
+                        outcome: versionCheck.status === 409 ? 'conflict' : 'rejected',
+                        status: versionCheck.status,
+                        reason: versionCheck.status === 409 ? 'stale-base-version' : 'missing-base-version',
+                        baseVersion,
+                        serverVersion: versionCheck.payload.serverVersion ?? null,
+                        changeCount: changes.length,
+                        actor: auth.sessionUser,
+                    });
+                    return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
+                }
+            }
+
+            const currentVersion = typeof row.updated_at === 'string' ? row.updated_at : null;
+            const currentDoc = row.content as RoadmapDocument;
+            const currentItems = normalizeRoadmapItemTimestamps(Array.isArray(currentDoc.items) ? currentDoc.items : []);
+
+            // 2. Validate changes against latest data
+            const validation = validateManagerChanges(managerTeam as AuthManagerTeam, changes, currentItems);
+            if (!validation.valid) {
+                logRoadmapSaveTelemetry({
+                    route: 'manager-save',
+                    roadmapId: id,
+                    outcome: 'rejected',
+                    status: 403,
+                    reason: 'permission-denied',
+                    baseVersion,
+                    changeCount: changes.length,
+                    actor: auth.sessionUser,
+                });
+                return NextResponse.json({
+                    error: 'Permission denied',
+                    violations: validation.violations,
+                }, { status: 403 });
+            }
+
+            // 3. Apply changes + recalculate
+            const updatedItems = applyChangesToTree(currentItems, changes);
+            const recalculatedItems = recalculateRoadmap(updatedItems);
+            const savedDoc: RoadmapDocument = {
+                ...sanitizeSharedRoadmapDocument(currentDoc),
+                items: recalculatedItems,
+            };
+
+            // 4. Conditional update (optimistic lock)
+            const updatedAt = new Date().toISOString();
+            let saveQuery = supabase
+                .from('roadmap_data')
+                .update({
+                    content: savedDoc,
+                    updated_at: updatedAt,
+                })
+                .eq('id', id);
+
+            saveQuery = currentVersion
+                ? saveQuery.eq('updated_at', currentVersion)
+                : saveQuery.is('updated_at', null);
+
+            const { data: savedRow, error: saveError } = await saveQuery
+                .select('updated_at')
+                .maybeSingle();
+
+            if (saveError) {
+                logRoadmapSaveTelemetry({
+                    route: 'manager-save',
+                    roadmapId: id,
+                    outcome: 'error',
+                    status: 500,
+                    reason: 'conditional-update-failed',
+                    baseVersion,
+                    changeCount: changes.length,
+                    actor: auth.sessionUser,
+                });
+                return NextResponse.json({ error: 'Failed to save roadmap', message: saveError.message }, { status: 500 });
+            }
+
+            if (savedRow) {
+                // SUCCESS
+                logRoadmapSaveTelemetry({
+                    route: 'manager-save',
+                    roadmapId: id,
+                    outcome: 'success',
+                    status: 200,
+                    baseVersion,
+                    serverVersion: updatedAt,
+                    changeCount: changes.length,
+                    actor: auth.sessionUser,
+                });
+                return NextResponse.json({ success: true, document: savedDoc, updatedAt });
+            }
+
+            // Conditional update missed → someone else saved first, retry
+            lastRetryError = `Attempt ${attempt}: version conflict, retrying...`;
         }
 
+        // Retry exhausted
+        const { data: latestRow } = await supabase
+            .from('roadmap_data')
+            .select('updated_at')
+            .eq('id', id)
+            .maybeSingle();
+
+        const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
         logRoadmapSaveTelemetry({
             route: 'manager-save',
             roadmapId: id,
-            outcome: 'success',
-            status: 200,
+            outcome: 'conflict',
+            status: 409,
+            reason: 'retry-exhausted',
             baseVersion,
-            serverVersion: updatedAt,
+            serverVersion,
             changeCount: changes.length,
             actor: auth.sessionUser,
         });
-        return NextResponse.json({ success: true, document: savedDoc, updatedAt });
+
+        const conflictPayload = buildVersionConflictPayload(serverVersion);
+        return NextResponse.json({
+            ...conflictPayload,
+            error: 'Không thể lưu sau nhiều lần thử. Vui lòng tải lại trang.',
+            code: 'RETRY_EXHAUSTED',
+            details: lastRetryError,
+        }, { status: 409 });
     } catch (error) {
         let roadmapId = 'unknown';
         try {

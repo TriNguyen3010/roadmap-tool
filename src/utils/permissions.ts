@@ -11,25 +11,47 @@ const NONE_PERMISSION: EditPermission = {
     canManageRoadmap: false,
 };
 
-export function getItemTeam(
+/**
+ * Returns ALL teams an item belongs to.
+ * Priority:
+ * 1. item.assignedTeams (if present) → return directly
+ * 2. item.type === 'team' && item.teamRole → return [teamRole]
+ * 3. Walk up parent → find nearest team-node ancestor (legacy)
+ */
+export function getItemTeams(
     itemId: ItemId,
     items: RoadmapItem[],
     parentTeam?: RoadmapTeamRole
-): RoadmapTeamRole | null {
+): RoadmapTeamRole[] {
     for (const item of items) {
         const currentTeam = item.type === 'team' && item.teamRole
             ? item.teamRole
             : parentTeam;
 
-        if (item.id === itemId) return currentTeam || null;
+        if (item.id === itemId) {
+            if (item.assignedTeams && item.assignedTeams.length > 0) {
+                return item.assignedTeams;
+            }
+            return currentTeam ? [currentTeam] : [];
+        }
 
         if (item.children?.length) {
-            const found = getItemTeam(itemId, item.children, currentTeam);
-            if (found !== null) return found;
+            const found = getItemTeams(itemId, item.children, currentTeam);
+            if (found.length > 0) return found;
         }
     }
 
-    return null;
+    return [];
+}
+
+// Backward-compatible wrapper: returns first team or null
+export function getItemTeam(
+    itemId: ItemId,
+    items: RoadmapItem[],
+    parentTeam?: RoadmapTeamRole
+): RoadmapTeamRole | null {
+    const teams = getItemTeams(itemId, items, parentTeam);
+    return teams[0] || null;
 }
 
 export function getEditPermission(
@@ -51,8 +73,8 @@ export function getEditPermission(
     }
 
     if (user.role === 'manager' && user.team) {
-        const itemTeam = getItemTeam(itemId, items);
-        if (itemTeam === user.team) {
+        const itemTeams = getItemTeams(itemId, items);
+        if (itemTeams.includes(user.team as RoadmapTeamRole)) {
             return {
                 canEditStatus: true,
                 canEditDates: true,

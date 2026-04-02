@@ -24,6 +24,7 @@ import {
     toLegacyImageFields,
 } from '@/types/roadmap';
 import { createItemWithTimestamps } from '@/utils/roadmapHelpers';
+import { buildTeamStatuses } from '@/utils/teamStatusHelpers';
 import { formatFullDateTime, formatRelativeTime, wasUpdated } from '@/utils/timeFormat';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
@@ -81,6 +82,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
     const [selectedPhaseIds, setSelectedPhaseIds] = useState<Set<string>>(() => new Set(normalizePhaseIds(item.phaseIds)));
     const [subcategoryType, setSubcategoryType] = useState<SubcategoryType | undefined>(item.subcategoryType);
     const [groupItemType, setGroupItemType] = useState<GroupItemType | ''>(() => item.type === 'group' ? (item.groupItemType || '') : '');
+    const [assignedTeams, setAssignedTeams] = useState<Set<TeamRole>>(() => new Set(item.assignedTeams || []));
     const [images, setImages] = useState<ItemImage[]>(initialImages);
     const [selectedImageIndex, setSelectedImageIndex] = useState(initialImages.length > 0 ? 0 : -1);
     const [removedExistingImageIds, setRemovedExistingImageIds] = useState<Set<string>>(new Set());
@@ -135,6 +137,13 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
         if (next.has(role)) next.delete(role);
         else next.add(role);
         setSelectedTeams(next);
+    };
+
+    const toggleAssignedTeam = (role: TeamRole) => {
+        const next = new Set(assignedTeams);
+        if (next.has(role)) next.delete(role);
+        else next.add(role);
+        setAssignedTeams(next);
     };
 
     const togglePhase = (phaseId: string) => {
@@ -356,6 +365,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
         const hasChildrenAfterUpdate = !!(updatedChildren && updatedChildren.length > 0);
         const nextStatusMode: StatusMode = hasChildrenAfterUpdate ? statusMode : 'manual';
 
+        const assignedTeamsArray = Array.from(assignedTeams);
         const updatedItem: RoadmapItem = {
             ...item,
             name,
@@ -371,6 +381,10 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
             subcategoryType: item.type === 'subcategory' ? subcategoryType : undefined,
             groupItemType: item.type === 'group' ? (groupItemType || undefined) : undefined,
             phaseIds: selectedPhaseIds.size > 0 ? Array.from(selectedPhaseIds) : undefined,
+            assignedTeams: assignedTeamsArray.length > 0 ? assignedTeamsArray : undefined,
+            teamStatuses: assignedTeamsArray.length > 0
+                ? buildTeamStatuses(item.teamStatuses, assignedTeams)
+                : undefined,
             children: updatedChildren
         };
 
@@ -702,6 +716,29 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                                     </label>
                                 );
                             })}
+                        </div>
+                    </div>
+                )}
+
+                {/* Assigned Teams (multi-team model) */}
+                {item.type !== 'team' && (
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-semibold text-gray-600">Assigned Teams</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {TEAM_ROLES.map(role => (
+                                <button
+                                    key={role}
+                                    type="button"
+                                    onClick={() => toggleAssignedTeam(role)}
+                                    className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                                        assignedTeams.has(role)
+                                            ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+                                            : 'bg-gray-50 border-gray-200 text-gray-400'
+                                    }`}
+                                >
+                                    {role}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 )}

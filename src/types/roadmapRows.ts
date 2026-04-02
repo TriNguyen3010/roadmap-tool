@@ -9,6 +9,7 @@ import type {
     StatusMode,
     SubcategoryType,
     TeamRole,
+    TeamStatusEntry,
 } from '@/types/roadmap';
 
 export interface RoadmapRowRecord {
@@ -41,6 +42,8 @@ export interface RoadmapItemRowRecord {
     quickNote?: string;
     createdAt?: string;
     updatedAt?: string;
+    assignedTeams?: TeamRole[];
+    teamStatuses?: Partial<Record<TeamRole, TeamStatusEntry>>;
 }
 
 export interface RoadmapMilestoneRowRecord {
