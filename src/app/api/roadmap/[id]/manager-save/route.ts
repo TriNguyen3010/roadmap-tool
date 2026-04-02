@@ -11,6 +11,7 @@ import {
     sanitizeSharedRoadmapDocument,
     validateBaseVersion,
 } from '@/utils/roadmapSaveFlow';
+import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
 
 export const runtime = 'nodejs';
 
@@ -55,6 +56,17 @@ export async function POST(
             typeof row.updated_at === 'string' ? row.updated_at : null
         );
         if (!versionCheck.ok) {
+            logRoadmapSaveTelemetry({
+                route: 'manager-save',
+                roadmapId: id,
+                outcome: versionCheck.status === 409 ? 'conflict' : 'rejected',
+                status: versionCheck.status,
+                reason: versionCheck.status === 409 ? 'stale-base-version' : 'missing-base-version',
+                baseVersion,
+                serverVersion: versionCheck.payload.serverVersion ?? null,
+                changeCount: changes.length,
+                actor: auth.sessionUser,
+            });
             return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
         }
         const currentVersion = versionCheck.currentVersion;
@@ -64,6 +76,16 @@ export async function POST(
         const validation = validateManagerChanges(managerTeam as AuthManagerTeam, changes, currentItems);
 
         if (!validation.valid) {
+            logRoadmapSaveTelemetry({
+                route: 'manager-save',
+                roadmapId: id,
+                outcome: 'rejected',
+                status: 403,
+                reason: 'permission-denied',
+                baseVersion,
+                changeCount: changes.length,
+                actor: auth.sessionUser,
+            });
             return NextResponse.json({
                 error: 'Permission denied',
                 violations: validation.violations,
@@ -95,6 +117,16 @@ export async function POST(
             .maybeSingle();
 
         if (saveError) {
+            logRoadmapSaveTelemetry({
+                route: 'manager-save',
+                roadmapId: id,
+                outcome: 'error',
+                status: 500,
+                reason: 'conditional-update-failed',
+                baseVersion,
+                changeCount: changes.length,
+                actor: auth.sessionUser,
+            });
             return NextResponse.json({ error: 'Failed to save roadmap', message: saveError.message }, { status: 500 });
         }
 
@@ -105,14 +137,50 @@ export async function POST(
                 .eq('id', id)
                 .maybeSingle();
 
+            const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
+            logRoadmapSaveTelemetry({
+                route: 'manager-save',
+                roadmapId: id,
+                outcome: 'conflict',
+                status: 409,
+                reason: 'conditional-update-miss',
+                baseVersion,
+                serverVersion,
+                changeCount: changes.length,
+                actor: auth.sessionUser,
+            });
+
             return NextResponse.json(
-                buildVersionConflictPayload(normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null)),
+                buildVersionConflictPayload(serverVersion),
                 { status: 409 }
             );
         }
 
+        logRoadmapSaveTelemetry({
+            route: 'manager-save',
+            roadmapId: id,
+            outcome: 'success',
+            status: 200,
+            baseVersion,
+            serverVersion: updatedAt,
+            changeCount: changes.length,
+            actor: auth.sessionUser,
+        });
         return NextResponse.json({ success: true, document: savedDoc, updatedAt });
     } catch (error) {
+        let roadmapId = 'unknown';
+        try {
+            roadmapId = (await params).id;
+        } catch {
+            roadmapId = 'unknown';
+        }
+        logRoadmapSaveTelemetry({
+            route: 'manager-save',
+            roadmapId,
+            outcome: 'error',
+            status: 500,
+            reason: 'unexpected-exception',
+        });
         console.error('Failed manager-save:', error);
         return NextResponse.json({ error: 'Failed to write roadmap data', message: String(error) }, { status: 500 });
     }

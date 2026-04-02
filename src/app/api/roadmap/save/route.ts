@@ -7,6 +7,7 @@ import {
     sanitizeSharedRoadmapDocument,
     validateBaseVersion,
 } from '@/utils/roadmapSaveFlow';
+import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
 
 const ROW_ID = 'main';
 
@@ -14,7 +15,8 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
     try {
-        if (!(await authenticateAdminRequest(request))) {
+        const auth = await authenticateAdminRequest(request);
+        if (!auth) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -29,6 +31,15 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
         if (readError) {
+            logRoadmapSaveTelemetry({
+                route: 'legacy-admin-save',
+                roadmapId: ROW_ID,
+                outcome: 'error',
+                status: 500,
+                reason: 'read-version-failed',
+                baseVersion,
+                actor: auth.sessionUser,
+            });
             console.error('Failed to read roadmap before save:', JSON.stringify(readError));
             return NextResponse.json({ error: 'Failed to read roadmap version' }, { status: 500 });
         }
@@ -42,6 +53,16 @@ export async function POST(request: NextRequest) {
             typeof currentRow.updated_at === 'string' ? currentRow.updated_at : null
         );
         if (!versionCheck.ok) {
+            logRoadmapSaveTelemetry({
+                route: 'legacy-admin-save',
+                roadmapId: ROW_ID,
+                outcome: versionCheck.status === 409 ? 'conflict' : 'rejected',
+                status: versionCheck.status,
+                reason: versionCheck.status === 409 ? 'stale-base-version' : 'missing-base-version',
+                baseVersion,
+                serverVersion: versionCheck.payload.serverVersion ?? null,
+                actor: auth.sessionUser,
+            });
             return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
         }
         const currentVersion = versionCheck.currentVersion;
@@ -61,6 +82,15 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
         if (error) {
+            logRoadmapSaveTelemetry({
+                route: 'legacy-admin-save',
+                roadmapId: ROW_ID,
+                outcome: 'error',
+                status: 500,
+                reason: 'conditional-update-failed',
+                baseVersion,
+                actor: auth.sessionUser,
+            });
             console.error('Supabase conditional update error:', JSON.stringify(error));
             return NextResponse.json(
                 { error: 'Supabase error', message: error.message, code: error.code, details: error.details },
@@ -75,14 +105,42 @@ export async function POST(request: NextRequest) {
                 .eq('id', ROW_ID)
                 .maybeSingle();
 
+            const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
+            logRoadmapSaveTelemetry({
+                route: 'legacy-admin-save',
+                roadmapId: ROW_ID,
+                outcome: 'conflict',
+                status: 409,
+                reason: 'conditional-update-miss',
+                baseVersion,
+                serverVersion,
+                actor: auth.sessionUser,
+            });
+
             return NextResponse.json(
-                buildVersionConflictPayload(normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null)),
+                buildVersionConflictPayload(serverVersion),
                 { status: 409 }
             );
         }
 
+        logRoadmapSaveTelemetry({
+            route: 'legacy-admin-save',
+            roadmapId: ROW_ID,
+            outcome: 'success',
+            status: 200,
+            baseVersion,
+            serverVersion: updatedAt,
+            actor: auth.sessionUser,
+        });
         return NextResponse.json({ success: true, updatedAt });
     } catch (err: unknown) {
+        logRoadmapSaveTelemetry({
+            route: 'legacy-admin-save',
+            roadmapId: ROW_ID,
+            outcome: 'error',
+            status: 500,
+            reason: 'unexpected-exception',
+        });
         console.error('Failed to save roadmap:', err);
         return NextResponse.json({ error: 'Failed to write roadmap data', message: String(err) }, { status: 500 });
     }
