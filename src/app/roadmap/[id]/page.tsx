@@ -200,6 +200,7 @@ export default function RoadmapPage() {
   const [isApplyingPhaseDates, setIsApplyingPhaseDates] = useState(false);
   const [guestMode, setGuestMode] = useState(false);
   const [hasUnsavedSharedChanges, setHasUnsavedSharedChanges] = useState(false);
+  const [hasPendingReleaseMetaPatch, setHasPendingReleaseMetaPatch] = useState(false);
   const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
   const [conflictState, setConflictState] = useState<{
@@ -495,6 +496,7 @@ export default function RoadmapPage() {
     latestLoadedSettingsRef.current = legacySettings;
     setData(stripViewSettingsFromDocument(normalized));
     setHasUnsavedSharedChanges(false);
+    setHasPendingReleaseMetaPatch(false);
     currentVersionRef.current = version;
     setPendingRemoteVersion(null);
     setDismissedVersion(null);
@@ -822,7 +824,10 @@ export default function RoadmapPage() {
     addToast('Đã lưu view cá nhân trên trình duyệt này.', 'success');
   }, [addToast, persistCurrentViewSettings]);
 
-  const handleSave = useCallback(async (currentData: RoadmapDocument) => {
+  const handleSave = useCallback(async (
+    currentData: RoadmapDocument,
+    options?: { forceFullSave?: boolean }
+  ) => {
     if (!ensureCanManageRoadmap()) return;
     if (!authUser || !accessToken) {
       addToast('Bạn cần đăng nhập lại để lưu roadmap.', 'error');
@@ -839,6 +844,76 @@ export default function RoadmapPage() {
     setSaving(true);
     setSaveState('idle');
     try {
+      if (hasPendingReleaseMetaPatch && !options?.forceFullSave) {
+        const res = await fetch(`/api/roadmap/${roadmapId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            kind: 'release-meta',
+            releaseName: currentData.releaseName,
+            baseVersion,
+          } satisfies RoadmapAdminPatchRequest),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (res.status === 401) {
+          addToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+          setSaveState('error');
+          setSaveTick(prev => prev + 1);
+          return;
+        }
+        if (res.status === 403) {
+          addToast('Tài khoản hiện tại không có quyền full-save roadmap.', 'error');
+          setSaveState('error');
+          setSaveTick(prev => prev + 1);
+          return;
+        }
+        if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
+          persistConflictDraft(buildJsonBackupSnapshot(currentData));
+          setConflictState({
+            message: typeof payload?.message === 'string'
+              ? payload.message
+              : 'Roadmap đã được cập nhật bởi người khác.',
+            serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
+          });
+          if (typeof payload?.serverVersion === 'string') {
+            setPendingRemoteVersion(payload.serverVersion);
+          }
+          addToast('Lưu tên roadmap bị chặn để tránh ghi đè dữ liệu mới hơn. Bản local đã được giữ tạm để bạn backup.', 'error');
+          setSaveState('error');
+          setSaveTick(prev => prev + 1);
+          return;
+        }
+        if (!res.ok) {
+          throw new Error(typeof payload?.error === 'string' ? payload.error : 'Lỗi khi lưu tên roadmap');
+        }
+
+        if (payload?.document) {
+          hydrateRoadmap(payload.document as RoadmapDocument, typeof payload?.updatedAt === 'string' ? payload.updatedAt : null);
+        } else {
+          await loadRoadmap();
+        }
+
+        const latestVersion = typeof payload?.updatedAt === 'string'
+          ? payload.updatedAt
+          : await fetchRoadmapVersion();
+        if (latestVersion) {
+          currentVersionRef.current = latestVersion;
+          broadcastVersionUpdate(latestVersion);
+        }
+        setPendingRemoteVersion(null);
+        setDismissedVersion(null);
+        setConflictState(null);
+        setHasUnsavedSharedChanges(false);
+        setHasPendingReleaseMetaPatch(false);
+        addToast('Đã lưu tên roadmap.', 'success');
+        setSaveState('success');
+        setSaveTick(prev => prev + 1);
+        return;
+      }
+
       const dataToSave = buildSharedDocumentSnapshot(currentData);
 
       const res = await fetch(`/api/roadmap/${roadmapId}/save`, {
@@ -894,6 +969,7 @@ export default function RoadmapPage() {
       setDismissedVersion(null);
       setConflictState(null);
       setHasUnsavedSharedChanges(false);
+      setHasPendingReleaseMetaPatch(false);
       setSaveState('success');
       setSaveTick(prev => prev + 1);
     } catch {
@@ -916,6 +992,9 @@ export default function RoadmapPage() {
     persistConflictDraft,
     resolveBaseVersion,
     roadmapId,
+    hasPendingReleaseMetaPatch,
+    hydrateRoadmap,
+    loadRoadmap,
   ]);
 
   const handleManagerFieldChanges = useCallback(async (changes: ManagerFieldChange[], optimisticData: RoadmapDocument) => {
@@ -1073,6 +1152,7 @@ export default function RoadmapPage() {
     if (!data) return;
     setData({ ...data, releaseName: name });
     setHasUnsavedSharedChanges(true);
+    setHasPendingReleaseMetaPatch(true);
   };
 
   const handleMilestonesSave = (milestones: Milestone[]) => {
@@ -1094,6 +1174,13 @@ export default function RoadmapPage() {
       const optimisticData = normalizeDocument({ ...data, milestones: normalizedMilestones });
       setData(stripViewSettingsFromDocument(optimisticData));
       setHasUnsavedSharedChanges(true);
+
+      if (hasPendingReleaseMetaPatch) {
+        setHasPendingReleaseMetaPatch(false);
+        await handleSave(optimisticData, { forceFullSave: true });
+        return;
+      }
+
       setSaving(true);
       setSaveState('idle');
 
@@ -1145,6 +1232,7 @@ export default function RoadmapPage() {
         }
 
         setHasUnsavedSharedChanges(false);
+        setHasPendingReleaseMetaPatch(false);
         setSaveState('success');
         setSaveTick(prev => prev + 1);
       } catch (error) {
@@ -1178,6 +1266,7 @@ export default function RoadmapPage() {
       const nextData = normalizeDocument({ ...data, items: result.items });
       setData(stripViewSettingsFromDocument(nextData));
       setHasUnsavedSharedChanges(true);
+      setHasPendingReleaseMetaPatch(false);
       addToast(buildPhaseApplySummaryMessage(result), 'success');
       await handleSave(nextData);
     } finally {
@@ -1262,6 +1351,7 @@ export default function RoadmapPage() {
     const normalized = normalizeDocument(newData);
     setData(stripViewSettingsFromDocument(normalized));
     setHasUnsavedSharedChanges(true);
+    setHasPendingReleaseMetaPatch(false);
     if (shouldSave) {
       handleSave(normalized);
     }
@@ -1272,6 +1362,7 @@ export default function RoadmapPage() {
     if (!data) return;
     setData(stripViewSettingsFromDocument(normalizeDocument({ ...data, items: [...data.items, newItem] })));
     setHasUnsavedSharedChanges(true);
+    setHasPendingReleaseMetaPatch(false);
   };
 
   const handleLoadJson = useCallback(async (jsonData: unknown) => {
@@ -1288,6 +1379,7 @@ export default function RoadmapPage() {
     latestLoadedSettingsRef.current = normalized.settings ? { ...normalized.settings } : null;
     setData(stripViewSettingsFromDocument(normalized));
     setHasUnsavedSharedChanges(true);
+    setHasPendingReleaseMetaPatch(false);
     applyViewSettings(normalized.settings);
     persistCurrentViewSettings(normalized.settings ? { ...getDefaultViewSettings(), ...normalized.settings } : getDefaultViewSettings());
     await handleSave(normalized);

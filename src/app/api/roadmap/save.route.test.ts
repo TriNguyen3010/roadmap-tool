@@ -213,6 +213,53 @@ describe('roadmap save routes', () => {
         });
     });
 
+    it('patches release metadata without touching the item tree', async () => {
+        authenticateAdminRequestMock.mockResolvedValue({
+            sessionUser: { email: 'admin@example.com', role: 'admin', team: 'PM', label: 'Admin' },
+        });
+
+        supabaseMock.from
+            .mockReturnValueOnce({
+                select: vi.fn(() => createSelectQuery({
+                    data: {
+                        updated_at: '2026-04-02T19:59:00.000Z',
+                        content: {
+                            releaseName: 'Old Name',
+                            startDate: '',
+                            endDate: '',
+                            milestones: [],
+                            items: [{ id: 'item-1', name: 'Task', type: 'item', status: 'None', progress: 0 }],
+                        },
+                    },
+                    error: null,
+                })),
+            })
+            .mockReturnValueOnce({
+                update: vi.fn(() => createUpdateQuery({
+                    data: { updated_at: '2026-04-02T20:00:00.000Z' },
+                    error: null,
+                })),
+            });
+
+        const response = await patchRoadmapPost(createRequest({
+            kind: 'release-meta',
+            releaseName: ' New Name ',
+            baseVersion: '2026-04-02T19:59:00.000Z',
+        }) as never, {
+            params: Promise.resolve({ id: 'roadmap-1' }),
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject({
+            success: true,
+            updatedAt: '2026-04-02T20:00:00.000Z',
+            document: {
+                releaseName: 'New Name',
+                items: [{ id: 'item-1', name: 'Task' }],
+            },
+        });
+    });
+
     it('accepts manager patch save when baseVersion matches current version', async () => {
         authenticateTeamRequestMock.mockResolvedValue({
             sessionUser: { email: 'fe@example.com', role: 'manager', team: 'FE', label: 'FE' },
