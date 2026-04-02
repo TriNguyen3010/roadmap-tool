@@ -110,6 +110,19 @@ function stripQuickViewSubcategories(subcategories: string[]): string[] {
   return Array.from(next);
 }
 
+/**
+ * Compare two version timestamps by their epoch value, not string format.
+ * Supabase realtime may return "2026-04-03T10:00:00.123+00:00" while
+ * the API returns "2026-04-03T10:00:00.123Z" — same moment, different strings.
+ */
+function isSameVersion(a: string | null, b: string | null): boolean {
+  if (a === b) return true; // fast path: exact match
+  if (!a || !b) return false;
+  const ta = Date.parse(a);
+  const tb = Date.parse(b);
+  return Number.isFinite(ta) && Number.isFinite(tb) && ta === tb;
+}
+
 function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] | undefined {
   return normalizeMilestonesForSave(milestones);
 }
@@ -620,8 +633,7 @@ export default function RoadmapPage() {
     channel.onmessage = (event) => {
       const payload = event.data as { type?: string; version?: string } | null;
       if (payload?.type !== 'roadmap-updated') return;
-      if (typeof payload.version !== 'string' || payload.version === currentVersionRef.current) return;
-      console.warn('[CONFLICT-DEBUG] broadcast handler setPendingRemoteVersion', { version: payload.version, currentVersion: currentVersionRef.current });
+      if (typeof payload.version !== 'string' || isSameVersion(payload.version, currentVersionRef.current)) return;
       setDismissedVersion(null);
       setPendingRemoteVersion(payload.version);
     };
@@ -653,7 +665,6 @@ export default function RoadmapPage() {
     if (!hasNewerVersion) return;
     if (dismissedVersion === latestVersion) return;
 
-    console.warn('[CONFLICT-DEBUG] checkRemoteVersion setPendingRemoteVersion', { latestVersion, currentVersion: currentVersionRef.current });
     setPendingRemoteVersion(latestVersion);
   }, [dismissedVersion, fetchRoadmapVersion]);
 
@@ -689,11 +700,10 @@ export default function RoadmapPage() {
               return;
             }
 
-            if (nextVersion === currentVersionRef.current) return;
+            if (isSameVersion(nextVersion, currentVersionRef.current)) return;
             // Skip realtime events triggered by our own save — the HTTP response
             // handler will update currentVersionRef and clear pendingRemoteVersion.
             if (saveInFlightRef.current) return;
-            console.warn('[CONFLICT-DEBUG] realtime handler setPendingRemoteVersion', { nextVersion, currentVersion: currentVersionRef.current, saveInFlight: saveInFlightRef.current });
             setDismissedVersion(null);
             setPendingRemoteVersion(nextVersion);
           }
@@ -820,7 +830,6 @@ export default function RoadmapPage() {
     }
 
     if (pendingRemoteVersion || dismissedVersion) {
-      console.warn('[CONFLICT-DEBUG] ensureCanSaveCurrentVersion BLOCKED', { pendingRemoteVersion, dismissedVersion, currentVersion: currentVersionRef.current });
       addToast('Đã có phiên bản mới hơn trên hệ thống. Hãy tải bản mới nhất trước khi lưu để tránh ghi đè dữ liệu.', 'error');
       return false;
     }
@@ -971,7 +980,6 @@ export default function RoadmapPage() {
       const latestVersion = typeof payload?.updatedAt === 'string'
         ? payload.updatedAt
         : await fetchRoadmapVersion();
-      console.log('[CONFLICT-DEBUG] save success, latestVersion:', latestVersion, 'previous:', currentVersionRef.current);
       if (latestVersion) {
         currentVersionRef.current = latestVersion;
         broadcastVersionUpdate(latestVersion);
