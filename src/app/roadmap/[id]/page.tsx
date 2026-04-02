@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { startOfDay, subWeeks, addMonths, endOfMonth, format } from 'date-fns';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import Toolbar, { type QuickViewMode } from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
 import MilestoneEditor from '@/components/MilestoneEditor';
@@ -13,6 +14,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LoginForm } from '@/components/LoginForm';
 import { useToast } from '@/hooks/useToast';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
+import { getSupabaseBrowserClient } from '@/lib/supabaseBrowser';
 import type { EditPermission, ManagerFieldChange } from '@/types/auth';
 import {
   ColumnWidthMode,
@@ -653,6 +655,62 @@ export default function RoadmapPage() {
 
     setPendingRemoteVersion(latestVersion);
   }, [dismissedVersion, fetchRoadmapVersion]);
+
+  useEffect(() => {
+    if (!roadmapId || loading || (!authUser && !guestMode)) return;
+
+    let isMounted = true;
+    let realtimeChannel: ReturnType<ReturnType<typeof getSupabaseBrowserClient>['channel']> | null = null;
+
+    try {
+      const supabaseBrowser = getSupabaseBrowserClient();
+      realtimeChannel = supabaseBrowser
+        .channel(`roadmap-realtime:${roadmapId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'roadmap_data',
+            filter: `id=eq.${roadmapId}`,
+          },
+          (payload: RealtimePostgresChangesPayload<{ updated_at?: string | null }>) => {
+            if (!isMounted) return;
+
+            const nextVersion = typeof payload.new === 'object' && payload.new && 'updated_at' in payload.new
+              ? typeof payload.new.updated_at === 'string'
+                ? payload.new.updated_at
+                : null
+              : null;
+
+            if (!nextVersion) {
+              void checkRemoteVersion();
+              return;
+            }
+
+            if (nextVersion === currentVersionRef.current) return;
+            setDismissedVersion(null);
+            setPendingRemoteVersion(nextVersion);
+          }
+        )
+        .subscribe((status: string) => {
+          if (!isMounted) return;
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            void checkRemoteVersion();
+          }
+        });
+
+      return () => {
+        isMounted = false;
+        if (realtimeChannel) {
+          void realtimeChannel.unsubscribe();
+          void supabaseBrowser.removeChannel(realtimeChannel);
+        }
+      };
+    } catch {
+      return;
+    }
+  }, [authUser, checkRemoteVersion, guestMode, loading, roadmapId]);
 
   useEffect(() => {
     if (loading) return;
