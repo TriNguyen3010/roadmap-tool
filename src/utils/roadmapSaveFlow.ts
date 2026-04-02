@@ -1,6 +1,6 @@
 import type { ManagerFieldChange } from '@/types/auth';
 import type { RoadmapDocument } from '@/types/roadmap';
-import type { RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
+import type { RoadmapAdminPatchRequest, RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
 import { buildVersionConflictPayload, isMatchingVersion, normalizeVersion } from '@/utils/roadmapConcurrency';
 import { normalizeRoadmapItemTimestamps, recalculateRoadmap } from '@/utils/roadmapHelpers';
 import { stripViewSettingsFromDocument } from '@/utils/roadmapViewSettings';
@@ -31,6 +31,31 @@ export function resolveManagerSaveRequest(body: unknown): RoadmapManagerSaveRequ
         changes: Array.isArray(payload.changes) ? payload.changes as ManagerFieldChange[] : [],
         baseVersion: normalizeVersion(payload.baseVersion),
     };
+}
+
+export function resolveAdminPatchRequest(body: unknown): RoadmapAdminPatchRequest | null {
+    if (!body || typeof body !== 'object') return null;
+
+    const payload = body as Partial<RoadmapAdminPatchRequest>;
+    const baseVersion = normalizeVersion(payload.baseVersion);
+
+    if (payload.kind === 'milestones' && Array.isArray(payload.milestones)) {
+        return {
+            kind: 'milestones',
+            milestones: payload.milestones,
+            baseVersion,
+        };
+    }
+
+    if (payload.kind === 'release-meta' && typeof payload.releaseName === 'string') {
+        return {
+            kind: 'release-meta',
+            releaseName: payload.releaseName,
+            baseVersion,
+        };
+    }
+
+    return null;
 }
 
 export function validateBaseVersion(

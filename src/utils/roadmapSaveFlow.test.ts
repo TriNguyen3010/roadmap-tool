@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RoadmapDocument } from '@/types/roadmap';
 import {
     normalizeSharedRoadmapDocument,
+    resolveAdminPatchRequest,
     resolveDocumentSaveRequest,
     resolveManagerSaveRequest,
     sanitizeSharedRoadmapDocument,
@@ -53,6 +54,30 @@ describe('roadmapSaveFlow', () => {
             changes: [],
             baseVersion: null,
         });
+    });
+
+    it('resolves admin patch requests for milestones and release metadata', () => {
+        expect(resolveAdminPatchRequest({
+            kind: 'milestones',
+            milestones: [{ id: 'm1', label: 'Week 1', startDate: '2026-04-01', endDate: '2026-04-02', color: '#fff' }],
+            baseVersion: ' 2026-04-02T10:00:00.000Z ',
+        })).toEqual({
+            kind: 'milestones',
+            milestones: [{ id: 'm1', label: 'Week 1', startDate: '2026-04-01', endDate: '2026-04-02', color: '#fff' }],
+            baseVersion: '2026-04-02T10:00:00.000Z',
+        });
+
+        expect(resolveAdminPatchRequest({
+            kind: 'release-meta',
+            releaseName: ' Roadmap Alpha ',
+            baseVersion: null,
+        })).toEqual({
+            kind: 'release-meta',
+            releaseName: ' Roadmap Alpha ',
+            baseVersion: null,
+        });
+
+        expect(resolveAdminPatchRequest({ kind: 'milestones', milestones: null })).toBeNull();
     });
 
     it('validates missing and stale baseVersion values', () => {

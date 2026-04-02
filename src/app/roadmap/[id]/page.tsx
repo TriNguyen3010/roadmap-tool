@@ -37,13 +37,14 @@ import {
   normalizeStatusFilter,
   toLegacyImageFields
 } from '@/types/roadmap';
-import type { RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
+import type { RoadmapAdminPatchRequest, RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
 import { buildRoadmapExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
 import {
   VERSION_CONFLICT_CODE,
   buildConflictDraftStorageKey,
   buildRoadmapChannelName,
 } from '@/utils/roadmapConcurrency';
+import { normalizeMilestoneDateValue, normalizeMilestonesForSave } from '@/utils/milestones';
 import {
   filterRoadmapTree,
   flattenRoadmap,
@@ -83,7 +84,7 @@ function clampTimelineTaskWidth(width: number): number {
 }
 
 function normalizeDateValue(value: string | undefined): string {
-  return (value || '').trim();
+  return normalizeMilestoneDateValue(value);
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -109,29 +110,7 @@ function stripQuickViewSubcategories(subcategories: string[]): string[] {
 }
 
 function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] | undefined {
-  if (!milestones) return milestones;
-  return milestones.map((milestone, index) => {
-    const id = (milestone.id || '').trim() || `phase_${index + 1}`;
-    const label = normalizeWeekLabel(milestone.label, index);
-    const color = normalizeWeekColor(milestone.color, index);
-    let startDate = normalizeDateValue(milestone.startDate);
-    let endDate = normalizeDateValue(milestone.endDate);
-
-    if (startDate && !endDate) {
-      endDate = startDate;
-    } else if (!startDate && endDate) {
-      startDate = endDate;
-    }
-
-    return {
-      ...milestone,
-      id,
-      label,
-      color,
-      startDate,
-      endDate,
-    };
-  });
+  return normalizeMilestonesForSave(milestones);
 }
 
 function normalizeItemTree(items: RoadmapItem[]): RoadmapItem[] {
@@ -1097,12 +1076,86 @@ export default function RoadmapPage() {
   };
 
   const handleMilestonesSave = (milestones: Milestone[]) => {
-    if (!ensureCanManageRoadmap()) return;
-    if (!data) return;
-    const newData = normalizeDocument({ ...data, milestones });
-    setData(stripViewSettingsFromDocument(newData));
-    setHasUnsavedSharedChanges(true);
-    handleSave(newData);
+    void (async () => {
+      if (!ensureCanManageRoadmap()) return;
+      if (!data || !authUser || !accessToken) {
+        addToast('Bạn cần đăng nhập lại để lưu week.', 'error');
+        return;
+      }
+      if (!ensureCanSaveCurrentVersion()) return;
+
+      const baseVersion = await resolveBaseVersion();
+      if (!baseVersion) {
+        addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+        return;
+      }
+
+      const normalizedMilestones = normalizeMilestonesForSave(milestones) || [];
+      const optimisticData = normalizeDocument({ ...data, milestones: normalizedMilestones });
+      setData(stripViewSettingsFromDocument(optimisticData));
+      setHasUnsavedSharedChanges(true);
+      setSaving(true);
+      setSaveState('idle');
+
+      try {
+        const res = await fetch(`/api/roadmap/${roadmapId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            kind: 'milestones',
+            milestones: normalizedMilestones,
+            baseVersion,
+          } satisfies RoadmapAdminPatchRequest),
+        });
+
+        const payload = await res.json().catch(() => ({}));
+        if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
+          persistConflictDraft(buildJsonBackupSnapshot(optimisticData));
+          setConflictState({
+            message: typeof payload?.message === 'string'
+              ? payload.message
+              : 'Roadmap đã được cập nhật bởi người khác.',
+            serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
+          });
+          if (typeof payload?.serverVersion === 'string') {
+            setPendingRemoteVersion(payload.serverVersion);
+          }
+          addToast('Thay đổi week đã được giữ tạm. Hãy tải bản mới nhất trước khi lưu tiếp để tránh conflict.', 'error');
+          setSaveState('error');
+          setSaveTick(prev => prev + 1);
+          return;
+        }
+
+        if (!res.ok) {
+          throw new Error(typeof payload?.error === 'string' ? payload.error : 'Không thể lưu week');
+        }
+
+        if (payload?.document) {
+          hydrateRoadmap(payload.document as RoadmapDocument, typeof payload?.updatedAt === 'string' ? payload.updatedAt : null);
+        } else {
+          await loadRoadmap();
+        }
+
+        if (typeof payload?.updatedAt === 'string') {
+          currentVersionRef.current = payload.updatedAt;
+          broadcastVersionUpdate(payload.updatedAt);
+        }
+
+        setHasUnsavedSharedChanges(false);
+        setSaveState('success');
+        setSaveTick(prev => prev + 1);
+      } catch (error) {
+        addToast(error instanceof Error ? error.message : 'Lỗi khi lưu week.', 'error');
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        await loadRoadmap();
+      } finally {
+        setSaving(false);
+      }
+    })();
   };
 
   const executePhaseDateApply = useCallback(async (result: ApplyPhaseDatesResult, emptyStateMessage: string) => {

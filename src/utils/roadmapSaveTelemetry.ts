@@ -1,6 +1,6 @@
 import type { SessionUser } from '@/types/auth';
 
-export type RoadmapSaveRoute = 'admin-save' | 'manager-save' | 'legacy-admin-save';
+export type RoadmapSaveRoute = 'admin-save' | 'admin-patch' | 'manager-save' | 'legacy-admin-save';
 export type RoadmapSaveOutcome = 'success' | 'conflict' | 'rejected' | 'error';
 
 export interface RoadmapSaveTelemetryEvent {
