@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { EDITOR_SESSION_COOKIE, isEditorSessionValid } from '@/lib/editorAuth';
+import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
 
 export const runtime = 'nodejs';
 
@@ -33,8 +33,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const token = request.cookies.get(EDITOR_SESSION_COOKIE)?.value;
-        if (!isEditorSessionValid(token)) {
+        if (!(await authenticateAdminRequest(request))) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 

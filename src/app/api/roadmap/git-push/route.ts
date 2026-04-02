@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import util from 'util';
-import { EDITOR_SESSION_COOKIE, isEditorSessionValid } from '@/lib/editorAuth';
+import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
 
 const execPromise = util.promisify(exec);
 
 export async function POST(request: NextRequest) {
     try {
-        const token = request.cookies.get(EDITOR_SESSION_COOKIE)?.value;
-        if (!isEditorSessionValid(token)) {
+        if (!(await authenticateAdminRequest(request))) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 

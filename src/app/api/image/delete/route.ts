@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { EDITOR_SESSION_COOKIE, isEditorSessionValid } from '@/lib/editorAuth';
+import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
 import { deleteImageByPublicId, isManagedCloudinaryPublicId } from '@/lib/cloudinary';
 import { checkRateLimit, getRateLimitKey, readPositiveIntEnv } from '@/lib/rateLimit';
 import { randomUUID } from 'crypto';
@@ -12,12 +12,12 @@ const DELETE_RATE_LIMIT_WINDOW_MS = readPositiveIntEnv('IMAGE_DELETE_RATE_LIMIT_
 export async function POST(request: NextRequest) {
     const requestId = randomUUID();
     try {
-        const token = request.cookies.get(EDITOR_SESSION_COOKIE)?.value;
-        if (!isEditorSessionValid(token)) {
+        const auth = await authenticateAdminRequest(request);
+        if (!auth) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const key = getRateLimitKey(request, token);
+        const key = getRateLimitKey(request, auth.sessionUser.email);
         const rateLimitResult = checkRateLimit({
             scope: 'image-delete',
             key,

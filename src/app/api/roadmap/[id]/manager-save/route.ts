@@ -1,53 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { isAdminLevel, type AuthManagerTeam, type ManagerFieldChange, type SessionUser, type TeamMemberRecord } from '@/types/auth';
+import { authenticateTeamRequest } from '@/lib/serverTeamAuth';
+import { isAdminLevel, type AuthManagerTeam, type ManagerFieldChange } from '@/types/auth';
 import { TEAM_ROLES, type RoadmapDocument } from '@/types/roadmap';
 import { applyChangesToTree, validateManagerChanges } from '@/utils/permissionCheck';
 import { normalizeRoadmapItemTimestamps, recalculateRoadmap } from '@/utils/roadmapHelpers';
 
 export const runtime = 'nodejs';
 
-type RequestMember = {
-    sessionUser: SessionUser;
-    member: TeamMemberRecord;
-};
-
-async function authenticateRequest(request: NextRequest): Promise<RequestMember | null> {
-    const authHeader = request.headers.get('Authorization');
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-
-    if (!token) return null;
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user?.email) return null;
-
-    const email = user.email.trim();
-    const { data: member } = await supabase
-        .from('team_members')
-        .select('email, role, team, label, is_active')
-        .eq('email', email)
-        .eq('is_active', true)
-        .maybeSingle<TeamMemberRecord>();
-
-    if (!member) return null;
-
-    return {
-        member,
-        sessionUser: {
-            email: member.email,
-            role: member.role,
-            team: member.team,
-            label: member.label,
-        },
-    };
-}
-
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const auth = await authenticateRequest(request);
+        const auth = await authenticateTeamRequest(request);
         if (!auth) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }

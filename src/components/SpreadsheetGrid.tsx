@@ -692,7 +692,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         : null;
     const activeImagePreviewUrl = activeImagePreviewImage?.url?.trim() || '';
     const activeImagePreviewName = activeImagePreviewImage?.name?.trim() || activeImagePreviewItem?.name || 'image';
-    const activeImagePreviewNote = activeImagePreviewItem?.quickNote?.trim() || '';
     const activeImagePreviewPhaseIds = useMemo(() => normalizePhaseIds(activeImagePreviewItem?.phaseIds), [activeImagePreviewItem]);
     const activeImagePreviewPhaseLabels = useMemo(
         () => activeImagePreviewPhaseIds.map(phaseId => phaseLabelById.get(phaseId) || 'Unknown'),
