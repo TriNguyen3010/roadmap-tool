@@ -220,6 +220,7 @@ export default function RoadmapPage() {
   const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [isApplyingPhaseDates, setIsApplyingPhaseDates] = useState(false);
   const [guestMode, setGuestMode] = useState(false);
+  const [hasUnsavedSharedChanges, setHasUnsavedSharedChanges] = useState(false);
   const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
   const [conflictState, setConflictState] = useState<{
@@ -514,6 +515,7 @@ export default function RoadmapPage() {
     const legacySettings = normalized.settings ? { ...normalized.settings } : null;
     latestLoadedSettingsRef.current = legacySettings;
     setData(stripViewSettingsFromDocument(normalized));
+    setHasUnsavedSharedChanges(false);
     currentVersionRef.current = version;
     setPendingRemoteVersion(null);
     setDismissedVersion(null);
@@ -599,6 +601,20 @@ export default function RoadmapPage() {
     if (!viewSettingsScope || !hasHydratedViewSettingsRef.current) return;
     persistCurrentViewSettings();
   }, [persistCurrentViewSettings, viewSettingsScope]);
+
+  useEffect(() => {
+    if (!hasUnsavedSharedChanges) return;
+
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [hasUnsavedSharedChanges]);
 
   useEffect(() => {
     if (!conflictDraftStorageKey) {
@@ -890,6 +906,7 @@ export default function RoadmapPage() {
       setPendingRemoteVersion(null);
       setDismissedVersion(null);
       setConflictState(null);
+      setHasUnsavedSharedChanges(false);
       setSaveState('success');
       setSaveTick(prev => prev + 1);
     } catch {
@@ -929,6 +946,7 @@ export default function RoadmapPage() {
 
     const normalizedOptimistic = normalizeDocument(optimisticData);
     setData(stripViewSettingsFromDocument(normalizedOptimistic));
+    setHasUnsavedSharedChanges(true);
     setSaving(true);
     setSaveState('idle');
 
@@ -979,6 +997,7 @@ export default function RoadmapPage() {
         broadcastVersionUpdate(payload.updatedAt);
       }
 
+      setHasUnsavedSharedChanges(false);
       setSaveState('success');
       setSaveTick(prev => prev + 1);
     } catch (error) {
@@ -1066,6 +1085,7 @@ export default function RoadmapPage() {
     if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     setData({ ...data, releaseName: name });
+    setHasUnsavedSharedChanges(true);
   };
 
   const handleMilestonesSave = (milestones: Milestone[]) => {
@@ -1073,6 +1093,7 @@ export default function RoadmapPage() {
     if (!data) return;
     const newData = normalizeDocument({ ...data, milestones });
     setData(stripViewSettingsFromDocument(newData));
+    setHasUnsavedSharedChanges(true);
     handleSave(newData);
   };
 
@@ -1095,6 +1116,7 @@ export default function RoadmapPage() {
     try {
       const nextData = normalizeDocument({ ...data, items: result.items });
       setData(stripViewSettingsFromDocument(nextData));
+      setHasUnsavedSharedChanges(true);
       addToast(buildPhaseApplySummaryMessage(result), 'success');
       await handleSave(nextData);
     } finally {
@@ -1178,6 +1200,7 @@ export default function RoadmapPage() {
     if (!canManageRoadmap) return;
     const normalized = normalizeDocument(newData);
     setData(stripViewSettingsFromDocument(normalized));
+    setHasUnsavedSharedChanges(true);
     if (shouldSave) {
       handleSave(normalized);
     }
@@ -1187,6 +1210,7 @@ export default function RoadmapPage() {
     if (!ensureCanManageRoadmap()) return;
     if (!data) return;
     setData(stripViewSettingsFromDocument(normalizeDocument({ ...data, items: [...data.items, newItem] })));
+    setHasUnsavedSharedChanges(true);
   };
 
   const handleLoadJson = useCallback(async (jsonData: unknown) => {
@@ -1202,6 +1226,7 @@ export default function RoadmapPage() {
     const normalized = normalizeDocument(parsed as RoadmapDocument);
     latestLoadedSettingsRef.current = normalized.settings ? { ...normalized.settings } : null;
     setData(stripViewSettingsFromDocument(normalized));
+    setHasUnsavedSharedChanges(true);
     applyViewSettings(normalized.settings);
     persistCurrentViewSettings(normalized.settings ? { ...getDefaultViewSettings(), ...normalized.settings } : getDefaultViewSettings());
     await handleSave(normalized);
@@ -1296,6 +1321,11 @@ export default function RoadmapPage() {
   }, [pendingRemoteVersion]);
 
   const refreshForLatestData = useCallback(async () => {
+    if (hasUnsavedSharedChanges) {
+      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local rồi tải bản mới nhất từ hệ thống. Tiếp tục?');
+      if (!confirmed) return;
+    }
+
     if (data) {
       persistConflictDraft(buildJsonBackupSnapshot(data));
       addToast('Đã lưu local draft tạm trước khi tải bản mới nhất.', 'info');
@@ -1305,7 +1335,7 @@ export default function RoadmapPage() {
     if (loaded) {
       addToast('Đã tải phiên bản mới nhất từ hệ thống.', 'success');
     }
-  }, [addToast, buildJsonBackupSnapshot, data, loadRoadmap, persistConflictDraft]);
+  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, loadRoadmap, persistConflictDraft, showConfirm]);
 
   if (loading || !data) {
     return (
