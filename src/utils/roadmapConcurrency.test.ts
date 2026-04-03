@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
     VERSION_CONFLICT_CODE,
-    buildConflictDraftStorageKey,
     buildRoadmapChannelName,
     buildVersionConflictPayload,
     getVersionTimestamp,
@@ -46,8 +45,7 @@ describe('roadmapConcurrency', () => {
         });
     });
 
-    it('builds stable storage and channel keys', () => {
-        expect(buildConflictDraftStorageKey('abc', 'tri@example.com')).toBe('roadmap-conflict-draft:abc:tri@example.com');
+    it('builds stable channel key', () => {
         expect(buildRoadmapChannelName('abc')).toBe('roadmap-sync:abc');
     });
 });

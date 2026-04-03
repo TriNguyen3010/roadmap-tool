@@ -65,10 +65,6 @@ export function buildVersionConflictPayload(currentVersion: string | null) {
     };
 }
 
-export function buildConflictDraftStorageKey(roadmapId: string, scope: string): string {
-    return `roadmap-conflict-draft:${roadmapId}:${scope}`;
-}
-
 export function buildRoadmapChannelName(roadmapId: string): string {
     return `roadmap-sync:${roadmapId}`;
 }

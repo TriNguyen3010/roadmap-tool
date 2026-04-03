@@ -40,10 +40,7 @@ import {
 import type { RoadmapAdminPatchRequest, RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
 import { buildRoadmapExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
 import {
-  VERSION_CONFLICT_CODE,
-  buildConflictDraftStorageKey,
   buildRoadmapChannelName,
-  isMatchingVersion,
   isVersionNewer,
 } from '@/utils/roadmapConcurrency';
 import { normalizeMilestoneDateValue, normalizeMilestonesForSave } from '@/utils/milestones';
@@ -75,7 +72,7 @@ const DEFAULT_TIMELINE_TASK_WIDTH = 220;
 const MIN_TIMELINE_TASK_WIDTH = 140;
 const MAX_TIMELINE_TASK_WIDTH = 420;
 const VERSION_POLL_INTERVAL_MS = 20_000;
-const CONFLICT_DRAFT_FILE_PREFIX = 'roadmap-conflict-draft';
+
 
 function clampFeaturesColWidth(width: number): number {
   return Math.max(MIN_FEATURES_COL_WIDTH, Math.min(MAX_FEATURES_COL_WIDTH, width));
@@ -188,15 +185,6 @@ function getDefaultViewSettings(): RoadmapViewSettings {
   };
 }
 
-function downloadJsonFile(fileName: string, content: unknown) {
-  const blob = new Blob([JSON.stringify(content, null, 2)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
 
 export default function RoadmapPage() {
   const params = useParams();
@@ -214,15 +202,6 @@ export default function RoadmapPage() {
   const [guestMode, setGuestMode] = useState(false);
   const [hasUnsavedSharedChanges, setHasUnsavedSharedChanges] = useState(false);
   const [hasPendingReleaseMetaPatch, setHasPendingReleaseMetaPatch] = useState(false);
-  const [pendingRemoteVersion, setPendingRemoteVersion] = useState<string | null>(null);
-  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
-  const [conflictState, setConflictState] = useState<{
-    message: string;
-    serverVersion: string | null;
-  } | null>(null);
-  const [hasStoredConflictDraft, setHasStoredConflictDraft] = useState(false);
-  const [storageMode, setStorageMode] = useState<'json' | 'table' | null>(null);
-  const isTableMode = storageMode === 'table';
   const currentVersionRef = useRef<string | null>(null);
   const saveInFlightRef = useRef(false);
   const latestLoadedSettingsRef = useRef<Partial<RoadmapViewSettings> | null>(null);
@@ -277,11 +256,6 @@ export default function RoadmapPage() {
     () => (roadmapId && viewSettingsScope ? buildViewSettingsStorageKey(roadmapId, viewSettingsScope) : null),
     [roadmapId, viewSettingsScope]
   );
-  const conflictDraftStorageKey = useMemo(
-    () => (roadmapId && viewSettingsScope ? buildConflictDraftStorageKey(roadmapId, viewSettingsScope) : null),
-    [roadmapId, viewSettingsScope]
-  );
-
   const ensureCanManageRoadmap = useCallback(() => {
     if (canManageRoadmap) return true;
     addToast('Tài khoản hiện tại không có quyền chỉnh sửa cấu trúc roadmap.', 'error');
@@ -408,53 +382,6 @@ export default function RoadmapPage() {
     settings: buildCurrentViewSettings(),
   }), [buildCurrentViewSettings, buildSharedDocumentSnapshot]);
 
-  const persistConflictDraft = useCallback((snapshot: RoadmapDocument) => {
-    if (!conflictDraftStorageKey) return;
-    try {
-      window.sessionStorage.setItem(conflictDraftStorageKey, JSON.stringify({
-        capturedAt: new Date().toISOString(),
-        snapshot,
-      }));
-      setHasStoredConflictDraft(true);
-    } catch {
-      // Ignore session storage failures.
-    }
-  }, [conflictDraftStorageKey]);
-
-  const clearStoredConflictDraft = useCallback(() => {
-    if (!conflictDraftStorageKey) return;
-    try {
-      window.sessionStorage.removeItem(conflictDraftStorageKey);
-      setHasStoredConflictDraft(false);
-    } catch {
-      // Ignore session storage failures.
-    }
-  }, [conflictDraftStorageKey]);
-
-  const downloadStoredConflictDraft = useCallback(() => {
-    if (!conflictDraftStorageKey) return;
-    try {
-      const raw = window.sessionStorage.getItem(conflictDraftStorageKey);
-      if (!raw) {
-        addToast('Không tìm thấy conflict draft đã lưu tạm.', 'info');
-        setHasStoredConflictDraft(false);
-        return;
-      }
-
-      const payload = JSON.parse(raw) as { capturedAt?: string; snapshot?: RoadmapDocument } | null;
-      if (!payload?.snapshot) {
-        addToast('Conflict draft bị hỏng hoặc không hợp lệ.', 'error');
-        setHasStoredConflictDraft(false);
-        return;
-      }
-
-      const timestamp = (payload.capturedAt || new Date().toISOString()).replace(/[:.]/g, '-');
-      downloadJsonFile(`${CONFLICT_DRAFT_FILE_PREFIX}-${roadmapId || 'roadmap'}-${timestamp}.json`, payload.snapshot);
-    } catch {
-      addToast('Không thể tải conflict draft đã lưu tạm.', 'error');
-    }
-  }, [addToast, conflictDraftStorageKey, roadmapId]);
-
   const normalizeDocument = useCallback((doc: RoadmapDocument): RoadmapDocument => ({
     ...doc,
     milestones: normalizeMilestones(doc.milestones),
@@ -474,9 +401,6 @@ export default function RoadmapPage() {
       const res = await fetch(`/api/roadmap/${roadmapId}/version`, { cache: 'no-store' });
       if (!res.ok) return null;
       const payload = await res.json().catch(() => ({}));
-      if (payload?.storageMode === 'json' || payload?.storageMode === 'table') {
-        setStorageMode(payload.storageMode);
-      }
       return typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
     } catch {
       return null;
@@ -517,9 +441,6 @@ export default function RoadmapPage() {
     setHasUnsavedSharedChanges(false);
     setHasPendingReleaseMetaPatch(false);
     currentVersionRef.current = version;
-    setPendingRemoteVersion(null);
-    setDismissedVersion(null);
-    setConflictState(null);
 
     const storedSettings = readStoredViewSettings();
     applyViewSettings(storedSettings ?? legacySettings);
@@ -617,19 +538,6 @@ export default function RoadmapPage() {
   }, [hasUnsavedSharedChanges]);
 
   useEffect(() => {
-    if (!conflictDraftStorageKey) {
-      setHasStoredConflictDraft(false);
-      return;
-    }
-
-    try {
-      setHasStoredConflictDraft(!!window.sessionStorage.getItem(conflictDraftStorageKey));
-    } catch {
-      setHasStoredConflictDraft(false);
-    }
-  }, [conflictDraftStorageKey]);
-
-  useEffect(() => {
     if (!roadmapId || typeof BroadcastChannel === 'undefined') return;
 
     const channel = new BroadcastChannel(buildRoadmapChannelName(roadmapId));
@@ -639,8 +547,7 @@ export default function RoadmapPage() {
       if (payload?.type !== 'roadmap-updated') return;
       const nextVersion = typeof payload.version === 'string' ? payload.version : null;
       if (!isVersionNewer(nextVersion, currentVersionRef.current)) return;
-      setDismissedVersion(null);
-      setPendingRemoteVersion(nextVersion);
+      void checkRemoteVersion();
     };
 
     return () => {
@@ -663,19 +570,12 @@ export default function RoadmapPage() {
 
     if (!isVersionNewer(latestVersion, currentVersion)) return;
 
-    // Table-based: auto-reload silently when no unsaved changes; skip if save in flight
-    if (isTableMode) {
-      if (!saveInFlightRef.current && !hasUnsavedSharedChanges) {
-        currentVersionRef.current = latestVersion;
-        void loadRoadmap();
-      }
-      return;
+    // Auto-reload silently when no unsaved changes and no save in flight
+    if (!saveInFlightRef.current && !hasUnsavedSharedChanges) {
+      currentVersionRef.current = latestVersion;
+      void loadRoadmap();
     }
-
-    if (isMatchingVersion(dismissedVersion, latestVersion)) return;
-
-    setPendingRemoteVersion(latestVersion);
-  }, [dismissedVersion, fetchRoadmapVersion, hasUnsavedSharedChanges, isTableMode, loadRoadmap]);
+  }, [fetchRoadmapVersion, hasUnsavedSharedChanges, loadRoadmap]);
 
   useEffect(() => {
     if (!roadmapId || loading || (!authUser && !guestMode)) return;
@@ -704,16 +604,8 @@ export default function RoadmapPage() {
                 : null
               : null;
 
-            if (!nextVersion) {
-              void checkRemoteVersion();
-              return;
-            }
-
-            if (!isVersionNewer(nextVersion, currentVersionRef.current)) return;
-            // Skip realtime events triggered by our own save — the HTTP response
-            // handler will update currentVersionRef and clear pendingRemoteVersion.
+            if (!nextVersion || !isVersionNewer(nextVersion, currentVersionRef.current)) return;
             if (saveInFlightRef.current) return;
-            // Delegate to checkRemoteVersion which handles table-mode auto-reload
             void checkRemoteVersion();
           }
         )
@@ -772,16 +664,12 @@ export default function RoadmapPage() {
 
   const handleGoogleLogout = useCallback(async () => {
     if (hasUnsavedSharedChanges) {
-      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local trước khi đăng xuất. Tiếp tục?');
+      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. Bạn có muốn đăng xuất?');
       if (!confirmed) return;
-      if (data) {
-        persistConflictDraft(buildJsonBackupSnapshot(data));
-        addToast('Đã lưu local draft tạm trước khi đăng xuất.', 'info');
-      }
     }
     await logoutGoogle();
     setGuestMode(false);
-  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, logoutGoogle, persistConflictDraft, showConfirm]);
+  }, [hasUnsavedSharedChanges, logoutGoogle, showConfirm]);
 
   const exportVisibleRows = useMemo(() => {
     if (!data) return [];
@@ -832,23 +720,6 @@ export default function RoadmapPage() {
     return fetchRoadmapVersion();
   }, [fetchRoadmapVersion]);
 
-  const ensureCanSaveCurrentVersion = useCallback(() => {
-    // Table-based storage uses last-write-wins — no conflict blocking needed
-    if (isTableMode) return true;
-
-    if (conflictState) {
-      addToast('Roadmap đang bị conflict với bản mới hơn trên hệ thống. Hãy tải bản mới nhất trước khi lưu tiếp.', 'error');
-      return false;
-    }
-
-    if (pendingRemoteVersion || dismissedVersion) {
-      addToast('Đã có phiên bản mới hơn trên hệ thống. Hãy tải bản mới nhất trước khi lưu để tránh ghi đè dữ liệu.', 'error');
-      return false;
-    }
-
-    return true;
-  }, [addToast, conflictState, dismissedVersion, isTableMode, pendingRemoteVersion]);
-
   const handleSaveViewPreferences = useCallback(() => {
     persistCurrentViewSettings();
     addToast('Đã lưu view cá nhân trên trình duyệt này.', 'success');
@@ -863,7 +734,6 @@ export default function RoadmapPage() {
       addToast('Bạn cần đăng nhập lại để lưu roadmap.', 'error');
       return;
     }
-    if (!ensureCanSaveCurrentVersion()) return;
 
     const baseVersion = await resolveBaseVersion();
     if (!baseVersion) {
@@ -901,22 +771,6 @@ export default function RoadmapPage() {
           setSaveTick(prev => prev + 1);
           return;
         }
-        if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
-          persistConflictDraft(buildJsonBackupSnapshot(currentData));
-          setConflictState({
-            message: typeof payload?.message === 'string'
-              ? payload.message
-              : 'Roadmap đã được cập nhật bởi người khác.',
-            serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
-          });
-          if (typeof payload?.serverVersion === 'string') {
-            setPendingRemoteVersion(payload.serverVersion);
-          }
-          addToast('Lưu tên roadmap bị chặn để tránh ghi đè dữ liệu mới hơn. Bản local đã được giữ tạm để bạn backup.', 'error');
-          setSaveState('error');
-          setSaveTick(prev => prev + 1);
-          return;
-        }
         if (!res.ok) {
           throw new Error(typeof payload?.error === 'string' ? payload.error : 'Lỗi khi lưu tên roadmap');
         }
@@ -934,9 +788,6 @@ export default function RoadmapPage() {
           currentVersionRef.current = latestVersion;
           broadcastVersionUpdate(latestVersion);
         }
-        setPendingRemoteVersion(null);
-        setDismissedVersion(null);
-        setConflictState(null);
         setHasUnsavedSharedChanges(false);
         setHasPendingReleaseMetaPatch(false);
         addToast('Đã lưu tên roadmap.', 'success');
@@ -971,22 +822,6 @@ export default function RoadmapPage() {
         setSaveTick(prev => prev + 1);
         return;
       }
-      if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
-        persistConflictDraft(buildJsonBackupSnapshot(currentData));
-        setConflictState({
-          message: typeof payload?.message === 'string'
-            ? payload.message
-            : 'Roadmap đã được cập nhật bởi người khác.',
-          serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
-        });
-        if (typeof payload?.serverVersion === 'string') {
-          setPendingRemoteVersion(payload.serverVersion);
-        }
-        addToast('Lưu bị chặn để tránh ghi đè dữ liệu mới hơn. Bản local đã được giữ tạm để bạn backup.', 'error');
-        setSaveState('error');
-        setSaveTick(prev => prev + 1);
-        return;
-      }
       if (!res.ok) throw new Error();
       addToast('Đã lưu thành công.', 'success');
       const latestVersion = typeof payload?.updatedAt === 'string'
@@ -996,9 +831,6 @@ export default function RoadmapPage() {
         currentVersionRef.current = latestVersion;
         broadcastVersionUpdate(latestVersion);
       }
-      setPendingRemoteVersion(null);
-      setDismissedVersion(null);
-      setConflictState(null);
       setHasUnsavedSharedChanges(false);
       setHasPendingReleaseMetaPatch(false);
       setSaveState('success');
@@ -1016,12 +848,9 @@ export default function RoadmapPage() {
     addToast,
     authUser,
     broadcastVersionUpdate,
-    buildJsonBackupSnapshot,
     buildSharedDocumentSnapshot,
     ensureCanManageRoadmap,
-    ensureCanSaveCurrentVersion,
     fetchRoadmapVersion,
-    persistConflictDraft,
     resolveBaseVersion,
     roadmapId,
     hasPendingReleaseMetaPatch,
@@ -1034,7 +863,6 @@ export default function RoadmapPage() {
       addToast('Bạn cần đăng nhập lại để lưu thay đổi.', 'error');
       return;
     }
-    if (!ensureCanSaveCurrentVersion()) return;
 
     const baseVersion = await resolveBaseVersion();
     if (!baseVersion) {
@@ -1063,22 +891,6 @@ export default function RoadmapPage() {
       });
 
       const payload = await res.json().catch(() => ({}));
-      if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
-        persistConflictDraft(buildJsonBackupSnapshot(normalizedOptimistic));
-        setConflictState({
-          message: typeof payload?.message === 'string'
-            ? payload.message
-            : 'Roadmap đã được cập nhật bởi người khác.',
-          serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
-        });
-        if (typeof payload?.serverVersion === 'string') {
-          setPendingRemoteVersion(payload.serverVersion);
-        }
-        addToast('Thay đổi local đã được giữ tạm. Hãy tải bản mới nhất trước khi lưu tiếp để tránh conflict.', 'error');
-        setSaveState('error');
-        setSaveTick(prev => prev + 1);
-        return;
-      }
 
       if (!res.ok) {
         const violations = Array.isArray(payload?.violations) ? payload.violations.join('\n') : '';
@@ -1113,12 +925,9 @@ export default function RoadmapPage() {
     addToast,
     authUser,
     broadcastVersionUpdate,
-    buildJsonBackupSnapshot,
-    ensureCanSaveCurrentVersion,
     hydrateRoadmap,
     loadRoadmap,
     normalizeDocument,
-    persistConflictDraft,
     resolveBaseVersion,
     roadmapId,
   ]);
@@ -1196,8 +1005,6 @@ export default function RoadmapPage() {
         addToast('Bạn cần đăng nhập lại để lưu week.', 'error');
         return;
       }
-      if (!ensureCanSaveCurrentVersion()) return;
-
       const baseVersion = await resolveBaseVersion();
       if (!baseVersion) {
         addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
@@ -1234,22 +1041,6 @@ export default function RoadmapPage() {
         });
 
         const payload = await res.json().catch(() => ({}));
-        if (res.status === 409 || payload?.code === VERSION_CONFLICT_CODE) {
-          persistConflictDraft(buildJsonBackupSnapshot(optimisticData));
-          setConflictState({
-            message: typeof payload?.message === 'string'
-              ? payload.message
-              : 'Roadmap đã được cập nhật bởi người khác.',
-            serverVersion: typeof payload?.serverVersion === 'string' ? payload.serverVersion : null,
-          });
-          if (typeof payload?.serverVersion === 'string') {
-            setPendingRemoteVersion(payload.serverVersion);
-          }
-          addToast('Thay đổi week đã được giữ tạm. Hãy tải bản mới nhất trước khi lưu tiếp để tránh conflict.', 'error');
-          setSaveState('error');
-          setSaveTick(prev => prev + 1);
-          return;
-        }
 
         if (!res.ok) {
           throw new Error(typeof payload?.error === 'string' ? payload.error : 'Không thể lưu week');
@@ -1496,53 +1287,14 @@ export default function RoadmapPage() {
     });
   }, [data]);
 
-  const downloadCurrentLocalDraft = useCallback(() => {
-    if (!data) return;
-    downloadJsonFile(
-      `${CONFLICT_DRAFT_FILE_PREFIX}-${roadmapId || 'roadmap'}-local.json`,
-      buildJsonBackupSnapshot(data)
-    );
-  }, [buildJsonBackupSnapshot, data, roadmapId]);
-
-  const dismissVersionNotice = useCallback(() => {
-    if (pendingRemoteVersion) setDismissedVersion(pendingRemoteVersion);
-    setPendingRemoteVersion(null);
-  }, [pendingRemoteVersion]);
-
-  const refreshForLatestData = useCallback(async () => {
+  const handleBackToHome = useCallback(async () => {
     if (hasUnsavedSharedChanges) {
-      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local rồi tải bản mới nhất từ hệ thống. Tiếp tục?');
+      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. Bạn có muốn quay về trang chủ?');
       if (!confirmed) return;
     }
 
-    if (data && !isTableMode) {
-      persistConflictDraft(buildJsonBackupSnapshot(data));
-      addToast('Đã lưu local draft tạm trước khi tải bản mới nhất.', 'info');
-    }
-
-    const loaded = await loadRoadmap();
-    if (loaded) {
-      addToast('Đã tải phiên bản mới nhất từ hệ thống.', 'success');
-    }
-  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, isTableMode, loadRoadmap, persistConflictDraft, showConfirm]);
-
-  const handleBackToHome = useCallback(async () => {
-    if (hasUnsavedSharedChanges) {
-      if (isTableMode) {
-        const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. Bạn có muốn quay về trang chủ?');
-        if (!confirmed) return;
-      } else {
-        const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local trước khi quay về trang chủ. Tiếp tục?');
-        if (!confirmed) return;
-        if (data) {
-          persistConflictDraft(buildJsonBackupSnapshot(data));
-          addToast('Đã lưu local draft tạm trước khi quay về trang chủ.', 'info');
-        }
-      }
-    }
-
     router.push('/');
-  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, isTableMode, persistConflictDraft, router, showConfirm]);
+  }, [hasUnsavedSharedChanges, router, showConfirm]);
 
   if (loading || !data) {
     return (
@@ -1614,89 +1366,6 @@ export default function RoadmapPage() {
           onFilterChange={handleFilterChange}
           onSaveView={handleSaveViewPreferences}
         />
-      )}
-
-      {!isTableMode && hasStoredConflictDraft && (
-        <div className="shrink-0 border-b border-sky-300 bg-sky-50 px-3 py-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-medium text-sky-800">
-              Có một local draft đã được lưu tạm sau khi gặp conflict hoặc refresh an toàn.
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded border border-sky-300 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100"
-                onClick={clearStoredConflictDraft}
-              >
-                Xóa backup
-              </button>
-              <button
-                type="button"
-                className="rounded bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-700"
-                onClick={downloadStoredConflictDraft}
-              >
-                Tải backup JSON
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!isTableMode && conflictState && (
-        <div className="shrink-0 border-b border-rose-300 bg-rose-50 px-3 py-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold text-rose-800">
-                {conflictState.message}
-              </p>
-              <p className="mt-0.5 text-[11px] text-rose-700">
-                Bản local đang được giữ lại tạm thời. Hãy tải backup hoặc tải phiên bản mới nhất trước khi lưu tiếp.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded border border-rose-300 px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-100"
-                onClick={downloadCurrentLocalDraft}
-              >
-                Tải backup local
-              </button>
-              <button
-                type="button"
-                className="rounded bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-rose-700"
-                onClick={() => { void refreshForLatestData(); }}
-              >
-                Tải bản mới nhất
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!isTableMode && !conflictState && pendingRemoteVersion && (
-        <div className="shrink-0 border-b border-amber-300 bg-amber-50 px-3 py-2">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-medium text-amber-800">
-              Có dữ liệu mới trên hệ thống. Hãy tải bản mới nhất trước khi lưu để tránh ghi đè dữ liệu.
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded border border-amber-400 px-2.5 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
-                onClick={dismissVersionNotice}
-              >
-                Để sau
-              </button>
-              <button
-                type="button"
-                className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700"
-                onClick={() => { void refreshForLatestData(); }}
-              >
-                Tải bản mới nhất
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       <Toolbar
