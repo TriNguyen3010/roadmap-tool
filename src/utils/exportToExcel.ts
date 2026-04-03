@@ -92,23 +92,23 @@ const LEGACY_COLUMNS: ExcelExportColumn[] = [
 const SUMMARY_SHEET_NAME = 'Summary by Object';
 const SUMMARY_HEADERS = ['ID', 'Nội dung'];
 const SUMMARY_GROUP_STATUSES: ItemStatus[] = [
-  'FE Handle', 'FE Start', 'FE Done',
-  'BE Handle', 'BE Start', 'BE Done',
-  'DevOps Handle', 'DevOps Start', 'DevOps Done',
-  'QC Handle', 'QC Start', 'QC Done - Staging', 'QC Done - Pro',
-  'To do', 'In progress', 'Pending', 'Done',
+  'FE Handle', 'FE in progress', 'FE Done',
+  'BE Handle', 'BE in progress', 'BE Done',
+  'DevOps Handle', 'DevOps in progress', 'DevOps Done',
+  'QC Handle', 'QC in progress', 'QC Done - Staging', 'QC Done - Pro',
+  'Task To do', 'Task In progress', 'Task Pending', 'Task Done',
   'Not Started',
   'None',
 ];
-const SUMMARY_FE_STATUSES: ItemStatus[] = ['FE Handle', 'FE Start', 'FE Done'];
-const SUMMARY_BE_STATUSES: ItemStatus[] = ['BE Handle', 'BE Start', 'BE Done'];
-const SUMMARY_DEVOPS_STATUSES: ItemStatus[] = ['DevOps Handle', 'DevOps Start', 'DevOps Done'];
-const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA Start', 'BA Done'];
+const SUMMARY_FE_STATUSES: ItemStatus[] = ['FE Handle', 'FE in progress', 'FE Done'];
+const SUMMARY_BE_STATUSES: ItemStatus[] = ['BE Handle', 'BE in progress', 'BE Done'];
+const SUMMARY_DEVOPS_STATUSES: ItemStatus[] = ['DevOps Handle', 'DevOps in progress', 'DevOps Done'];
+const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA in progress', 'BA Done'];
 const SUMMARY_PD_STATUSES: ItemStatus[] = [
-  'PD Handle', 'PD Start UI/UX', 'PD Start Visual', 'PD Done UI/UX', 'PD Done Visual',
+  'PD Handle', 'PD in progress UI/UX', 'PD in progress Visual', 'PD Done UI/UX', 'PD Done Visual',
 ];
-const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC Start', 'QC Done - Staging', 'QC Done - Pro'];
-const SUMMARY_GROWTH_STATUSES: ItemStatus[] = ['Growth Handle', 'Growth Start', 'Growth Done'];
+const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC in progress', 'QC Done - Staging', 'QC Done - Pro'];
+const SUMMARY_GROWTH_STATUSES: ItemStatus[] = ['Growth Handle', 'Growth in progress', 'Growth Done'];
 
 function sanitizeFileBaseName(name: string | undefined): string {
     const fallback = 'roadmap';

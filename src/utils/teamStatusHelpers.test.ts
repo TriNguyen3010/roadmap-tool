@@ -24,8 +24,8 @@ describe('isMultiTeamItem', () => {
     const item = makeItem({
       assignedTeams: ['FE', 'BE'],
       teamStatuses: {
-        FE: { status: 'FE Start' },
-        BE: { status: 'BE Start' },
+        FE: { status: 'FE in progress' },
+        BE: { status: 'BE in progress' },
       },
     });
     expect(isMultiTeamItem(item)).toBe(true);
@@ -64,26 +64,26 @@ describe('deriveOverallStatus', () => {
   });
 
   it('returns highest priority in-progress status', () => {
-    // BE Start is checked before FE Done/BE Done combo → returns BE Start
+    // BE in progress is checked before FE Done/BE Done combo → returns BE in progress
     expect(deriveOverallStatus({
       FE: { status: 'FE Done' },
-      BE: { status: 'BE Start' },
-    })).toBe('BE Start');
+      BE: { status: 'BE in progress' },
+    })).toBe('BE in progress');
   });
 
-  it('handles mixed FE Start + BE not started', () => {
+  it('handles mixed FE in progress + BE not started', () => {
     expect(deriveOverallStatus({
-      FE: { status: 'FE Start' },
+      FE: { status: 'FE in progress' },
       BE: { status: 'Not Started' },
-    })).toBe('FE Start');
+    })).toBe('FE in progress');
   });
 });
 
 describe('deriveOverallDates', () => {
   it('returns earliest start and latest end', () => {
     const result = deriveOverallDates({
-      FE: { status: 'FE Start', startDate: '2026-04-01', endDate: '2026-04-05' },
-      BE: { status: 'BE Start', startDate: '2026-04-03', endDate: '2026-04-08' },
+      FE: { status: 'FE in progress', startDate: '2026-04-01', endDate: '2026-04-05' },
+      BE: { status: 'BE in progress', startDate: '2026-04-03', endDate: '2026-04-08' },
     });
     expect(result.startDate).toBe('2026-04-01');
     expect(result.endDate).toBe('2026-04-08');
@@ -91,7 +91,7 @@ describe('deriveOverallDates', () => {
 
   it('returns undefined when no dates', () => {
     const result = deriveOverallDates({
-      FE: { status: 'FE Start' },
+      FE: { status: 'FE in progress' },
     });
     expect(result.startDate).toBeUndefined();
     expect(result.endDate).toBeUndefined();
@@ -123,7 +123,7 @@ describe('deriveOverallProgress', () => {
 describe('normalizeTeamStatuses', () => {
   it('removes teamStatuses when no assignedTeams', () => {
     const item = makeItem({
-      teamStatuses: { FE: { status: 'FE Start' } },
+      teamStatuses: { FE: { status: 'FE in progress' } },
     });
     const result = normalizeTeamStatuses(item);
     expect(result.teamStatuses).toBeUndefined();
@@ -133,10 +133,10 @@ describe('normalizeTeamStatuses', () => {
   it('creates missing team entries', () => {
     const item = makeItem({
       assignedTeams: ['FE', 'BE'],
-      teamStatuses: { FE: { status: 'FE Start' } },
+      teamStatuses: { FE: { status: 'FE in progress' } },
     });
     const result = normalizeTeamStatuses(item);
-    expect(result.teamStatuses?.FE?.status).toBe('FE Start');
+    expect(result.teamStatuses?.FE?.status).toBe('FE in progress');
     expect(result.teamStatuses?.BE?.status).toBe('Not Started');
   });
 
@@ -144,8 +144,8 @@ describe('normalizeTeamStatuses', () => {
     const item = makeItem({
       assignedTeams: ['FE'],
       teamStatuses: {
-        FE: { status: 'FE Start' },
-        BE: { status: 'BE Start' },
+        FE: { status: 'FE in progress' },
+        BE: { status: 'BE in progress' },
       },
     });
     const result = normalizeTeamStatuses(item);

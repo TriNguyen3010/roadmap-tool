@@ -5,40 +5,40 @@ export type ItemStatus =
   | 'Sếp Vinh'
   // BA
   | 'BA Handle'
-  | 'BA Start'
+  | 'BA in progress'
   | 'BA Done'
   // PD
   | 'PD Handle'
-  | 'PD Start UI/UX'
-  | 'PD Start Visual'
+  | 'PD in progress UI/UX'
+  | 'PD in progress Visual'
   | 'PD Done UI/UX'
   | 'PD Done Visual'
   // DevOps
   | 'DevOps Handle'
-  | 'DevOps Start'
+  | 'DevOps in progress'
   | 'DevOps Done'
   // FE
   | 'FE Handle'
-  | 'FE Start'
+  | 'FE in progress'
   | 'FE Done'
   // BE
   | 'BE Handle'
-  | 'BE Start'
+  | 'BE in progress'
   | 'BE Done'
   // QC
   | 'QC Handle'
-  | 'QC Start'
+  | 'QC in progress'
   | 'QC Done - Staging'
   | 'QC Done - Pro'
   // Growth
   | 'Growth Handle'
-  | 'Growth Start'
+  | 'Growth in progress'
   | 'Growth Done'
   // Generic
-  | 'To do'
-  | 'In progress'
-  | 'Pending'
-  | 'Done';
+  | 'Task To do'
+  | 'Task In progress'
+  | 'Task Pending'
+  | 'Task Done';
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
 export type TimelineMode = 'day' | 'week' | 'month';
@@ -58,40 +58,40 @@ export const STATUS_OPTIONS: ItemStatus[] = [
   'Sếp Vinh',
   // BA
   'BA Handle',
-  'BA Start',
+  'BA in progress',
   'BA Done',
   // PD
   'PD Handle',
-  'PD Start UI/UX',
-  'PD Start Visual',
+  'PD in progress UI/UX',
+  'PD in progress Visual',
   'PD Done UI/UX',
   'PD Done Visual',
   // DevOps
   'DevOps Handle',
-  'DevOps Start',
+  'DevOps in progress',
   'DevOps Done',
   // FE
   'FE Handle',
-  'FE Start',
+  'FE in progress',
   'FE Done',
   // BE
   'BE Handle',
-  'BE Start',
+  'BE in progress',
   'BE Done',
   // QC
   'QC Handle',
-  'QC Start',
+  'QC in progress',
   'QC Done - Staging',
   'QC Done - Pro',
   // Growth
   'Growth Handle',
-  'Growth Start',
+  'Growth in progress',
   'Growth Done',
   // Generic
-  'To do',
-  'In progress',
-  'Pending',
-  'Done',
+  'Task To do',
+  'Task In progress',
+  'Task Pending',
+  'Task Done',
 ];
 export const GROUP_ITEM_TYPE_OPTIONS: GroupItemType[] = ['Feature', 'Improvement', 'Bug', 'Growth Camp'];
 
@@ -100,15 +100,30 @@ const ITEM_STATUS_SET = new Set<ItemStatus>(STATUS_OPTIONS);
 // Legacy status values from before the 2026-04 redesign → map to new names.
 // normalizeItemStatus() applies this at read time (lazy migration – no DB script needed).
 const LEGACY_STATUS_MAP: Record<string, ItemStatus> = {
-  'BA In Progress':     'BA Start',
-  'PD In Progress':     'PD Start UI/UX',
+  // Very old legacy names (pre-2026-04)
+  'BA In Progress':     'BA in progress',
+  'PD In Progress':     'PD in progress UI/UX',
   'Dev Handle':         'FE Handle',
-  'Dev In Progress':    'FE Start',
+  'Dev In Progress':    'FE in progress',
   'Dev Done':           'FE Done',
   'Done - Dev Env':     'QC Done - Staging',
   'Done - Prod Env':    'QC Done - Pro',
-  'QC In Progress':     'QC Start',
-  'Growth In Progress': 'Growth Start',
+  'QC In Progress':     'QC in progress',
+  'Growth In Progress': 'Growth in progress',
+  // Previous "Start" names → "in progress" rename
+  'BA Start':           'BA in progress',
+  'PD Start UI/UX':     'PD in progress UI/UX',
+  'PD Start Visual':    'PD in progress Visual',
+  'DevOps Start':       'DevOps in progress',
+  'FE Start':           'FE in progress',
+  'BE Start':           'BE in progress',
+  'QC Start':           'QC in progress',
+  'Growth Start':       'Growth in progress',
+  // Previous generic names → "Task" prefix rename
+  'To do':              'Task To do',
+  'In progress':        'Task In progress',
+  'Pending':            'Task Pending',
+  'Done':               'Task Done',
 };
 
 export function normalizeItemType(type: string | undefined | null): ItemType {
@@ -192,7 +207,7 @@ export function normalizeItemStatus(status: string | undefined | null): ItemStat
     return status as ItemStatus;
   }
   // Handle very old single-word values that are NOT valid current statuses
-  if (status === 'In Progress') return 'FE Start';
+  if (status === 'In Progress') return 'FE in progress';
   return 'Not Started';
 }
 

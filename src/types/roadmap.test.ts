@@ -3,14 +3,14 @@ import { normalizeItemStatus, STATUS_OPTIONS } from './roadmap';
 
 describe('normalizeItemStatus', () => {
   it('accepts all 4 new generic statuses as-is', () => {
-    expect(normalizeItemStatus('To do')).toBe('To do');
-    expect(normalizeItemStatus('In progress')).toBe('In progress');
-    expect(normalizeItemStatus('Pending')).toBe('Pending');
-    expect(normalizeItemStatus('Done')).toBe('Done');
+    expect(normalizeItemStatus('Task To do')).toBe('Task To do');
+    expect(normalizeItemStatus('Task In progress')).toBe('Task In progress');
+    expect(normalizeItemStatus('Task Pending')).toBe('Task Pending');
+    expect(normalizeItemStatus('Task Done')).toBe('Task Done');
   });
 
   it('accepts existing team statuses unchanged', () => {
-    expect(normalizeItemStatus('BA Start')).toBe('BA Start');
+    expect(normalizeItemStatus('BA in progress')).toBe('BA in progress');
     expect(normalizeItemStatus('FE Done')).toBe('FE Done');
     expect(normalizeItemStatus('QC Done - Pro')).toBe('QC Done - Pro');
     expect(normalizeItemStatus('Not Started')).toBe('Not Started');
@@ -20,12 +20,22 @@ describe('normalizeItemStatus', () => {
   it('still applies legacy rename map', () => {
     expect(normalizeItemStatus('Dev Done')).toBe('FE Done');
     expect(normalizeItemStatus('Done - Prod Env')).toBe('QC Done - Pro');
-    expect(normalizeItemStatus('BA In Progress')).toBe('BA Start');
-    expect(normalizeItemStatus('Dev In Progress')).toBe('FE Start');
+    expect(normalizeItemStatus('BA In Progress')).toBe('BA in progress');
+    expect(normalizeItemStatus('Dev In Progress')).toBe('FE in progress');
   });
 
-  it('maps old "In Progress" (capital P) to FE Start', () => {
-    expect(normalizeItemStatus('In Progress')).toBe('FE Start');
+  it('maps old "In Progress" (capital P) to FE in progress', () => {
+    expect(normalizeItemStatus('In Progress')).toBe('FE in progress');
+  });
+
+  it('normalizes old names to new names via legacy mapping', () => {
+    expect(normalizeItemStatus('BA Start')).toBe('BA in progress');
+    expect(normalizeItemStatus('PD Start UI/UX')).toBe('PD in progress UI/UX');
+    expect(normalizeItemStatus('FE Start')).toBe('FE in progress');
+    expect(normalizeItemStatus('To do')).toBe('Task To do');
+    expect(normalizeItemStatus('In progress')).toBe('Task In progress');
+    expect(normalizeItemStatus('Pending')).toBe('Task Pending');
+    expect(normalizeItemStatus('Done')).toBe('Task Done');
   });
 
   it('returns Not Started for unrecognized values', () => {
@@ -42,14 +52,14 @@ describe('normalizeItemStatus', () => {
 
 describe('STATUS_OPTIONS', () => {
   it('includes all 4 generic statuses', () => {
-    expect(STATUS_OPTIONS).toContain('To do');
-    expect(STATUS_OPTIONS).toContain('In progress');
-    expect(STATUS_OPTIONS).toContain('Pending');
-    expect(STATUS_OPTIONS).toContain('Done');
+    expect(STATUS_OPTIONS).toContain('Task To do');
+    expect(STATUS_OPTIONS).toContain('Task In progress');
+    expect(STATUS_OPTIONS).toContain('Task Pending');
+    expect(STATUS_OPTIONS).toContain('Task Done');
   });
 
   it('still includes existing team statuses', () => {
-    expect(STATUS_OPTIONS).toContain('BA Start');
+    expect(STATUS_OPTIONS).toContain('BA in progress');
     expect(STATUS_OPTIONS).toContain('FE Done');
     expect(STATUS_OPTIONS).toContain('QC Done - Pro');
     expect(STATUS_OPTIONS).toContain('Not Started');

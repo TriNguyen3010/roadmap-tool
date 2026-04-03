@@ -48,17 +48,17 @@ export function deriveOverallStatus(
   }
 
   // Prefer concrete execution stage (highest priority → lowest)
-  if (hasStatus('Growth Start')) return 'Growth Start';
-  if (hasStatus('QC Start')) return 'QC Start';
+  if (hasStatus('Growth in progress')) return 'Growth in progress';
+  if (hasStatus('QC in progress')) return 'QC in progress';
   if (hasStatus('QC Done - Staging')) return 'QC Done - Staging';
-  if (hasStatus('FE Start')) return 'FE Start';
-  if (hasStatus('BE Start')) return 'BE Start';
-  if (hasStatus('DevOps Start')) return 'DevOps Start';
-  if (hasStatus('PD Start Visual')) return 'PD Start Visual';
-  if (hasStatus('PD Start UI/UX')) return 'PD Start UI/UX';
-  if (hasStatus('BA Start')) return 'BA Start';
+  if (hasStatus('FE in progress')) return 'FE in progress';
+  if (hasStatus('BE in progress')) return 'BE in progress';
+  if (hasStatus('DevOps in progress')) return 'DevOps in progress';
+  if (hasStatus('PD in progress Visual')) return 'PD in progress Visual';
+  if (hasStatus('PD in progress UI/UX')) return 'PD in progress UI/UX';
+  if (hasStatus('BA in progress')) return 'BA in progress';
   // Done-family statuses bubble up as partial progress
-  if (hasStatus('Growth Done')) return 'Growth Start';
+  if (hasStatus('Growth Done')) return 'Growth in progress';
   if (hasStatus('FE Done') || hasStatus('BE Done')) return 'QC Handle';
   if (hasStatus('DevOps Done')) return 'DevOps Done';
   if (hasStatus('PD Done Visual') || hasStatus('PD Done UI/UX')) return 'FE Handle';
@@ -71,7 +71,7 @@ export function deriveOverallStatus(
   if (hasStatus('DevOps Handle')) return 'DevOps Handle';
   if (hasStatus('PD Handle')) return 'PD Handle';
   if (hasStatus('BA Handle')) return 'BA Handle';
-  if (DONE_STATUSES.some(ds => hasStatus(ds))) return 'FE Start';
+  if (DONE_STATUSES.some(ds => hasStatus(ds))) return 'FE in progress';
   return hasStatus('Not Started') ? 'Not Started' : 'None';
 }
 
@@ -100,7 +100,7 @@ function statusToProgress(status: ItemStatus): number {
   if (status === 'QC Done - Pro') return 100;
   if (status === 'None' || status === 'Not Started') return 0;
   if (DONE_STATUSES.includes(status)) return 90;
-  if (status.includes('Start')) return 50;
+  if (status.includes('in progress')) return 50;
   if (status.includes('Handle')) return 20;
   return 10;
 }

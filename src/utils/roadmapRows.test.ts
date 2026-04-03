@@ -38,9 +38,9 @@ describe('roadmapRows', () => {
                         name: 'FE',
                         type: 'team',
                         teamRole: 'FE',
-                        status: 'FE Start',
+                        status: 'FE in progress',
                         statusMode: 'manual',
-                        manualStatus: 'FE Start',
+                        manualStatus: 'FE in progress',
                         progress: 50,
                         phaseIds: ['phase-1'],
                         children: [
@@ -128,9 +128,9 @@ describe('roadmapRows', () => {
                             name: 'FE',
                             type: 'team',
                             teamRole: 'FE',
-                            status: 'FE Start',
+                            status: 'FE in progress',
                             statusMode: 'manual',
-                            manualStatus: 'FE Start',
+                            manualStatus: 'FE in progress',
                             progress: 50,
                             phaseIds: ['phase-1'],
                             children: [

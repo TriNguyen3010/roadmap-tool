@@ -24,9 +24,9 @@ function makeTree(): RoadmapItem[] {
                             id: 'item-fe-1',
                             name: 'FE Task',
                             type: 'item',
-                            status: 'FE Start',
+                            status: 'FE in progress',
                             statusMode: 'manual',
-                            manualStatus: 'FE Start',
+                            manualStatus: 'FE in progress',
                             progress: 20,
                         },
                     ],
@@ -43,9 +43,9 @@ function makeTree(): RoadmapItem[] {
                             id: 'item-be-1',
                             name: 'BE Task',
                             type: 'item',
-                            status: 'BE Start',
+                            status: 'BE in progress',
                             statusMode: 'manual',
-                            manualStatus: 'BE Start',
+                            manualStatus: 'BE in progress',
                             progress: 20,
                         },
                     ],
@@ -101,6 +101,26 @@ describe('permissions', () => {
         expect(getEditPermission(feManager, 'item-be-1', items).canEditStatus).toBe(false);
     });
 
+    it('grants FE manager edit access on the FE team row itself but not other team rows', () => {
+        const items = makeTree();
+        expect(getEditPermission(feManager, 'team-fe', items)).toEqual({
+            canEditStatus: true,
+            canEditDates: true,
+            canEditNotes: true,
+            canEditStructure: false,
+            canEditMilestones: false,
+            canManageRoadmap: false,
+        });
+        expect(getEditPermission(feManager, 'team-be', items)).toEqual({
+            canEditStatus: false,
+            canEditDates: false,
+            canEditNotes: false,
+            canEditStructure: false,
+            canEditMilestones: false,
+            canManageRoadmap: false,
+        });
+    });
+
     it('getItemTeams returns assignedTeams when present', () => {
         const items: RoadmapItem[] = [
             {
@@ -111,8 +131,8 @@ describe('permissions', () => {
                 progress: 0,
                 assignedTeams: ['FE', 'BE'],
                 teamStatuses: {
-                    FE: { status: 'FE Start' },
-                    BE: { status: 'BE Start' },
+                    FE: { status: 'FE in progress' },
+                    BE: { status: 'BE in progress' },
                 },
             },
         ];
@@ -140,8 +160,8 @@ describe('permissions', () => {
                 progress: 0,
                 assignedTeams: ['FE', 'BE'],
                 teamStatuses: {
-                    FE: { status: 'FE Start' },
-                    BE: { status: 'BE Start' },
+                    FE: { status: 'FE in progress' },
+                    BE: { status: 'BE in progress' },
                 },
             },
         ];
@@ -158,7 +178,7 @@ describe('permissions', () => {
                 progress: 0,
                 assignedTeams: ['BE'],
                 teamStatuses: {
-                    BE: { status: 'BE Start' },
+                    BE: { status: 'BE in progress' },
                 },
             },
         ];

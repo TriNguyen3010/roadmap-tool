@@ -150,40 +150,40 @@ const STATUS_BAR_COLOR: Record<string, string> = {
   'Sếp Vinh':          '#f43f5e',
   // BA
   'BA Handle':         '#94a3b8',
-  'BA Start':          '#64748b',
+  'BA in progress':          '#64748b',
   'BA Done':           '#475569',
   // PD
   'PD Handle':         '#fbbf24',
-  'PD Start UI/UX':    '#f59e0b',
-  'PD Start Visual':   '#d97706',
+  'PD in progress UI/UX':    '#f59e0b',
+  'PD in progress Visual':   '#d97706',
   'PD Done UI/UX':     '#b45309',
   'PD Done Visual':    '#92400e',
   // DevOps
   'DevOps Handle':     '#a78bfa',
-  'DevOps Start':      '#8b5cf6',
+  'DevOps in progress':      '#8b5cf6',
   'DevOps Done':       '#7c3aed',
   // FE
   'FE Handle':         '#60a5fa',
-  'FE Start':          '#3b82f6',
+  'FE in progress':          '#3b82f6',
   'FE Done':           '#2563eb',
   // BE
   'BE Handle':         '#34d399',
-  'BE Start':          '#10b981',
+  'BE in progress':          '#10b981',
   'BE Done':           '#059669',
   // QC
   'QC Handle':         '#f472b6',
-  'QC Start':          '#ec4899',
+  'QC in progress':          '#ec4899',
   'QC Done - Staging': '#db2777',
   'QC Done - Pro':     '#be185d',
   // Growth
   'Growth Handle':     '#4ade80',
-  'Growth Start':      '#22c55e',
+  'Growth in progress':      '#22c55e',
   'Growth Done':       '#16a34a',
   // Generic
-  'To do':             '#94a3b8',
-  'In progress':       '#3b82f6',
-  'Pending':           '#f59e0b',
-  'Done':              '#22c55e',
+  'Task To do':             '#94a3b8',
+  'Task In progress':       '#3b82f6',
+  'Task Pending':           '#f59e0b',
+  'Task Done':         '#22c55e',
 };
 
 const STATUS_TAG_BG: Record<string, string> = {
@@ -191,80 +191,80 @@ const STATUS_TAG_BG: Record<string, string> = {
   'Sếp Vinh':          '#ffe4e6',
   // BA
   'BA Handle':         '#f1f5f9',
-  'BA Start':          '#e2e8f0',
+  'BA in progress':          '#e2e8f0',
   'BA Done':           '#cbd5e1',
   // PD
   'PD Handle':         '#ffedd5',
-  'PD Start UI/UX':    '#fef3c7',
-  'PD Start Visual':   '#fde68a',
+  'PD in progress UI/UX':    '#fef3c7',
+  'PD in progress Visual':   '#fde68a',
   'PD Done UI/UX':     '#fef08a',
   'PD Done Visual':    '#fef9c3',
   // DevOps
   'DevOps Handle':     '#ede9fe',
-  'DevOps Start':      '#ddd6fe',
+  'DevOps in progress':      '#ddd6fe',
   'DevOps Done':       '#c4b5fd',
   // FE
   'FE Handle':         '#dbeafe',
-  'FE Start':          '#bfdbfe',
+  'FE in progress':          '#bfdbfe',
   'FE Done':           '#93c5fd',
   // BE
   'BE Handle':         '#d1fae5',
-  'BE Start':          '#a7f3d0',
+  'BE in progress':          '#a7f3d0',
   'BE Done':           '#6ee7b7',
   // QC
   'QC Handle':         '#fce7f3',
-  'QC Start':          '#fbcfe8',
+  'QC in progress':          '#fbcfe8',
   'QC Done - Staging': '#f9a8d4',
   'QC Done - Pro':     '#f472b6',
   // Growth
   'Growth Handle':     '#dcfce7',
-  'Growth Start':      '#bbf7d0',
+  'Growth in progress':      '#bbf7d0',
   'Growth Done':       '#86efac',
   // Generic
-  'To do':             '#f1f5f9',
-  'In progress':       '#dbeafe',
-  'Pending':           '#fef3c7',
-  'Done':              '#dcfce7',
+  'Task To do':             '#f1f5f9',
+  'Task In progress':       '#dbeafe',
+  'Task Pending':           '#fef3c7',
+  'Task Done':         '#dcfce7',
 };
 const STATUS_TAG_TEXT: Record<string, string> = {
   'Not Started':       '#374151',
   'Sếp Vinh':          '#9f1239',
   // BA
   'BA Handle':         '#475569',
-  'BA Start':          '#334155',
+  'BA in progress':          '#334155',
   'BA Done':           '#1e293b',
   // PD
   'PD Handle':         '#9a3412',
-  'PD Start UI/UX':    '#92400e',
-  'PD Start Visual':   '#78350f',
+  'PD in progress UI/UX':    '#92400e',
+  'PD in progress Visual':   '#78350f',
   'PD Done UI/UX':     '#713f12',
   'PD Done Visual':    '#854d0e',
   // DevOps
   'DevOps Handle':     '#6d28d9',
-  'DevOps Start':      '#5b21b6',
+  'DevOps in progress':      '#5b21b6',
   'DevOps Done':       '#4c1d95',
   // FE
   'FE Handle':         '#1d4ed8',
-  'FE Start':          '#1e40af',
+  'FE in progress':          '#1e40af',
   'FE Done':           '#1e3a8a',
   // BE
   'BE Handle':         '#065f46',
-  'BE Start':          '#064e3b',
+  'BE in progress':          '#064e3b',
   'BE Done':           '#064e3b',
   // QC
   'QC Handle':         '#9d174d',
-  'QC Start':          '#831843',
+  'QC in progress':          '#831843',
   'QC Done - Staging': '#701a75',
   'QC Done - Pro':     '#4a044e',
   // Growth
   'Growth Handle':     '#166534',
-  'Growth Start':      '#14532d',
+  'Growth in progress':      '#14532d',
   'Growth Done':       '#14532d',
   // Generic
-  'To do':             '#475569',
-  'In progress':       '#1e40af',
-  'Pending':           '#92400e',
-  'Done':              '#166534',
+  'Task To do':             '#475569',
+  'Task In progress':       '#1e40af',
+  'Task Pending':           '#92400e',
+  'Task Done':         '#166534',
 };
 
 
@@ -281,13 +281,13 @@ const PRIORITY_TAG_TEXT: Record<string, string> = {
     'Reported': '#9d174d',
 };
 const STATUS_OPTIONS_BY_TEAM: Record<TeamRole, ItemStatus[]> = {
-    FE: ['None', 'Not Started', 'FE Handle', 'FE Start', 'FE Done'],
-    BE: ['None', 'Not Started', 'BE Handle', 'BE Start', 'BE Done'],
-    QC: ['None', 'Not Started', 'QC Handle', 'QC Start', 'QC Done - Staging', 'QC Done - Pro'],
-    PD: ['None', 'Not Started', 'PD Handle', 'PD Start UI/UX', 'PD Start Visual', 'PD Done UI/UX', 'PD Done Visual'],
-    BA: ['None', 'Not Started', 'BA Handle', 'BA Start', 'BA Done'],
-    DevOps: ['None', 'Not Started', 'DevOps Handle', 'DevOps Start', 'DevOps Done'],
-    Growth: ['None', 'Not Started', 'Growth Handle', 'Growth Start', 'Growth Done'],
+    FE: ['None', 'Not Started', 'FE Handle', 'FE in progress', 'FE Done'],
+    BE: ['None', 'Not Started', 'BE Handle', 'BE in progress', 'BE Done'],
+    QC: ['None', 'Not Started', 'QC Handle', 'QC in progress', 'QC Done - Staging', 'QC Done - Pro'],
+    PD: ['None', 'Not Started', 'PD Handle', 'PD in progress UI/UX', 'PD in progress Visual', 'PD Done UI/UX', 'PD Done Visual'],
+    BA: ['None', 'Not Started', 'BA Handle', 'BA in progress', 'BA Done'],
+    DevOps: ['None', 'Not Started', 'DevOps Handle', 'DevOps in progress', 'DevOps Done'],
+    Growth: ['None', 'Not Started', 'Growth Handle', 'Growth in progress', 'Growth Done'],
 };
 
 const COL_WORK_TYPE_W = 110;

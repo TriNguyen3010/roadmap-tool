@@ -3,6 +3,32 @@ import type { ManagerFieldChange } from '@/types/auth';
 import type { RoadmapItem } from '@/types/roadmap';
 import { applyChangesToTree, validateManagerChanges } from './permissionCheck';
 
+const TEAM_ROLES = ['BA', 'PD', 'BE', 'FE', 'QC', 'DevOps'] as const;
+
+function makeSiblingTeamRows(): RoadmapItem[] {
+    return [
+        {
+            id: 'group-ccd-plt',
+            name: '[CCD] Display txn history for PLT token',
+            type: 'group',
+            status: 'None',
+            progress: 0,
+            children: TEAM_ROLES.map((teamRole) => ({
+                id: `team-${teamRole.toLowerCase()}`,
+                name: teamRole,
+                type: 'team',
+                teamRole,
+                status: 'None',
+                statusMode: 'manual',
+                manualStatus: 'None',
+                progress: 0,
+                created_at: '2026-04-02T10:00:00.000Z',
+                updated_at: '2026-04-02T10:00:00.000Z',
+            })),
+        },
+    ];
+}
+
 function makeItems(): RoadmapItem[] {
     return [
         {
@@ -60,7 +86,7 @@ describe('permissionCheck', () => {
 
     it('rejects manager changes outside the manager team', () => {
         const changes: ManagerFieldChange[] = [
-            { itemId: 'item-be-1', field: 'status', value: 'BE Start' },
+            { itemId: 'item-be-1', field: 'status', value: 'BE in progress' },
         ];
 
         const result = validateManagerChanges('FE', changes, makeItems());
@@ -76,6 +102,35 @@ describe('permissionCheck', () => {
         const result = validateManagerChanges('FE', changes, makeItems());
         expect(result.valid).toBe(false);
         expect(result.violations[0]).toContain('không hợp lệ');
+    });
+
+    it('accepts manager changes on direct team rows in the real sibling-team structure', () => {
+        const result = validateManagerChanges('FE', [
+            { itemId: 'team-fe', field: 'status', value: 'FE in progress' },
+        ], makeSiblingTeamRows());
+
+        expect(result).toEqual({
+            valid: true,
+            violations: [],
+        });
+    });
+
+    it('rejects direct team row changes when the row belongs to another manager team', () => {
+        const result = validateManagerChanges('FE', [
+            { itemId: 'team-be', field: 'status', value: 'BE in progress' },
+        ], makeSiblingTeamRows());
+
+        expect(result.valid).toBe(false);
+        expect(result.violations[0]).toContain('không bao gồm FE');
+    });
+
+    it('rejects fields outside the manager whitelist', () => {
+        const result = validateManagerChanges('FE', [
+            { itemId: 'team-fe', field: 'priority' as never, value: 'High' as never },
+        ] as ManagerFieldChange[], makeSiblingTeamRows());
+
+        expect(result.valid).toBe(false);
+        expect(result.violations[0]).toContain('không được phép sửa');
     });
 
     it('applies manual status, notes, dates and touches timestamps', () => {

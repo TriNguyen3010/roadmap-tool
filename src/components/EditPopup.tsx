@@ -128,8 +128,8 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
 
     const handleStatusChange = (s: ItemStatus) => {
         setStatus(s);
-        if (s === 'QC Done - Pro' || s === 'Done') setProgress(100);
-        if (s === 'Not Started' || s === 'None' || s === 'To do') setProgress(0);
+        if (s === 'QC Done - Pro' || s === 'Task Done') setProgress(100);
+        if (s === 'Not Started' || s === 'None' || s === 'Task To do') setProgress(0);
     };
 
     const toggleTeam = (role: TeamRole) => {
