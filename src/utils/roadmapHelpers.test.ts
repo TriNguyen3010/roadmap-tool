@@ -101,53 +101,25 @@ describe('roadmapHelpers timestamp utils', () => {
   });
 });
 
-describe('recalculateRoadmap multi-team manual mode', () => {
-  function makeMultiTeamItem(overrides: Partial<RoadmapItem> = {}): RoadmapItem {
-    return {
-      id: 'mt-1',
-      name: 'Multi-team Task',
-      type: 'item',
-      status: 'Not Started',
-      progress: 0,
+describe('recalculateRoadmap legacy cleanup', () => {
+  it('strips deprecated assigned-team fields from legacy items', () => {
+    const legacyItem = {
+      ...makeItem(),
       assignedTeams: ['FE', 'BE'],
       teamStatuses: {
         FE: { status: 'FE in progress' },
         BE: { status: 'BE in progress' },
       },
-      ...overrides,
+    } as RoadmapItem & {
+      assignedTeams?: string[];
+      teamStatuses?: Record<string, { status: string }>;
     };
-  }
 
-  it('multi-team auto mode derives status from teamStatuses', () => {
-    const items = recalculateRoadmap([makeMultiTeamItem({ statusMode: 'auto' })]);
-    // deriveOverallStatus should pick a team status, not 'Not Started'
-    expect(items[0].statusMode).toBe('auto');
-    expect(items[0].manualStatus).toBeUndefined();
-    expect(items[0].status).not.toBe('Not Started');
-  });
+    const items = recalculateRoadmap([legacyItem as RoadmapItem]);
 
-  it('multi-team manual mode preserves manualStatus', () => {
-    const items = recalculateRoadmap([makeMultiTeamItem({
-      statusMode: 'manual',
-      manualStatus: 'Task Done',
-      status: 'Task Done',
-      progress: 100,
-      startDate: '2026-04-01',
-      endDate: '2026-04-10',
-    })]);
+    expect(items[0]).not.toHaveProperty('assignedTeams');
+    expect(items[0]).not.toHaveProperty('teamStatuses');
     expect(items[0].statusMode).toBe('manual');
-    expect(items[0].manualStatus).toBe('Task Done');
-    expect(items[0].status).toBe('Task Done');
-    expect(items[0].progress).toBe(100);
-    expect(items[0].startDate).toBe('2026-04-01');
-    expect(items[0].endDate).toBe('2026-04-10');
-  });
-
-  it('multi-team with no statusMode defaults to auto', () => {
-    const items = recalculateRoadmap([makeMultiTeamItem({ statusMode: undefined })]);
-    expect(items[0].statusMode).toBe('auto');
-    expect(items[0].manualStatus).toBeUndefined();
-    // Should derive from teamStatuses, not use undefined manualStatus
-    expect(items[0].status).not.toBe('None');
+    expect(items[0].status).toBe('None');
   });
 });

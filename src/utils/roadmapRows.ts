@@ -57,8 +57,6 @@ export function flattenRoadmapDocumentToRows(
                 quickNote: item.quickNote,
                 createdAt: item.created_at,
                 updatedAt: item.updated_at,
-                ...(item.assignedTeams ? { assignedTeams: item.assignedTeams } : {}),
-                ...(item.teamStatuses ? { teamStatuses: item.teamStatuses } : {}),
             });
 
             const images = normalizeItemImages(item);
@@ -153,8 +151,6 @@ export function inflateRoadmapDocumentFromRows(
                 created_at: row.createdAt,
                 updated_at: row.updatedAt,
                 children: childNodes.length > 0 ? childNodes : undefined,
-                ...(row.assignedTeams ? { assignedTeams: row.assignedTeams } : {}),
-                ...(row.teamStatuses ? { teamStatuses: row.teamStatuses } : {}),
             };
             return nextItem;
         });

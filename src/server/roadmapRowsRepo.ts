@@ -9,7 +9,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import type { RoadmapDocument, ItemStatus, TeamRole, TeamStatusEntry } from '@/types/roadmap';
+import type { RoadmapDocument, ItemStatus } from '@/types/roadmap';
 import type {
     RoadmapRowRecord,
     RoadmapItemRowRecord,
@@ -63,8 +63,6 @@ function mapItemRowToDb(row: RoadmapItemRowRecord): Record<string, unknown> {
         quick_note: row.quickNote ?? null,
         created_at: row.createdAt ?? null,
         updated_at: row.updatedAt ?? null,
-        assigned_teams: row.assignedTeams ?? null,
-        team_statuses: row.teamStatuses ?? null,
     };
 }
 
@@ -91,8 +89,6 @@ function mapDbRowToItem(row: Record<string, unknown>): RoadmapItemRowRecord {
         quickNote: (row.quick_note as string) ?? undefined,
         createdAt: (row.created_at as string) ?? undefined,
         updatedAt: (row.updated_at as string) ?? undefined,
-        assignedTeams: (row.assigned_teams as TeamRole[]) ?? undefined,
-        teamStatuses: (row.team_statuses as Partial<Record<TeamRole, TeamStatusEntry>>) ?? undefined,
     };
 }
 
@@ -226,7 +222,6 @@ export interface ItemFieldPatch {
     startDate?: string | null;
     endDate?: string | null;
     quickNote?: string | null;
-    teamStatuses?: Partial<Record<TeamRole, TeamStatusEntry>>;
     statusMode?: string;
     manualStatus?: ItemStatus | null;
     progress?: number;
@@ -242,7 +237,6 @@ export async function updateItemFields(
     if (fields.startDate !== undefined) dbFields.start_date = fields.startDate;
     if (fields.endDate !== undefined) dbFields.end_date = fields.endDate;
     if (fields.quickNote !== undefined) dbFields.quick_note = fields.quickNote;
-    if (fields.teamStatuses !== undefined) dbFields.team_statuses = fields.teamStatuses;
     if (fields.statusMode !== undefined) dbFields.status_mode = fields.statusMode;
     if (fields.manualStatus !== undefined) dbFields.manual_status = fields.manualStatus;
     if (fields.progress !== undefined) dbFields.progress = fields.progress;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
+import { authenticateAdminRequest, type AuthenticatedTeamRequest } from '@/lib/serverTeamAuth';
 import type { RoadmapDocument } from '@/types/roadmap';
 import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
 import { validateNormalizedMilestones } from '@/utils/milestones';
@@ -119,7 +119,7 @@ export async function PATCH(
 async function patchLegacyJson(
     id: string,
     patch: NonNullable<ReturnType<typeof resolveAdminPatchRequest>>,
-    auth: { sessionUser: unknown }
+    auth: AuthenticatedTeamRequest
 ) {
     const { data: row, error: readError } = await supabase
         .from('roadmap_data')
@@ -176,7 +176,7 @@ async function patchLegacyJson(
 async function patchTableBased(
     id: string,
     patch: NonNullable<ReturnType<typeof resolveAdminPatchRequest>>,
-    auth: { sessionUser: unknown }
+    auth: AuthenticatedTeamRequest
 ) {
     const updatedAt = new Date().toISOString();
 

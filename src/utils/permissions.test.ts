@@ -121,24 +121,6 @@ describe('permissions', () => {
         });
     });
 
-    it('getItemTeams returns assignedTeams when present', () => {
-        const items: RoadmapItem[] = [
-            {
-                id: 'multi-1',
-                name: 'Multi-team Item',
-                type: 'item',
-                status: 'None',
-                progress: 0,
-                assignedTeams: ['FE', 'BE'],
-                teamStatuses: {
-                    FE: { status: 'FE in progress' },
-                    BE: { status: 'BE in progress' },
-                },
-            },
-        ];
-        expect(getItemTeams('multi-1', items)).toEqual(['FE', 'BE']);
-    });
-
     it('getItemTeams falls back to team-node ancestor', () => {
         const items = makeTree();
         expect(getItemTeams('item-fe-1', items)).toEqual(['FE']);
@@ -150,38 +132,15 @@ describe('permissions', () => {
         expect(getItemTeams('cat-1', items)).toEqual([]);
     });
 
-    it('FE manager can edit multi-team item that includes FE', () => {
-        const items: RoadmapItem[] = [
-            {
-                id: 'multi-1',
-                name: 'Multi-team Item',
-                type: 'item',
-                status: 'None',
-                progress: 0,
-                assignedTeams: ['FE', 'BE'],
-                teamStatuses: {
-                    FE: { status: 'FE in progress' },
-                    BE: { status: 'BE in progress' },
-                },
-            },
-        ];
-        expect(getEditPermission(feManager, 'multi-1', items).canEditStatus).toBe(true);
-    });
-
-    it('FE manager cannot edit item assigned only to BE', () => {
-        const items: RoadmapItem[] = [
-            {
-                id: 'be-only',
-                name: 'BE Only Item',
-                type: 'item',
-                status: 'None',
-                progress: 0,
-                assignedTeams: ['BE'],
-                teamStatuses: {
-                    BE: { status: 'BE in progress' },
-                },
-            },
-        ];
-        expect(getEditPermission(feManager, 'be-only', items).canEditStatus).toBe(false);
+    it('FE manager cannot edit nodes without team ownership', () => {
+        const items = makeTree();
+        expect(getEditPermission(feManager, 'cat-1', items)).toEqual({
+            canEditStatus: false,
+            canEditDates: false,
+            canEditNotes: false,
+            canEditStructure: false,
+            canEditMilestones: false,
+            canManageRoadmap: false,
+        });
     });
 });

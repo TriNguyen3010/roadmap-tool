@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
+import { authenticateAdminRequest, type AuthenticatedTeamRequest } from '@/lib/serverTeamAuth';
+import type { RoadmapDocument } from '@/types/roadmap';
 import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
 import {
     normalizeSharedRoadmapDocument,
@@ -45,7 +46,7 @@ export async function POST(
 
 // ── Legacy JSON save (optimistic locking) ────────────────────────────────────
 
-async function saveLegacyJson(id: string, requestBody: unknown, auth: { sessionUser: unknown }) {
+async function saveLegacyJson(id: string, requestBody: unknown, auth: AuthenticatedTeamRequest) {
     const { document: incoming, baseVersion } = resolveDocumentSaveRequest(requestBody);
 
     const { data: currentRow, error: readError } = await supabase
@@ -78,13 +79,13 @@ async function saveLegacyJson(id: string, requestBody: unknown, auth: { sessionU
 
 // ── Table-based save (last-write-wins) ───────────────────────────────────────
 
-async function saveTableBased(id: string, requestBody: unknown, auth: { sessionUser: unknown }) {
+async function saveTableBased(id: string, requestBody: unknown, auth: AuthenticatedTeamRequest) {
     const incoming = (requestBody as Record<string, unknown>)?.document;
     if (!incoming || typeof incoming !== 'object') {
         return NextResponse.json({ error: 'Missing document in request body' }, { status: 400 });
     }
 
-    const normalizedDoc = normalizeSharedRoadmapDocument(incoming);
+    const normalizedDoc = normalizeSharedRoadmapDocument(incoming as RoadmapDocument);
     const result = await fullDocumentSync(id, normalizedDoc);
 
     if (!result.success) {

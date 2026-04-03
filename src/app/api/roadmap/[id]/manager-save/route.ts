@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { authenticateTeamRequest } from '@/lib/serverTeamAuth';
+import { authenticateTeamRequest, type AuthenticatedTeamRequest } from '@/lib/serverTeamAuth';
 import { isAdminLevel, type AuthManagerTeam } from '@/types/auth';
 import { TEAM_ROLES, type RoadmapDocument, type ItemStatus } from '@/types/roadmap';
 import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
@@ -77,7 +77,7 @@ export async function POST(
             const item = chain[0];
 
             // Check team permission: item must belong to manager's team
-            const itemTeam = resolveItemTeam(chain, change.team);
+            const itemTeam = resolveItemTeam(chain);
             if (itemTeam !== managerTeam) {
                 violations.push(`Item "${change.itemId}" does not belong to team ${managerTeam}`);
                 continue;
@@ -88,50 +88,13 @@ export async function POST(
 
             if (change.field === 'status') {
                 const value = change.value as ItemStatus;
-                if (item.assignedTeams && item.teamStatuses && change.team) {
-                    // Multi-team item: update the specific team's status within teamStatuses
-                    const updatedTeamStatuses = {
-                        ...item.teamStatuses,
-                        [change.team]: {
-                            ...(item.teamStatuses[change.team as keyof typeof item.teamStatuses] || {}),
-                            status: value,
-                            statusMode: 'manual' as const,
-                            manualStatus: value,
-                        },
-                    };
-                    patch.teamStatuses = updatedTeamStatuses;
-                } else {
-                    // Single-team item: update status directly
-                    patch.status = value;
-                    patch.statusMode = 'manual';
-                    patch.manualStatus = value;
-                }
+                patch.status = value;
+                patch.statusMode = 'manual';
+                patch.manualStatus = value;
             } else if (change.field === 'startDate') {
-                if (item.assignedTeams && item.teamStatuses && change.team) {
-                    const updatedTeamStatuses = {
-                        ...item.teamStatuses,
-                        [change.team]: {
-                            ...(item.teamStatuses[change.team as keyof typeof item.teamStatuses] || {}),
-                            startDate: change.value as string,
-                        },
-                    };
-                    patch.teamStatuses = updatedTeamStatuses;
-                } else {
-                    patch.startDate = (change.value as string) || null;
-                }
+                patch.startDate = (change.value as string) || null;
             } else if (change.field === 'endDate') {
-                if (item.assignedTeams && item.teamStatuses && change.team) {
-                    const updatedTeamStatuses = {
-                        ...item.teamStatuses,
-                        [change.team]: {
-                            ...(item.teamStatuses[change.team as keyof typeof item.teamStatuses] || {}),
-                            endDate: change.value as string,
-                        },
-                    };
-                    patch.teamStatuses = updatedTeamStatuses;
-                } else {
-                    patch.endDate = (change.value as string) || null;
-                }
+                patch.endDate = (change.value as string) || null;
             } else if (change.field === 'quickNote') {
                 patch.quickNote = (change.value as string) || null;
             }
@@ -195,14 +158,12 @@ export async function POST(
 
 /**
  * Resolve the team that an item belongs to by walking up the ancestor chain.
- * Priority: assignedTeams (with change.team) → item.teamRole → parent team nodes.
+ * Priority: item.teamRole → parent team nodes.
  */
 function resolveItemTeam(
-    chain: Array<{ teamRole?: string; assignedTeams?: string[] }>,
-    changeTeam?: string
+    chain: Array<{ teamRole?: string }>
 ): string | null {
     const item = chain[0];
-    if (item.assignedTeams && changeTeam && item.assignedTeams.includes(changeTeam)) return changeTeam;
     if (item.teamRole) return item.teamRole;
     for (let i = 1; i < chain.length; i++) {
         if (chain[i].teamRole) return chain[i].teamRole!;
@@ -216,7 +177,7 @@ async function managerSaveLegacyJson(
     roadmapId: string,
     managerTeam: AuthManagerTeam,
     body: Record<string, unknown>,
-    auth: { sessionUser: unknown; member: { team: string; role: string } }
+    auth: AuthenticatedTeamRequest
 ) {
     const { changes, baseVersion } = resolveManagerSaveRequest(body);
     if (changes.length === 0) {

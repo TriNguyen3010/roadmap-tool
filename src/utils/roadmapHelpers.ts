@@ -14,7 +14,6 @@ import {
     normalizePriorityFilterValues,
     normalizeStatusFilter
 } from '../types/roadmap';
-import { isMultiTeamItem, deriveOverallStatus, deriveOverallDates, deriveOverallProgress } from './teamStatusHelpers';
 import { addDays, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 
 export interface FlattenedItem extends RoadmapItem {
@@ -107,9 +106,20 @@ export const createItemWithTimestamps = (partial: Partial<RoadmapItem>): Roadmap
 };
 
 const stripTransientFields = (item: RoadmapItem): RoadmapItem => {
-    const { depth, parentIds, ...rest } = item as RoadmapItemWithTransientFields;
+    const {
+        depth,
+        parentIds,
+        assignedTeams,
+        teamStatuses,
+        ...rest
+    } = item as RoadmapItemWithTransientFields & {
+        assignedTeams?: unknown;
+        teamStatuses?: unknown;
+    };
     void depth;
     void parentIds;
+    void assignedTeams;
+    void teamStatuses;
     const cleanedChildren = rest.children?.map(stripTransientFields);
     return {
         ...rest,
@@ -175,42 +185,6 @@ const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
     const item = stripTransientFields(rawItem);
     const hasChildren = !!(item.children && item.children.length > 0);
     const updatedChildren = item.children?.map(recalculateItem);
-
-    // === Multi-team items: derive overall status/dates/progress from teamStatuses ===
-    if (isMultiTeamItem(item) && item.teamStatuses) {
-        const overallStatus = deriveOverallStatus(item.teamStatuses);
-        const overallDates = deriveOverallDates(item.teamStatuses);
-        let overallProgress = deriveOverallProgress(item.teamStatuses);
-
-        // If item has children, children progress takes precedence
-        if (hasChildren && updatedChildren && updatedChildren.length > 0) {
-            const sumProgress = updatedChildren.reduce((sum, child) => sum + (child.progress || 0), 0);
-            overallProgress = Math.round(sumProgress / updatedChildren.length);
-        }
-
-        // Respect manual mode: use manualStatus instead of derived status
-        const statusMode: StatusMode = item.statusMode ?? 'auto';
-        const manualStatus: ItemStatus | undefined = statusMode === 'manual'
-            ? normalizeItemStatus(item.manualStatus ?? item.status)
-            : undefined;
-        const effectiveStatus: ItemStatus = statusMode === 'manual'
-            ? (manualStatus || 'None')
-            : overallStatus;
-
-        return {
-            ...item,
-            ...(item.children !== undefined ? { children: updatedChildren } : {}),
-            priority: normalizeItemPriority(item.priority),
-            statusMode,
-            manualStatus,
-            status: effectiveStatus,
-            startDate: statusMode === 'manual' ? item.startDate : overallDates.startDate,
-            endDate: statusMode === 'manual' ? item.endDate : overallDates.endDate,
-            progress: statusMode === 'manual' ? (item.progress || 0) : overallProgress,
-        };
-    }
-
-    // === Legacy single-team path (unchanged) ===
     const fallbackMode: StatusMode = hasChildren ? 'auto' : 'manual';
     const statusMode: StatusMode = hasChildren ? (item.statusMode ?? fallbackMode) : 'manual';
 

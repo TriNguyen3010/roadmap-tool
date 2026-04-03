@@ -58,7 +58,6 @@ import {
   ensureReportedPriority,
   removeReportedPriority,
 } from '@/utils/reportedMode';
-import { normalizeTeamStatusesTree } from '@/utils/teamStatusHelpers';
 import {
   applyDatesByAllPhases,
   applyDatesByPhase,
@@ -119,7 +118,18 @@ function normalizeMilestones(milestones: Milestone[] | undefined): Milestone[] |
 function normalizeItemTree(items: RoadmapItem[]): RoadmapItem[] {
   return items.map(item => {
     const normalizedType = normalizeItemType(item.type);
-    const { workType: legacyWorkType, ...itemWithoutLegacyWorkType } = item as RoadmapItem & { workType?: string };
+    const {
+      workType: legacyWorkType,
+      assignedTeams,
+      teamStatuses,
+      ...itemWithoutLegacyWorkType
+    } = item as RoadmapItem & {
+      workType?: string;
+      assignedTeams?: unknown;
+      teamStatuses?: unknown;
+    };
+    void assignedTeams;
+    void teamStatuses;
     const normalizedImages = normalizeItemImages(item);
     return {
       ...itemWithoutLegacyWorkType,
@@ -454,7 +464,7 @@ export default function RoadmapPage() {
         filterGroupItemType: normalizeGroupItemTypeFilter(doc.settings.filterGroupItemType),
       }
       : doc.settings,
-    items: recalculateRoadmap(normalizeTeamStatusesTree(normalizeItemTree(normalizeRoadmapItemTimestamps(doc.items || [])))),
+    items: recalculateRoadmap(normalizeItemTree(normalizeRoadmapItemTimestamps(doc.items || []))),
   }), []);
 
   const fetchRoadmapVersion = useCallback(async (): Promise<string | null> => {

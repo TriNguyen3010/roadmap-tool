@@ -14,7 +14,7 @@ function makeSampleRoadmap(): RoadmapDocument {
         id: 'group-1',
         name: 'Group 1',
         type: 'group',
-        status: 'Dev In Progress',
+        status: 'DevOps in progress',
         progress: 30,
         quickNote: 'Main implementation note',
         children: [

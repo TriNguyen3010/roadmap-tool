@@ -97,7 +97,7 @@ describe('permissionCheck', () => {
     it('rejects invalid status values', () => {
         const changes = [
             { itemId: 'item-fe-1', field: 'status', value: 'Invalid Status' },
-        ] as ManagerFieldChange[];
+        ] as unknown as ManagerFieldChange[];
 
         const result = validateManagerChanges('FE', changes, makeItems());
         expect(result.valid).toBe(false);

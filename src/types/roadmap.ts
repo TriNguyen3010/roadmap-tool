@@ -361,19 +361,6 @@ export function toLegacyImageFields(images: ItemImage[]): {
   };
 }
 
-
-// === Per-team status entry for multi-team items ===
-export interface TeamStatusEntry {
-  status: ItemStatus;
-  statusMode?: StatusMode;       // auto | manual per team
-  manualStatus?: ItemStatus;
-  startDate?: string;
-  endDate?: string;
-  quickNote?: string;
-  plannedStartDate?: string;
-  plannedEndDate?: string;
-}
-
 export interface RoadmapItem {
   id: string;
   name: string;
@@ -402,9 +389,6 @@ export interface RoadmapItem {
   created_at?: string;
   updated_at?: string;
   children?: RoadmapItem[];
-  // === Multi-team fields ===
-  assignedTeams?: TeamRole[];
-  teamStatuses?: Partial<Record<TeamRole, TeamStatusEntry>>;
 }
 
 export interface Milestone {

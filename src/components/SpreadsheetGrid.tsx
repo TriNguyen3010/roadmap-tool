@@ -28,7 +28,6 @@ import {
 import type { EditPermission, ManagerFieldChange, SessionUser } from '@/types/auth';
 import { isAdminLevel } from '@/types/auth';
 import { getEditPermission } from '@/utils/permissions';
-import { isMultiTeamItem } from '@/utils/teamStatusHelpers';
 import type { ItemStatus, TeamRole } from '@/types/roadmap';
 import { resolveReportedImageReviewMainState } from '@/utils/reportedImageReviewStates';
 import { calcLayeredArcHeight, sortArcsByWidth } from '@/utils/timelineArc';
@@ -2191,84 +2190,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 )}
 
                                 {/* Status */}
-                                {isMultiTeamItem(row) ? (
-                                    <div
-                                        data-status-trigger="true"
-                                        className="flex flex-col justify-center border-r border-gray-300 px-1 relative gap-0.5 py-0.5"
-                                    >
-                                        {row.assignedTeams?.map(team => {
-                                            const ts = row.teamStatuses?.[team];
-                                            const teamStatus = ts?.status || 'None';
-                                            const canEditTeamStatus = currentUser?.team === team || (currentUser ? isAdminLevel(currentUser) : false);
-                                            const teamStatusKey = `${row.id}-${team}`;
-                                            return (
-                                                <div key={team} className="flex items-center gap-0.5">
-                                                    <span className="text-[8px] font-medium text-gray-400 w-5 shrink-0">{team}</span>
-                                                    {canEditTeamStatus && isStatusInlineEditable ? (
-                                                        <div
-                                                            className="flex-1 cursor-pointer hover:bg-black/5 rounded transition-colors relative"
-                                                            onClick={e => {
-                                                                e.stopPropagation();
-                                                                setOpenStatusId(openStatusId === teamStatusKey ? null : teamStatusKey);
-                                                            }}
-                                                        >
-                                                            {teamStatus === 'None' ? (
-                                                                <span className="text-[9px] text-gray-300">—</span>
-                                                            ) : (
-                                                                <span className="text-[9px] px-1 py-0.5 rounded font-semibold truncate block text-center"
-                                                                    style={{ backgroundColor: STATUS_TAG_BG[teamStatus] || '#f3f4f6', color: STATUS_TAG_TEXT[teamStatus] || '#374151' }}>
-                                                                    {teamStatus}
-                                                                </span>
-                                                            )}
-                                                            {openStatusId === teamStatusKey && (
-                                                                <div data-status-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[160px]">
-                                                                    {(STATUS_OPTIONS_BY_TEAM[team] || STATUS_OPTIONS).map(statusOption => (
-                                                                        <button
-                                                                            key={statusOption}
-                                                                            className="text-left text-[10px] px-2 py-1 font-semibold hover:bg-gray-50 transition-colors"
-                                                                            style={statusOption === 'None' ? { color: '#9ca3af' } : { color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
-                                                                            onMouseDown={e => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                applyEditableFieldChanges(
-                                                                                    row.id,
-                                                                                    [{ itemId: row.id, team, field: 'status', value: statusOption }],
-                                                                                    source => {
-                                                                                        const currentTs = source.teamStatuses?.[team] || { status: 'None' };
-                                                                                        return {
-                                                                                            ...source,
-                                                                                            teamStatuses: {
-                                                                                                ...source.teamStatuses,
-                                                                                                [team]: {
-                                                                                                    ...currentTs,
-                                                                                                    statusMode: 'manual',
-                                                                                                    manualStatus: statusOption,
-                                                                                                    status: statusOption,
-                                                                                                },
-                                                                                            },
-                                                                                        };
-                                                                                    }
-                                                                                );
-                                                                                setOpenStatusId(null);
-                                                                            }}
-                                                                        >
-                                                                            {statusOption === 'None' ? '—' : statusOption}
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-[9px] px-1 py-0.5 rounded font-semibold truncate flex-1 text-center"
-                                                            style={{ backgroundColor: STATUS_TAG_BG[teamStatus] || '#f3f4f6', color: STATUS_TAG_TEXT[teamStatus] || '#374151' }}>
-                                                            {teamStatus === 'None' ? '—' : teamStatus}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                ) : (
                                 <div
                                     data-status-trigger="true"
                                     className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${rowPermission.canEditStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
@@ -2326,7 +2247,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         </div>
                                     )}
                                 </div>
-                                )}
 
                                 {/* Week tags */}
                                 {showPhase && (
@@ -2854,92 +2774,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 );
                                             })()}
                                         </div>
-                                    ) : isMultiTeamItem(row) && row.assignedTeams && row.teamStatuses ? (
-                                        /* ── Multi-team arcs (one per team) ── */
-                                        (() => {
-                                            const teamCount = row.assignedTeams.length;
-                                            const arcHeight = Math.floor((ROW_HEIGHT - 4) / Math.max(teamCount, 1));
-                                            // Compute bar bounds across all team dates for container positioning
-                                            let multiMinLeft = Infinity, multiMaxRight = -Infinity;
-                                            const teamBars: { team: string; left: number; width: number; color: string; singleDay: boolean }[] = [];
-                                            for (const team of row.assignedTeams) {
-                                                const ts = row.teamStatuses[team];
-                                                if (!ts?.startDate || !ts?.endDate) continue;
-                                                const sd = parseISO(ts.startDate);
-                                                const edRaw = parseISO(ts.endDate);
-                                                if (Number.isNaN(sd.getTime())) continue;
-                                                const ed = Number.isNaN(edRaw.getTime()) ? sd : edRaw;
-                                                let firstIdx = -1, lastIdx = -1;
-                                                for (let i = 0; i < timelineUnits.length; i++) {
-                                                    const unit = timelineUnits[i];
-                                                    if (unit.end >= sd && unit.start <= ed) {
-                                                        if (firstIdx === -1) firstIdx = i;
-                                                        lastIdx = i;
-                                                    }
-                                                }
-                                                if (firstIdx >= 0 && lastIdx >= 0) {
-                                                    const l = timelineLeftOffset + firstIdx * timelineUnitWidth;
-                                                    const w = (lastIdx - firstIdx + 1) * timelineUnitWidth;
-                                                    if (l < multiMinLeft) multiMinLeft = l;
-                                                    if (l + w > multiMaxRight) multiMaxRight = l + w;
-                                                    teamBars.push({
-                                                        team,
-                                                        left: l,
-                                                        width: w,
-                                                        color: STATUS_BAR_COLOR[ts.status] || '#9ca3af',
-                                                        singleDay: format(sd, 'yyyy-MM-dd') === format(ed, 'yyyy-MM-dd'),
-                                                    });
-                                                }
-                                            }
-                                            if (teamBars.length === 0) return null;
-                                            const containerLeft = multiMinLeft;
-                                            const containerWidth = multiMaxRight - multiMinLeft;
-                                            return (
-                                                <div
-                                                    className="absolute inset-y-0 cursor-pointer transition-all hover:z-20 group-hover/gantt:z-10"
-                                                    style={{ left: containerLeft, width: containerWidth, zIndex: hasActiveInfo ? 150 : 5 }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
-                                                    }}
-                                                >
-                                                    {teamBars.map((tb, index) => {
-                                                        const localLeft = tb.left - containerLeft;
-                                                        const arcPad = getArcEndpointPadding(tb.width);
-                                                        const top = 2 + index * arcHeight;
-                                                        return (
-                                                            <svg
-                                                                key={tb.team}
-                                                                width={tb.width}
-                                                                height={arcHeight}
-                                                                className="absolute"
-                                                                style={{ left: localLeft, top, overflow: 'visible' }}
-                                                            >
-                                                                <TimelineArc
-                                                                    startX={arcPad}
-                                                                    endX={Math.max(arcPad, tb.width - arcPad)}
-                                                                    color={tb.color}
-                                                                    rowHeight={arcHeight}
-                                                                    isActive={hasActiveInfo}
-                                                                    forceDot={tb.singleDay}
-                                                                />
-                                                            </svg>
-                                                        );
-                                                    })}
-                                                    {hasActiveInfo && (
-                                                        <div className="absolute z-20 top-full mt-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
-                                                            <div>{row.name}</div>
-                                                            {row.assignedTeams.map(team => {
-                                                                const ts = row.teamStatuses?.[team];
-                                                                return ts ? (
-                                                                    <div key={team}>{team}: {ts.status} {ts.startDate ? `${ts.startDate}` : ''}{ts.endDate ? ` → ${ts.endDate}` : ''}</div>
-                                                                ) : null;
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })()
                                     ) : (
                                         /* ── Single arc (leaf or no child dates) ── */
                                         barLeft >= 0 && (

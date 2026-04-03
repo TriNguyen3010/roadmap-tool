@@ -14,9 +14,8 @@ const NONE_PERMISSION: EditPermission = {
 /**
  * Returns ALL teams an item belongs to.
  * Priority:
- * 1. item.assignedTeams (if present) → return directly
- * 2. item.type === 'team' && item.teamRole → return [teamRole]
- * 3. Walk up parent → find nearest team-node ancestor (legacy)
+ * 1. item.type === 'team' && item.teamRole → return [teamRole]
+ * 2. Walk up parent → find nearest team-node ancestor
  */
 export function getItemTeams(
     itemId: ItemId,
@@ -29,9 +28,6 @@ export function getItemTeams(
             : parentTeam;
 
         if (item.id === itemId) {
-            if (item.assignedTeams && item.assignedTeams.length > 0) {
-                return item.assignedTeams;
-            }
             return currentTeam ? [currentTeam] : [];
         }
 
