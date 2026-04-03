@@ -101,8 +101,8 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
 
     // Dates are locked when item has children that are NOT all teams
     const hasNonTeamChildren = !!(item.children && item.children.some(c => c.type !== 'team'));
-    const isCategoryManual = item.type === 'category' && statusMode === 'manual';
-    const isDateLocked = hasNonTeamChildren && !isCategoryManual;
+    const isManualWithChildren = statusMode === 'manual';
+    const isDateLocked = hasNonTeamChildren && !isManualWithChildren;
 
     // Initialize selectedTeams based on existing children that are of type 'team'
     const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(() => {
@@ -809,9 +809,9 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                         Thời gian và tiến độ được tự động tính toán từ các mục con.
                     </div>
                 )}
-                {isCategoryManual && (
+                {isManualWithChildren && hasNonTeamChildren && (
                     <div className="text-xs text-emerald-700 bg-emerald-50 p-2 rounded border border-emerald-200">
-                        Category đang ở chế độ manual: bạn có thể chỉnh ngày bắt đầu/kết thúc.
+                        Đang ở chế độ manual: bạn có thể chỉnh ngày bắt đầu/kết thúc.
                     </div>
                 )}
 
