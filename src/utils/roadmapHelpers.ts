@@ -284,6 +284,106 @@ export const findNodeById = (items: RoadmapItem[], id: string): RoadmapItem | nu
     return null;
 };
 
+const CHILD_TYPE_BY_PARENT: Partial<Record<RoadmapItem['type'], RoadmapItem['type']>> = {
+    category: 'subcategory',
+    subcategory: 'group',
+    group: 'item',
+};
+
+const canParentAcceptChild = (
+    parentType: RoadmapItem['type'],
+    childType: RoadmapItem['type']
+): boolean => {
+    return CHILD_TYPE_BY_PARENT[parentType] === childType;
+};
+
+const removeNodeFromTree = (
+    items: RoadmapItem[],
+    nodeId: string
+): { nextItems: RoadmapItem[]; removed: RoadmapItem | null } => {
+    let removed: RoadmapItem | null = null;
+
+    const nextItems = items.reduce<RoadmapItem[]>((result, item) => {
+        if (item.id === nodeId) {
+            removed = stripTransientFields(item);
+            return result;
+        }
+
+        if (!item.children || item.children.length === 0) {
+            result.push(item);
+            return result;
+        }
+
+        const childResult = removeNodeFromTree(item.children, nodeId);
+        if (childResult.removed) {
+            removed = childResult.removed;
+            result.push({
+                ...item,
+                children: childResult.nextItems.length > 0 ? childResult.nextItems : undefined,
+            });
+            return result;
+        }
+
+        result.push(item);
+        return result;
+    }, []);
+
+    return { nextItems, removed };
+};
+
+const insertNodeIntoParent = (
+    items: RoadmapItem[],
+    parentId: string,
+    child: RoadmapItem
+): { nextItems: RoadmapItem[]; inserted: boolean } => {
+    let inserted = false;
+
+    const nextItems = items.map((item) => {
+        if (item.id === parentId) {
+            inserted = true;
+            return {
+                ...item,
+                children: [...(item.children || []), stripTransientFields(child)],
+            };
+        }
+
+        if (!item.children || item.children.length === 0) {
+            return item;
+        }
+
+        const childResult = insertNodeIntoParent(item.children, parentId, child);
+        if (!childResult.inserted) return item;
+        inserted = true;
+        return {
+            ...item,
+            children: childResult.nextItems,
+        };
+    });
+
+    return { nextItems, inserted };
+};
+
+export const moveNodeToParent = (
+    items: RoadmapItem[],
+    fromId: string,
+    targetParentId: string
+): RoadmapItem[] => {
+    if (fromId === targetParentId) return items;
+
+    const sourceNode = findNodeById(items, fromId);
+    const targetParent = findNodeById(items, targetParentId);
+
+    if (!sourceNode || !targetParent) return items;
+    if (!canParentAcceptChild(targetParent.type, sourceNode.type)) return items;
+    if (findNodeById(sourceNode.children || [], targetParentId)) return items;
+
+    const removalResult = removeNodeFromTree(items, fromId);
+    if (!removalResult.removed) return items;
+
+    const insertionResult = insertNodeIntoParent(removalResult.nextItems, targetParentId, removalResult.removed);
+    return insertionResult.inserted ? insertionResult.nextItems : items;
+};
+
 // Generates an array of Date objects between start and end with a padding
 export const generateTimelineDays = (startDateStr: string, endDateStr: string, paddingDays = 7): Date[] => {
     const start = addDays(new Date(startDateStr), -paddingDays);

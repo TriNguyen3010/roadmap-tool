@@ -23,7 +23,7 @@ import {
 } from '@/types/roadmap';
 import {
     FlattenedItem, findNodeById, filterRoadmapTree, flattenRoadmap, getExpandedFlattenedRows,
-    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp
+    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp, moveNodeToParent
 } from '@/utils/roadmapHelpers';
 import type { EditPermission, ManagerFieldChange, SessionUser } from '@/types/auth';
 import { isAdminLevel } from '@/types/auth';
@@ -398,6 +398,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     // ── Drag & Drop States ──
     const [draggedId, setDraggedId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
+    const [dragOverMode, setDragOverMode] = useState<'reorder' | 'parent' | null>(null);
     const [activeNotePreview, setActiveNotePreview] = useState<{ id: string; top: number; left: number } | null>(null);
     const [activeImagePreviewId, setActiveImagePreviewId] = useState<string | null>(null);
     const [activeImagePreviewIndex, setActiveImagePreviewIndex] = useState(0);
@@ -1150,53 +1151,95 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         const source = flattened.find(item => item.id === sourceId);
         const target = flattened.find(item => item.id === targetId);
         if (!source || !target) return false;
+        if (source.type === 'team' || target.type === 'team') return false;
         if (source.type !== target.type) return false;
         const sourceParent = source.parentIds[source.parentIds.length - 1] || null;
         const targetParent = target.parentIds[target.parentIds.length - 1] || null;
         return sourceParent === targetParent;
     }, [flattened]);
 
+    const isValidParentDrop = useCallback((sourceId: string, targetId: string): boolean => {
+        if (sourceId === targetId) return false;
+        const source = flattened.find(item => item.id === sourceId);
+        const target = flattened.find(item => item.id === targetId);
+        if (!source || !target) return false;
+        if (source.type === 'team' || target.type === 'team') return false;
+        if (target.parentIds.includes(sourceId)) return false;
+
+        return (
+            (source.type === 'subcategory' && target.type === 'category')
+            || (source.type === 'group' && target.type === 'subcategory')
+            || (source.type === 'item' && target.type === 'group')
+        );
+    }, [flattened]);
+
+    const getDropMode = useCallback((sourceId: string, targetId: string): 'reorder' | 'parent' | null => {
+        if (isValidSameLayerDrop(sourceId, targetId)) return 'reorder';
+        if (isValidParentDrop(sourceId, targetId)) return 'parent';
+        return null;
+    }, [isValidParentDrop, isValidSameLayerDrop]);
+
     // ── Drag & Drop Handlers ──
     const handleDragStart = (e: React.DragEvent, id: string) => {
         if (!canEditStructure) return;
         setDraggedId(id);
         setDragOverId(null);
+        setDragOverMode(null);
         e.dataTransfer.effectAllowed = 'move';
         // Setting transparent image helps styling custom drag ghost if needed
     };
     const handleDragOver = (e: React.DragEvent, id: string) => {
         if (!canEditStructure) return;
         e.preventDefault(); // enable drop
-        if (draggedId && isValidSameLayerDrop(draggedId, id)) {
+        const mode = draggedId ? getDropMode(draggedId, id) : null;
+        if (mode) {
             e.dataTransfer.dropEffect = 'move';
             setDragOverId(id);
+            setDragOverMode(mode);
         } else {
             e.dataTransfer.dropEffect = 'none';
             setDragOverId(null);
+            setDragOverMode(null);
         }
     };
     const handleDragLeave = () => {
         setDragOverId(null);
+        setDragOverMode(null);
     };
     const handleDrop = (e: React.DragEvent, targetId: string) => {
         if (!canEditStructure) return;
         e.preventDefault();
-        if (draggedId && isValidSameLayerDrop(draggedId, targetId)) {
-            const reorderedItems = reorderItems(data.items, draggedId, targetId);
-            if (reorderedItems !== data.items) {
-                const movedItem = findNodeById(reorderedItems, draggedId);
-                const newItems = movedItem
-                    ? updateNodeById(reorderedItems, draggedId, touchItemTimestamp(movedItem))
-                    : reorderedItems;
-                onDataChange({ ...data, items: newItems }, true); // Pass true to trigger auto-save if supported
+        const mode = draggedId ? getDropMode(draggedId, targetId) : null;
+        if (draggedId && mode) {
+            if (mode === 'reorder') {
+                const reorderedItems = reorderItems(data.items, draggedId, targetId);
+                if (reorderedItems !== data.items) {
+                    const movedItem = findNodeById(reorderedItems, draggedId);
+                    const newItems = movedItem
+                        ? updateNodeById(reorderedItems, draggedId, touchItemTimestamp(movedItem))
+                        : reorderedItems;
+                    onDataChange({ ...data, items: newItems }, true);
+                }
+            } else if (mode === 'parent') {
+                const movedItems = moveNodeToParent(data.items, draggedId, targetId);
+                if (movedItems !== data.items) {
+                    const movedItem = findNodeById(movedItems, draggedId);
+                    const newItems = movedItem
+                        ? updateNodeById(movedItems, draggedId, touchItemTimestamp(movedItem))
+                        : movedItems;
+                    setExpandedIds(prev => new Set([...prev, targetId]));
+                    onDataChange({ ...data, items: newItems }, true);
+                }
             }
         }
         setDraggedId(null);
         setDragOverId(null);
+        setDragOverMode(null);
     };
     const handleDragEnd = () => {
         setDraggedId(null);
         setDragOverId(null);
+        setDragOverMode(null);
     };
 
     const openQuickNotePreview = async (event: React.MouseEvent, row: FlattenedItem) => {
@@ -1914,13 +1957,14 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         const reviewedMarkerNumber = row.type === 'group' ? reviewedGroupNumberById[row.id] : undefined;
                         const isGroupReviewed = typeof reviewedMarkerNumber === 'number';
 
-                        const canDragRow = canEditStructure;
+                        const canDragRow = canEditStructure && row.type !== 'team';
                         const isDragged = draggedId === row.id;
-                        const isDragOver = dragOverId === row.id;
+                        const isDragOverReorder = dragOverId === row.id && dragOverMode === 'reorder';
+                        const isDragOverParent = dragOverId === row.id && dragOverMode === 'parent';
 
                         return (
                             <div key={row.id}
-                                className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOver ? 'border-t-4 border-t-blue-500' : ''}`}
+                                className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOverReorder ? 'border-t-4 border-t-blue-500' : ''} ${isDragOverParent ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
                                 style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: getRowBg(style.bg, rowPhaseIds, phaseColorById) }}
                                 draggable={canDragRow}
                                 onDragStart={canDragRow ? (e) => handleDragStart(e, row.id) : undefined}

@@ -1,5 +1,5 @@
 {
-  "version": "2.8",
+  "version": "2.9",
   "children": [
     {
       "type": "frame",
@@ -6582,6 +6582,310 @@
                       "height": 24,
                       "fill": "#3B82F6",
                       "cornerRadius": 8
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "EgY3h",
+      "x": 0,
+      "y": 1459,
+      "name": "Rectangle Reskin - Monochrome Type",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "gap": 24,
+      "padding": 24,
+      "children": [
+        {
+          "type": "frame",
+          "id": "0zxuQ",
+          "name": "habitLeftCol",
+          "width": 360,
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 20,
+          "children": [
+            {
+              "type": "text",
+              "id": "pqqkf",
+              "name": "eyebrow",
+              "fill": "#71717A",
+              "content": "HABIT TRACKER / ROADMAP",
+              "fontFamily": "Outfit",
+              "fontSize": 12,
+              "fontWeight": "600",
+              "letterSpacing": 1.2
+            },
+            {
+              "type": "text",
+              "id": "RizJ7",
+              "name": "headline",
+              "fill": "#000000",
+              "content": "Good\nmorning,\nRoadmap",
+              "lineHeight": 1,
+              "fontFamily": "Outfit",
+              "fontSize": 48,
+              "fontWeight": "800"
+            },
+            {
+              "type": "text",
+              "id": "bzbV1",
+              "name": "subtitle",
+              "fill": "#71717A",
+              "textGrowth": "fixed-width",
+              "width": "fill_container",
+              "content": "A softer product shell inspired by Habit Tracker: bold type, quiet cards, monochrome controls, and roomy spacing for dense roadmap content.",
+              "lineHeight": 1.5,
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "b7DUk",
+              "name": "metricsRowHT",
+              "width": "fill_container",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "T0qTJ",
+                  "name": "metricCardOneHT",
+                  "width": "fill_container",
+                  "height": 154,
+                  "fill": "#F4F4F5",
+                  "cornerRadius": 24,
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 18,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "nYd3H",
+                      "name": "metricTextOneHT",
+                      "fill": "#000000",
+                      "content": "Focus\n47 open items",
+                      "lineHeight": 1.05,
+                      "fontFamily": "Outfit",
+                      "fontSize": 30,
+                      "fontWeight": "800"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "EkuL9",
+                  "name": "metricCardTwoHT",
+                  "width": "fill_container",
+                  "height": 154,
+                  "fill": "#F4F4F5",
+                  "cornerRadius": 24,
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": 18,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "zJyi0",
+                      "name": "metricTextTwoHT",
+                      "fill": "#000000",
+                      "content": "Review\n2,847 image cells",
+                      "lineHeight": 1.05,
+                      "fontFamily": "Outfit",
+                      "fontSize": 30,
+                      "fontWeight": "800"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "SoIJU",
+              "name": "weekCardHT",
+              "width": "fill_container",
+              "fill": "#F4F4F5",
+              "cornerRadius": 24,
+              "layout": "vertical",
+              "gap": 14,
+              "padding": 18,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "H1AbH",
+                  "name": "weekTitleHT",
+                  "fill": "#000000",
+                  "content": "This Week",
+                  "fontFamily": "Outfit",
+                  "fontSize": 24,
+                  "fontWeight": "800"
+                },
+                {
+                  "type": "text",
+                  "id": "jjmL4",
+                  "name": "weekTextHT",
+                  "fill": "#71717A",
+                  "content": "M  T  W  T  F  S  S\n5 streak days active",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "RKqbU",
+              "name": "ctaCardHT",
+              "width": "fill_container",
+              "fill": "#000000",
+              "cornerRadius": 28,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZaWXa",
+                  "name": "ctaTitleHT",
+                  "fill": "#FFFFFF",
+                  "content": "Daily Habits",
+                  "fontFamily": "Outfit",
+                  "fontSize": 28,
+                  "fontWeight": "800"
+                },
+                {
+                  "type": "text",
+                  "id": "66yQs",
+                  "name": "ctaBodyHT",
+                  "fill": "#D4D4D8",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Morning review, schedule checks, and screenshot triage grouped into one calm monochrome shell.",
+                  "lineHeight": 1.5,
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FHE2f",
+          "name": "habitRightCol",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 20,
+          "children": [
+            {
+              "type": "frame",
+              "id": "PdTZo",
+              "name": "habitHeroCard",
+              "clip": true,
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#F4F4F5",
+              "cornerRadius": 28,
+              "stroke": {
+                "align": "inside",
+                "thickness": 1,
+                "fill": "#F4F4F5"
+              },
+              "layout": "none",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 20,
+                  "id": "a3ZhY",
+                  "x": 24,
+                  "y": 88,
+                  "fill": [
+                    {
+                      "type": "image",
+                      "enabled": true,
+                      "url": "../image.png",
+                      "mode": "fill"
+                    },
+                    {
+                      "type": "color",
+                      "color": "#FFFFFF",
+                      "enabled": true,
+                      "blendMode": "saturation"
+                    }
+                  ],
+                  "width": 960,
+                  "height": 610
+                },
+                {
+                  "type": "frame",
+                  "id": "S4ua7",
+                  "x": 24,
+                  "y": 24,
+                  "name": "heroLabel",
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 22,
+                  "padding": [
+                    10,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "VkiJi",
+                      "name": "heroLabelText",
+                      "fill": "#000000",
+                      "content": "Today focus",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "0ZP2G",
+                  "x": 24,
+                  "y": 724,
+                  "name": "heroFooterText",
+                  "fill": "#71717A",
+                  "content": "Roadmap board, reframed with soft cards and bold product type.",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "frame",
+                  "id": "o6HeL",
+                  "x": 24,
+                  "y": 760,
+                  "name": "heroChipHT",
+                  "fill": "#000000",
+                  "cornerRadius": 22,
+                  "padding": [
+                    10,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vJCkD",
+                      "name": "heroChipTextHT",
+                      "fill": "#FFFFFF",
+                      "content": "Schedule review",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "600"
                     }
                   ]
                 }

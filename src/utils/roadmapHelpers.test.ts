@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoadmapItem } from '../types/roadmap';
-import { createItemWithTimestamps, normalizeItemTimestamps, recalculateRoadmap, touchItemTimestamp } from './roadmapHelpers';
+import { createItemWithTimestamps, moveNodeToParent, normalizeItemTimestamps, recalculateRoadmap, touchItemTimestamp } from './roadmapHelpers';
 
 function makeItem(overrides: Partial<RoadmapItem> = {}): RoadmapItem {
   return {
@@ -123,3 +123,102 @@ describe('recalculateRoadmap legacy cleanup', () => {
     expect(items[0].status).toBe('None');
   });
 });
+
+describe('moveNodeToParent', () => {
+  function makeTree(): RoadmapItem[] {
+    return [
+      {
+        id: 'cat-app-core',
+        name: 'App - Core',
+        type: 'category',
+        status: 'None',
+        progress: 0,
+        children: [
+          {
+            id: 'sub-wallet',
+            name: 'Wallet',
+            type: 'subcategory',
+            status: 'None',
+            progress: 0,
+            children: [
+              {
+                id: 'group-send',
+                name: 'Send',
+                type: 'group',
+                status: 'None',
+                progress: 0,
+                children: [
+                  {
+                    id: 'item-send-1',
+                    name: 'Item A',
+                    type: 'item',
+                    status: 'None',
+                    progress: 0,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'cat-app-improvements',
+        name: 'App - Improvements',
+        type: 'category',
+        status: 'None',
+        progress: 0,
+        children: [
+          {
+            id: 'sub-growth',
+            name: 'Growth',
+            type: 'subcategory',
+            status: 'None',
+            progress: 0,
+            children: [],
+          },
+        ],
+      },
+    ];
+  }
+
+  it('moves a subcategory to another category', () => {
+    const moved = moveNodeToParent(makeTree(), 'sub-wallet', 'cat-app-improvements');
+
+    expect(findNode(moved, 'sub-wallet')?.name).toBe('Wallet');
+    expect(findNode(moved, 'cat-app-core')?.children ?? []).toHaveLength(0);
+    expect(findNode(moved, 'cat-app-improvements')?.children?.map(child => child.id)).toEqual(['sub-growth', 'sub-wallet']);
+  });
+
+  it('preserves subtree when moving a group to another subcategory', () => {
+    const moved = moveNodeToParent(makeTree(), 'group-send', 'sub-growth');
+
+    expect(findNode(moved, 'group-send')?.children?.[0].id).toBe('item-send-1');
+    expect(findNode(moved, 'sub-wallet')?.children ?? []).toHaveLength(0);
+    expect(findNode(moved, 'sub-growth')?.children?.map(child => child.id)).toEqual(['group-send']);
+  });
+
+  it('rejects invalid parent-child combinations', () => {
+    const tree = makeTree();
+    const moved = moveNodeToParent(tree, 'group-send', 'cat-app-improvements');
+
+    expect(moved).toBe(tree);
+  });
+
+  it('rejects moving a node into its own descendant', () => {
+    const tree = makeTree();
+    const moved = moveNodeToParent(tree, 'sub-wallet', 'group-send');
+
+    expect(moved).toBe(tree);
+  });
+});
+
+function findNode(items: RoadmapItem[], id: string): RoadmapItem | null {
+  for (const item of items) {
+    if (item.id === id) return item;
+    if (item.children) {
+      const found = findNode(item.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
