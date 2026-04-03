@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
-import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
-import {
-    normalizeSharedRoadmapDocument,
-    resolveDocumentSaveRequest,
-    validateBaseVersion,
-} from '@/utils/roadmapSaveFlow';
+import { normalizeSharedRoadmapDocument } from '@/utils/roadmapSaveFlow';
 import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
+import { fullDocumentSync } from '@/server/roadmapRowsRepo';
 
 export const runtime = 'nodejs';
 
+/**
+ * POST /api/roadmap/[id]/save — Admin full-document save (table-based, last-write-wins).
+ *
+ * Receives the full RoadmapDocument, normalizes it, diffs against current rows,
+ * and applies inserts/updates/deletes. JSON blob is regenerated as backup.
+ */
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -23,124 +24,41 @@ export async function POST(
 
         const { id } = await params;
         const requestBody = await request.json();
-        const { document: incoming, baseVersion } = resolveDocumentSaveRequest(requestBody);
+        const incoming = requestBody?.document;
 
-        const { data: currentRow, error: readError } = await supabase
-            .from('roadmap_data')
-            .select('updated_at')
-            .eq('id', id)
-            .maybeSingle();
-
-        if (readError) {
-            logRoadmapSaveTelemetry({
-                route: 'admin-save',
-                roadmapId: id,
-                outcome: 'error',
-                status: 500,
-                reason: 'read-version-failed',
-                baseVersion,
-                actor: auth.sessionUser,
-            });
-            console.error('Failed to read roadmap before save:', JSON.stringify(readError));
-            return NextResponse.json({ error: 'Failed to read roadmap version' }, { status: 500 });
+        if (!incoming || typeof incoming !== 'object') {
+            return NextResponse.json({ error: 'Missing document in request body' }, { status: 400 });
         }
-
-        if (!currentRow) {
-            return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
-        }
-
-        const versionCheck = validateBaseVersion(
-            baseVersion,
-            typeof currentRow.updated_at === 'string' ? currentRow.updated_at : null
-        );
-        if (!versionCheck.ok) {
-            logRoadmapSaveTelemetry({
-                route: 'admin-save',
-                roadmapId: id,
-                outcome: versionCheck.status === 409 ? 'conflict' : 'rejected',
-                status: versionCheck.status,
-                reason: versionCheck.status === 409 ? 'stale-base-version' : 'missing-base-version',
-                baseVersion,
-                serverVersion: versionCheck.payload.serverVersion ?? null,
-                actor: auth.sessionUser,
-            });
-            return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
-        }
-        const currentVersion = versionCheck.currentVersion;
 
         const normalizedDoc = normalizeSharedRoadmapDocument(incoming);
 
-        const updatedAt = new Date().toISOString();
-        let updateQuery = supabase
-            .from('roadmap_data')
-            .update({
-                content: normalizedDoc,
-                updated_at: updatedAt,
-            })
-            .eq('id', id);
+        const result = await fullDocumentSync(id, normalizedDoc);
 
-        updateQuery = currentVersion
-            ? updateQuery.eq('updated_at', currentVersion)
-            : updateQuery.is('updated_at', null);
-
-        const { data: savedRow, error } = await updateQuery
-            .select('updated_at')
-            .maybeSingle();
-
-        if (error) {
+        if (!result.success) {
             logRoadmapSaveTelemetry({
                 route: 'admin-save',
                 roadmapId: id,
                 outcome: 'error',
                 status: 500,
-                reason: 'conditional-update-failed',
-                baseVersion,
+                reason: result.error ?? 'sync-failed',
                 actor: auth.sessionUser,
             });
-            console.error('Supabase conditional update error:', JSON.stringify(error));
             return NextResponse.json(
-                { error: 'Supabase error', message: error.message, code: error.code, details: error.details },
+                { error: 'Failed to save roadmap', message: result.error },
                 { status: 500 }
             );
         }
-
-        if (!savedRow) {
-            const { data: latestRow } = await supabase
-                .from('roadmap_data')
-                .select('updated_at')
-                .eq('id', id)
-                .maybeSingle();
-
-            const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
-            logRoadmapSaveTelemetry({
-                route: 'admin-save',
-                roadmapId: id,
-                outcome: 'conflict',
-                status: 409,
-                reason: 'conditional-update-miss',
-                baseVersion,
-                serverVersion,
-                actor: auth.sessionUser,
-            });
-
-            return NextResponse.json(
-                buildVersionConflictPayload(serverVersion),
-                { status: 409 }
-            );
-        }
-
-        const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
 
         logRoadmapSaveTelemetry({
             route: 'admin-save',
             roadmapId: id,
             outcome: 'success',
             status: 200,
-            baseVersion,
-            serverVersion: persistedVersion,
+            serverVersion: result.updatedAt,
             actor: auth.sessionUser,
         });
-        return NextResponse.json({ success: true, updatedAt: persistedVersion });
+
+        return NextResponse.json({ success: true, updatedAt: result.updatedAt });
     } catch (err: unknown) {
         const { id } = await params;
         logRoadmapSaveTelemetry({

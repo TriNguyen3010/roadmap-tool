@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { loadRoadmapVersion } from '@/server/roadmapRowsRepo';
 
 export const runtime = 'nodejs';
 
@@ -10,16 +10,10 @@ export async function GET(
     try {
         const { id } = await params;
 
-        const { data, error } = await supabase
-            .from('roadmap_data')
-            .select('updated_at')
-            .eq('id', id)
-            .single();
-
-        if (error) throw error;
+        const updatedAt = await loadRoadmapVersion(id);
 
         return NextResponse.json(
-            { updatedAt: typeof data.updated_at === 'string' ? data.updated_at : null },
+            { updatedAt },
             { headers: { 'Cache-Control': 'no-store' } }
         );
     } catch (error) {

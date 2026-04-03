@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
-import type { RoadmapDocument } from '@/types/roadmap';
-import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
 import { validateNormalizedMilestones } from '@/utils/milestones';
-import {
-    resolveAdminPatchRequest,
-    sanitizeSharedRoadmapDocument,
-    validateBaseVersion,
-} from '@/utils/roadmapSaveFlow';
+import { resolveAdminPatchRequest } from '@/utils/roadmapSaveFlow';
 import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
+import { loadRoadmapDocumentFromRows, regenerateJsonBlob } from '@/server/roadmapRowsRepo';
 
 export const runtime = 'nodejs';
 
-// GET /api/roadmap/[id] — load a specific roadmap's content
+// GET /api/roadmap/[id] — load a specific roadmap's content (reads from normalized tables)
 export async function GET(
     _request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -21,15 +16,12 @@ export async function GET(
     try {
         const { id } = await params;
 
-        const { data, error } = await supabase
-            .from('roadmap_data')
-            .select('content')
-            .eq('id', id)
-            .single();
+        const document = await loadRoadmapDocumentFromRows(id);
+        if (!document) {
+            return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
+        }
 
-        if (error) throw error;
-
-        return NextResponse.json(data.content);
+        return NextResponse.json(document);
     } catch (error) {
         console.error('Failed to read roadmap:', error);
         return NextResponse.json({ error: 'Failed to read roadmap data' }, { status: 500 });
@@ -65,6 +57,10 @@ export async function DELETE(
     }
 }
 
+/**
+ * PATCH /api/roadmap/[id] — Admin patch (milestones or release-meta).
+ * Writes directly to normalized tables, then regenerates JSON blob backup.
+ */
 export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -83,50 +79,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Invalid admin patch payload' }, { status: 400 });
         }
 
-        const { data: row, error: readError } = await supabase
-            .from('roadmap_data')
-            .select('content, updated_at')
-            .eq('id', id)
-            .maybeSingle();
-
-        if (readError) {
-            logRoadmapSaveTelemetry({
-                route: 'admin-patch',
-                roadmapId: id,
-                outcome: 'error',
-                status: 500,
-                reason: 'read-version-failed',
-                baseVersion: patch.baseVersion,
-                actor: auth.sessionUser,
-            });
-            return NextResponse.json({ error: 'Failed to read roadmap version' }, { status: 500 });
-        }
-
-        if (!row?.content) {
-            return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
-        }
-
-        const versionCheck = validateBaseVersion(
-            patch.baseVersion,
-            typeof row.updated_at === 'string' ? row.updated_at : null
-        );
-        if (!versionCheck.ok) {
-            logRoadmapSaveTelemetry({
-                route: 'admin-patch',
-                roadmapId: id,
-                outcome: versionCheck.status === 409 ? 'conflict' : 'rejected',
-                status: versionCheck.status,
-                reason: versionCheck.status === 409 ? 'stale-base-version' : 'missing-base-version',
-                baseVersion: patch.baseVersion,
-                serverVersion: versionCheck.payload.serverVersion ?? null,
-                actor: auth.sessionUser,
-            });
-            return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
-        }
-
-        const currentVersion = versionCheck.currentVersion;
-        const currentDoc = sanitizeSharedRoadmapDocument(row.content as RoadmapDocument);
-        let nextDoc: RoadmapDocument;
+        const updatedAt = new Date().toISOString();
 
         if (patch.kind === 'milestones') {
             const validation = validateNormalizedMilestones(patch.milestones);
@@ -137,90 +90,55 @@ export async function PATCH(
                     outcome: 'rejected',
                     status: 400,
                     reason: 'invalid-milestones',
-                    baseVersion: patch.baseVersion,
                     actor: auth.sessionUser,
                 });
                 return NextResponse.json({ error: validation.error }, { status: 400 });
             }
 
-            nextDoc = {
-                ...currentDoc,
-                milestones: validation.milestones,
-            };
+            // Delete old milestones and insert new ones
+            await supabase.from('roadmap_milestones').delete().eq('roadmap_id', id);
+            if (validation.milestones.length > 0) {
+                const { error: msError } = await supabase
+                    .from('roadmap_milestones')
+                    .insert(validation.milestones.map((m, i) => ({
+                        roadmap_id: id,
+                        milestone_id: m.id,
+                        sort_order: i,
+                        label: m.label,
+                        start_date: m.startDate,
+                        end_date: m.endDate,
+                        color: m.color,
+                        updated_at: updatedAt,
+                    })));
+                if (msError) {
+                    return NextResponse.json({ error: 'Failed to save milestones', message: msError.message }, { status: 500 });
+                }
+            }
+
+            // Update roadmaps.updated_at
+            await supabase.from('roadmaps').update({ updated_at: updatedAt }).eq('id', id);
         } else {
             const releaseName = patch.releaseName.trim();
             if (!releaseName) {
-                logRoadmapSaveTelemetry({
-                    route: 'admin-patch',
-                    roadmapId: id,
-                    outcome: 'rejected',
-                    status: 400,
-                    reason: 'invalid-release-name',
-                    baseVersion: patch.baseVersion,
-                    actor: auth.sessionUser,
-                });
                 return NextResponse.json({ error: 'Release name is required' }, { status: 400 });
             }
 
-            nextDoc = {
-                ...currentDoc,
-                releaseName,
-            };
+            // Update release name directly in roadmaps table
+            const { error: metaError } = await supabase
+                .from('roadmaps')
+                .update({ release_name: releaseName, updated_at: updatedAt })
+                .eq('id', id);
+
+            if (metaError) {
+                return NextResponse.json({ error: 'Failed to update release name', message: metaError.message }, { status: 500 });
+            }
         }
 
-        const updatedAt = new Date().toISOString();
-        let saveQuery = supabase
-            .from('roadmap_data')
-            .update({
-                content: nextDoc,
-                updated_at: updatedAt,
-            })
-            .eq('id', id);
+        // Regenerate JSON blob backup
+        await regenerateJsonBlob(id);
 
-        saveQuery = currentVersion
-            ? saveQuery.eq('updated_at', currentVersion)
-            : saveQuery.is('updated_at', null);
-
-        const { data: savedRow, error: saveError } = await saveQuery
-            .select('updated_at')
-            .maybeSingle();
-
-        if (saveError) {
-            logRoadmapSaveTelemetry({
-                route: 'admin-patch',
-                roadmapId: id,
-                outcome: 'error',
-                status: 500,
-                reason: 'conditional-update-failed',
-                baseVersion: patch.baseVersion,
-                actor: auth.sessionUser,
-            });
-            return NextResponse.json({ error: 'Failed to save roadmap', message: saveError.message }, { status: 500 });
-        }
-
-        if (!savedRow) {
-            const { data: latestRow } = await supabase
-                .from('roadmap_data')
-                .select('updated_at')
-                .eq('id', id)
-                .maybeSingle();
-
-            const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
-            logRoadmapSaveTelemetry({
-                route: 'admin-patch',
-                roadmapId: id,
-                outcome: 'conflict',
-                status: 409,
-                reason: 'conditional-update-miss',
-                baseVersion: patch.baseVersion,
-                serverVersion,
-                actor: auth.sessionUser,
-            });
-
-            return NextResponse.json(buildVersionConflictPayload(serverVersion), { status: 409 });
-        }
-
-        const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
+        // Reload document to return
+        const document = await loadRoadmapDocumentFromRows(id);
 
         logRoadmapSaveTelemetry({
             route: 'admin-patch',
@@ -228,19 +146,14 @@ export async function PATCH(
             outcome: 'success',
             status: 200,
             reason: patch.kind,
-            baseVersion: patch.baseVersion,
-            serverVersion: persistedVersion,
+            serverVersion: updatedAt,
             actor: auth.sessionUser,
         });
 
-        return NextResponse.json({ success: true, document: nextDoc, updatedAt: persistedVersion });
+        return NextResponse.json({ success: true, document, updatedAt });
     } catch (err) {
         let roadmapId = 'unknown';
-        try {
-            roadmapId = (await params).id;
-        } catch {
-            roadmapId = 'unknown';
-        }
+        try { roadmapId = (await params).id; } catch { /* */ }
         logRoadmapSaveTelemetry({
             route: 'admin-patch',
             roadmapId,
