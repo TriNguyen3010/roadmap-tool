@@ -127,6 +127,7 @@ const DONE_STATUSES: ItemStatus[] = [
     'BA Done',
     'PD Done Visual',
     'PD Done UI/UX',
+    'Done',
 ];
 
 const deriveStatusFromChildren = (children: RoadmapItem[]): ItemStatus => {

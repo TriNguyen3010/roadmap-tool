@@ -179,6 +179,11 @@ const STATUS_BAR_COLOR: Record<string, string> = {
   'Growth Handle':     '#4ade80',
   'Growth Start':      '#22c55e',
   'Growth Done':       '#16a34a',
+  // Generic
+  'To do':             '#94a3b8',
+  'In progress':       '#3b82f6',
+  'Pending':           '#f59e0b',
+  'Done':              '#22c55e',
 };
 
 const STATUS_TAG_BG: Record<string, string> = {
@@ -215,6 +220,11 @@ const STATUS_TAG_BG: Record<string, string> = {
   'Growth Handle':     '#dcfce7',
   'Growth Start':      '#bbf7d0',
   'Growth Done':       '#86efac',
+  // Generic
+  'To do':             '#f1f5f9',
+  'In progress':       '#dbeafe',
+  'Pending':           '#fef3c7',
+  'Done':              '#dcfce7',
 };
 const STATUS_TAG_TEXT: Record<string, string> = {
   'Not Started':       '#374151',
@@ -250,6 +260,11 @@ const STATUS_TAG_TEXT: Record<string, string> = {
   'Growth Handle':     '#166534',
   'Growth Start':      '#14532d',
   'Growth Done':       '#14532d',
+  // Generic
+  'To do':             '#475569',
+  'In progress':       '#1e40af',
+  'Pending':           '#92400e',
+  'Done':              '#166534',
 };
 
 

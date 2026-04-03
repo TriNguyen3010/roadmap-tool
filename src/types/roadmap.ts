@@ -33,7 +33,12 @@ export type ItemStatus =
   // Growth
   | 'Growth Handle'
   | 'Growth Start'
-  | 'Growth Done';
+  | 'Growth Done'
+  // Generic
+  | 'To do'
+  | 'In progress'
+  | 'Pending'
+  | 'Done';
 export type StatusMode = 'auto' | 'manual';
 export type ColumnWidthMode = 'auto' | 'manual';
 export type TimelineMode = 'day' | 'week' | 'month';
@@ -82,6 +87,11 @@ export const STATUS_OPTIONS: ItemStatus[] = [
   'Growth Handle',
   'Growth Start',
   'Growth Done',
+  // Generic
+  'To do',
+  'In progress',
+  'Pending',
+  'Done',
 ];
 export const GROUP_ITEM_TYPE_OPTIONS: GroupItemType[] = ['Feature', 'Improvement', 'Bug', 'Growth Camp'];
 
@@ -177,12 +187,12 @@ export function normalizeItemStatus(status: string | undefined | null): ItemStat
   if (Object.prototype.hasOwnProperty.call(LEGACY_STATUS_MAP, status)) {
     return LEGACY_STATUS_MAP[status];
   }
-  // Handle very old single-word values
-  if (status === 'In Progress') return 'FE Start';
-  if (status === 'Done') return 'QC Done - Pro';
+  // Accept any current valid status (including new generic ones like 'Done', 'In progress')
   if (ITEM_STATUS_SET.has(status as ItemStatus)) {
     return status as ItemStatus;
   }
+  // Handle very old single-word values that are NOT valid current statuses
+  if (status === 'In Progress') return 'FE Start';
   return 'Not Started';
 }
 

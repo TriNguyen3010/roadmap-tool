@@ -96,6 +96,7 @@ const SUMMARY_GROUP_STATUSES: ItemStatus[] = [
   'BE Handle', 'BE Start', 'BE Done',
   'DevOps Handle', 'DevOps Start', 'DevOps Done',
   'QC Handle', 'QC Start', 'QC Done - Staging', 'QC Done - Pro',
+  'To do', 'In progress', 'Pending', 'Done',
   'Not Started',
   'None',
 ];
