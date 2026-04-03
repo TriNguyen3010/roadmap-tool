@@ -382,6 +382,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
     const [openStatusId, setOpenStatusId] = useState<string | null>(null);
     const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
+    const [dropdownDir, setDropdownDir] = useState<'up' | 'down'>('up');
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
     const [dateMiniPopup, setDateMiniPopup] = useState<{
         itemId: string;
@@ -465,6 +466,12 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             else next.add(id);
             return next;
         });
+    };
+
+    /** Detect whether a dropdown should open upward or downward based on cell position. */
+    const detectDropdownDir = (e: React.MouseEvent): 'up' | 'down' => {
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        return rect.top < 220 ? 'down' : 'up';
     };
 
     const phaseOptions: PhaseOption[] = useMemo(() => {
@@ -1418,8 +1425,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const isDateInlineEditable = useCallback((row: FlattenedItem): boolean => {
         if (!getRowPermission(row.id).canEditDates) return false;
         const hasNonTeamChildren = !!(row.children && row.children.some(child => child.type !== 'team'));
-        const isCategoryManual = row.type === 'category' && row.statusMode === 'manual';
-        return !hasNonTeamChildren || isCategoryManual;
+        const isManualMode = row.statusMode === 'manual';
+        return !hasNonTeamChildren || isManualMode;
     }, [getRowPermission]);
 
     const openDateMiniPopup = useCallback((
@@ -1504,7 +1511,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     }, []);
 
     // ── Computed total left pane width ──
-    const totalLeftW = COL_ID_W + nameW
+    const totalLeftW = nameW
         + (showWorkType ? COL_WORK_TYPE_W : 0)
         + (showPriority ? COL_PRIORITY_W : 0)
         + statusW
@@ -1515,7 +1522,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const TOTAL_HEADER_H = MILESTONE_HEADER_H + ROW_HEIGHT + ROW_HEIGHT;
 
     // Grid template for left pane rows/header
-    const gridTemplate = `${COL_ID_W}px ${nameW}px`
+    const gridTemplate = `${nameW}px`
         + (showWorkType ? ` ${COL_WORK_TYPE_W}px` : '')
         + (showPriority ? ` ${COL_PRIORITY_W}px` : '')
         + ` ${statusW}px`
@@ -1767,11 +1774,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     className="shrink-0 border-b-2 border-gray-500 bg-gray-300 grid text-[11px] font-bold text-gray-700 select-none relative"
                     style={{ gridTemplateColumns: gridTemplate, height: TOTAL_HEADER_H }}
                 >
-                    {/* ID */}
-                    <div className="flex items-center justify-center border-r border-gray-400 relative">
-                        ID
-                    </div>
-
                     {/* FEATURES – resize handle on right */}
                     <div className="flex items-center px-2 border-r border-gray-400 relative group/col">
                         FEATURES
@@ -1974,28 +1976,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 onDragEnd={canDragRow ? handleDragEnd : undefined}
                             >
 
-                                {/* ID cell */}
-                                <div
-                                    className={`flex items-center justify-center border-r border-gray-300 text-[10px] select-none transition-colors cursor-pointer ${hasChildren ? 'hover:bg-indigo-50' : 'hover:bg-red-50'
-                                        }`}
-                                    onClick={() => hasChildren ? toggleExpand(row.id) : toggleHideRow(row.id)}
-                                    title={hasChildren
-                                        ? (isExpanded ? 'Thu gọn children' : 'Mở rộng children')
-                                        : 'Click để ẩn dòng này'
-                                    }
-                                >
-                                    {hasChildren ? (
-                                        <span className={`font-black text-[13px] leading-none select-none ${isExpanded ? 'text-indigo-400' : 'text-indigo-600'
-                                            }`}>
-                                            {isExpanded ? '−' : '+'}
-                                        </span>
-                                    ) : (
-                                        <span className="text-[12px] text-gray-300 group-hover:text-red-400 transition-colors select-none font-black leading-none">
-                                            −
-                                        </span>
-                                    )}
-                                </div>
-
                                 {/* Name + subcategoryType badge */}
                                 <div
                                     className="flex items-center border-r border-gray-300 cursor-pointer select-none gap-1 overflow-hidden"
@@ -2025,7 +2005,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         </button>
                                     )}
                                     {hasChildren
-                                        ? (isExpanded ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />)
+                                        ? (
+                                            <button
+                                                type="button"
+                                                className="shrink-0 flex items-center justify-center w-[14px] h-[14px] rounded hover:bg-gray-200 transition-colors"
+                                                title={isExpanded ? 'Thu gọn' : 'Mở rộng'}
+                                                onClick={(e) => { e.stopPropagation(); toggleExpand(row.id); }}
+                                            >
+                                                {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                            </button>
+                                        )
                                         : <span className="w-[14px] shrink-0" />}
                                     {shouldShowGroupInlinePhase && (
                                         <div className="mr-0.5 flex shrink-0 items-center gap-1">
@@ -2105,6 +2094,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             setOpenPriorityId(null);
                                             setOpenStatusId(null);
                                             setOpenPhaseId(null);
+                                            setDropdownDir(detectDropdownDir(e));
                                             setOpenWorkTypeId(openWorkTypeId === row.id ? null : row.id);
                                         }}
                                     >
@@ -2126,7 +2116,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         {canEditStructure && row.type === 'group' && openWorkTypeId === row.id && (
                                             <div
                                                 data-worktype-dropdown="true"
-                                                className="absolute bottom-full left-0 z-50 mb-1 min-w-[150px] rounded border border-gray-200 bg-white shadow-lg"
+                                                className={`absolute ${dropdownDir === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 min-w-[150px] rounded border border-gray-200 bg-white shadow-lg`}
                                             >
                                                 <div className="max-h-52 overflow-auto py-1">
                                                     {GROUP_ITEM_TYPE_OPTIONS.map(typeOption => (
@@ -2180,6 +2170,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             setOpenWorkTypeId(null);
                                             setOpenStatusId(null);
                                             setOpenPhaseId(null);
+                                            setDropdownDir(detectDropdownDir(e));
                                             setOpenPriorityId(openPriorityId === row.id ? null : row.id);
                                         }}
                                         >
@@ -2193,7 +2184,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                 {normalizedRowPriority ?? '—'}
                                             </span>
                                             {canEditStructure && openPriorityId === row.id && (
-                                                <div data-priority-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]">
+                                                <div data-priority-dropdown="true" className={`absolute ${dropdownDir === 'up' ? 'bottom-full' : 'top-full'} left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]`}>
                                                     {PRIORITY_LEVELS.map(p => {
                                                         const dropdownColor: Record<string, string> = {
                                                             High: '#dc2626',
@@ -2246,6 +2237,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         setOpenWorkTypeId(null);
                                         setOpenPriorityId(null);
                                         setOpenPhaseId(null);
+                                        setDropdownDir(detectDropdownDir(e));
                                         setOpenStatusId(openStatusId === row.id ? null : row.id);
                                     }}
                                     title={row.statusMode === 'auto'
@@ -2263,7 +2255,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         </span>
                                     )}
                                     {isStatusInlineEditable && openStatusId === row.id && (
-                                        <div data-status-dropdown="true" className="absolute bottom-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[188px]">
+                                        <div data-status-dropdown="true" className={`absolute ${dropdownDir === 'up' ? 'bottom-full' : 'top-full'} left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[188px]`}>
                                             {STATUS_OPTIONS.map(statusOption => (
                                                 <button
                                                     key={statusOption}
@@ -2304,6 +2296,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             setOpenWorkTypeId(null);
                                             setOpenPriorityId(null);
                                             setOpenStatusId(null);
+                                            setDropdownDir(detectDropdownDir(e));
                                             setOpenPhaseId(openPhaseId === row.id ? null : row.id);
                                         }}
                                     >
@@ -2329,7 +2322,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         {canEditStructure && openPhaseId === row.id && phaseOptions.length > 0 && (
                                             <div
                                                 data-phase-dropdown="true"
-                                                className="absolute bottom-full left-0 z-50 mb-1 min-w-[200px] max-w-[260px] rounded border border-gray-200 bg-white shadow-lg"
+                                                className={`absolute ${dropdownDir === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 min-w-[200px] max-w-[260px] rounded border border-gray-200 bg-white shadow-lg`}
                                             >
                                                 <div className="max-h-52 overflow-auto py-1">
                                                     {phaseOptions.map((phase, index) => {
