@@ -221,6 +221,8 @@ export default function RoadmapPage() {
     serverVersion: string | null;
   } | null>(null);
   const [hasStoredConflictDraft, setHasStoredConflictDraft] = useState(false);
+  const [storageMode, setStorageMode] = useState<'json' | 'table' | null>(null);
+  const isTableMode = storageMode === 'table';
   const currentVersionRef = useRef<string | null>(null);
   const saveInFlightRef = useRef(false);
   const latestLoadedSettingsRef = useRef<Partial<RoadmapViewSettings> | null>(null);
@@ -472,6 +474,9 @@ export default function RoadmapPage() {
       const res = await fetch(`/api/roadmap/${roadmapId}/version`, { cache: 'no-store' });
       if (!res.ok) return null;
       const payload = await res.json().catch(() => ({}));
+      if (payload?.storageMode === 'json' || payload?.storageMode === 'table') {
+        setStorageMode(payload.storageMode);
+      }
       return typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
     } catch {
       return null;
@@ -657,10 +662,20 @@ export default function RoadmapPage() {
     }
 
     if (!isVersionNewer(latestVersion, currentVersion)) return;
+
+    // Table-based: auto-reload silently when no unsaved changes; skip if save in flight
+    if (isTableMode) {
+      if (!saveInFlightRef.current && !hasUnsavedSharedChanges) {
+        currentVersionRef.current = latestVersion;
+        void loadRoadmap();
+      }
+      return;
+    }
+
     if (isMatchingVersion(dismissedVersion, latestVersion)) return;
 
     setPendingRemoteVersion(latestVersion);
-  }, [dismissedVersion, fetchRoadmapVersion]);
+  }, [dismissedVersion, fetchRoadmapVersion, hasUnsavedSharedChanges, isTableMode, loadRoadmap]);
 
   useEffect(() => {
     if (!roadmapId || loading || (!authUser && !guestMode)) return;
@@ -698,8 +713,8 @@ export default function RoadmapPage() {
             // Skip realtime events triggered by our own save — the HTTP response
             // handler will update currentVersionRef and clear pendingRemoteVersion.
             if (saveInFlightRef.current) return;
-            setDismissedVersion(null);
-            setPendingRemoteVersion(nextVersion);
+            // Delegate to checkRemoteVersion which handles table-mode auto-reload
+            void checkRemoteVersion();
           }
         )
         .subscribe((status: string) => {
@@ -818,6 +833,9 @@ export default function RoadmapPage() {
   }, [fetchRoadmapVersion]);
 
   const ensureCanSaveCurrentVersion = useCallback(() => {
+    // Table-based storage uses last-write-wins — no conflict blocking needed
+    if (isTableMode) return true;
+
     if (conflictState) {
       addToast('Roadmap đang bị conflict với bản mới hơn trên hệ thống. Hãy tải bản mới nhất trước khi lưu tiếp.', 'error');
       return false;
@@ -829,7 +847,7 @@ export default function RoadmapPage() {
     }
 
     return true;
-  }, [addToast, conflictState, dismissedVersion, pendingRemoteVersion]);
+  }, [addToast, conflictState, dismissedVersion, isTableMode, pendingRemoteVersion]);
 
   const handleSaveViewPreferences = useCallback(() => {
     persistCurrentViewSettings();
@@ -1497,7 +1515,7 @@ export default function RoadmapPage() {
       if (!confirmed) return;
     }
 
-    if (data) {
+    if (data && !isTableMode) {
       persistConflictDraft(buildJsonBackupSnapshot(data));
       addToast('Đã lưu local draft tạm trước khi tải bản mới nhất.', 'info');
     }
@@ -1506,20 +1524,25 @@ export default function RoadmapPage() {
     if (loaded) {
       addToast('Đã tải phiên bản mới nhất từ hệ thống.', 'success');
     }
-  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, loadRoadmap, persistConflictDraft, showConfirm]);
+  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, isTableMode, loadRoadmap, persistConflictDraft, showConfirm]);
 
   const handleBackToHome = useCallback(async () => {
     if (hasUnsavedSharedChanges) {
-      const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local trước khi quay về trang chủ. Tiếp tục?');
-      if (!confirmed) return;
-      if (data) {
-        persistConflictDraft(buildJsonBackupSnapshot(data));
-        addToast('Đã lưu local draft tạm trước khi quay về trang chủ.', 'info');
+      if (isTableMode) {
+        const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. Bạn có muốn quay về trang chủ?');
+        if (!confirmed) return;
+      } else {
+        const confirmed = await showConfirm('Đang có thay đổi local chưa lưu. App sẽ lưu tạm một backup local trước khi quay về trang chủ. Tiếp tục?');
+        if (!confirmed) return;
+        if (data) {
+          persistConflictDraft(buildJsonBackupSnapshot(data));
+          addToast('Đã lưu local draft tạm trước khi quay về trang chủ.', 'info');
+        }
       }
     }
 
     router.push('/');
-  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, persistConflictDraft, router, showConfirm]);
+  }, [addToast, buildJsonBackupSnapshot, data, hasUnsavedSharedChanges, isTableMode, persistConflictDraft, router, showConfirm]);
 
   if (loading || !data) {
     return (
@@ -1593,7 +1616,7 @@ export default function RoadmapPage() {
         />
       )}
 
-      {hasStoredConflictDraft && (
+      {!isTableMode && hasStoredConflictDraft && (
         <div className="shrink-0 border-b border-sky-300 bg-sky-50 px-3 py-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-medium text-sky-800">
@@ -1619,7 +1642,7 @@ export default function RoadmapPage() {
         </div>
       )}
 
-      {conflictState && (
+      {!isTableMode && conflictState && (
         <div className="shrink-0 border-b border-rose-300 bg-rose-50 px-3 py-2">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -1650,7 +1673,7 @@ export default function RoadmapPage() {
         </div>
       )}
 
-      {!conflictState && pendingRemoteVersion && (
+      {!isTableMode && !conflictState && pendingRemoteVersion && (
         <div className="shrink-0 border-b border-amber-300 bg-amber-50 px-3 py-2">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs font-medium text-amber-800">

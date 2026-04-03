@@ -21,7 +21,7 @@ export async function GET(
                 .single();
             if (error) throw error;
             return NextResponse.json(
-                { updatedAt: typeof data.updated_at === 'string' ? data.updated_at : null },
+                { updatedAt: typeof data.updated_at === 'string' ? data.updated_at : null, storageMode: 'json' },
                 { headers: { 'Cache-Control': 'no-store' } }
             );
         }
@@ -29,7 +29,7 @@ export async function GET(
         // Table-based: read from roadmaps table
         const updatedAt = await loadRoadmapVersion(id);
         return NextResponse.json(
-            { updatedAt },
+            { updatedAt, storageMode: 'table' },
             { headers: { 'Cache-Control': 'no-store' } }
         );
     } catch (error) {
