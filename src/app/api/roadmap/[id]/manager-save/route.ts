@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase';
 import { authenticateTeamRequest } from '@/lib/serverTeamAuth';
 import { isAdminLevel, type AuthManagerTeam } from '@/types/auth';
-import { TEAM_ROLES, type ItemStatus } from '@/types/roadmap';
+import { TEAM_ROLES, type RoadmapDocument, type ItemStatus } from '@/types/roadmap';
+import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
+import { applyChangesToTree, validateManagerChanges } from '@/utils/permissionCheck';
+import { normalizeRoadmapItemTimestamps, recalculateRoadmap } from '@/utils/roadmapHelpers';
+import { resolveManagerSaveRequest, sanitizeSharedRoadmapDocument, validateBaseVersion } from '@/utils/roadmapSaveFlow';
 import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
 import {
+    getStorageMode,
     loadItemWithAncestors,
     loadRoadmapDocumentFromRows,
     updateItemFields,
@@ -17,10 +23,8 @@ export const runtime = 'nodejs';
 const MANAGER_ALLOWED_FIELDS = new Set(['status', 'startDate', 'endDate', 'quickNote']);
 
 /**
- * POST /api/roadmap/[id]/manager-save — Manager row-level save (table-based, last-write-wins).
- *
- * Receives field-level changes, validates team permissions per-row,
- * and updates individual rows in roadmap_items. No document-level locking.
+ * POST /api/roadmap/[id]/manager-save — Manager save.
+ * Routes to legacy JSON flow or table-based flow based on storage_mode.
  */
 export async function POST(
     request: NextRequest,
@@ -42,12 +46,17 @@ export async function POST(
         }
 
         const body = await request.json().catch(() => ({}));
+        const { id: roadmapId } = await params;
+        const mode = await getStorageMode(roadmapId);
+
+        if (mode === 'json') {
+            return managerSaveLegacyJson(roadmapId, managerTeam as AuthManagerTeam, body, auth);
+        }
+
         const changes: Array<{ itemId: string; team?: string; field: string; value: unknown }> = Array.isArray(body?.changes) ? body.changes : [];
         if (changes.length === 0) {
             return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
         }
-
-        const { id: roadmapId } = await params;
         const violations: string[] = [];
 
         // Validate and apply each change as a row-level update
@@ -193,19 +202,71 @@ function resolveItemTeam(
     changeTeam?: string
 ): string | null {
     const item = chain[0];
-
-    // Multi-team: check if the specified team is in assignedTeams
-    if (item.assignedTeams && changeTeam && item.assignedTeams.includes(changeTeam)) {
-        return changeTeam;
-    }
-
-    // Single-team items or team nodes
+    if (item.assignedTeams && changeTeam && item.assignedTeams.includes(changeTeam)) return changeTeam;
     if (item.teamRole) return item.teamRole;
-
-    // Walk up ancestors to find nearest team node
     for (let i = 1; i < chain.length; i++) {
         if (chain[i].teamRole) return chain[i].teamRole!;
     }
-
     return null;
+}
+
+// ── Legacy JSON manager save (optimistic locking + retry) ────────────────────
+
+async function managerSaveLegacyJson(
+    roadmapId: string,
+    managerTeam: AuthManagerTeam,
+    body: Record<string, unknown>,
+    auth: { sessionUser: unknown; member: { team: string; role: string } }
+) {
+    const { changes, baseVersion } = resolveManagerSaveRequest(body);
+    if (changes.length === 0) {
+        return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
+    }
+
+    const MAX_RETRY = 3;
+    let attempt = 0;
+
+    while (attempt < MAX_RETRY) {
+        attempt++;
+
+        const { data: row, error: fetchError } = await supabase
+            .from('roadmap_data').select('content, updated_at').eq('id', roadmapId).maybeSingle();
+        if (fetchError || !row?.content) return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
+
+        if (attempt === 1) {
+            const versionCheck = validateBaseVersion(baseVersion, typeof row.updated_at === 'string' ? row.updated_at : null);
+            if (!versionCheck.ok) return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
+        }
+
+        const currentVersion = typeof row.updated_at === 'string' ? row.updated_at : null;
+        const currentDoc = row.content as RoadmapDocument;
+        const currentItems = normalizeRoadmapItemTimestamps(Array.isArray(currentDoc.items) ? currentDoc.items : []);
+
+        const validation = validateManagerChanges(managerTeam, changes, currentItems);
+        if (!validation.valid) {
+            return NextResponse.json({ error: 'Permission denied', violations: validation.violations }, { status: 403 });
+        }
+
+        const updatedItems = applyChangesToTree(currentItems, changes);
+        const recalculatedItems = recalculateRoadmap(updatedItems);
+        const savedDoc: RoadmapDocument = { ...sanitizeSharedRoadmapDocument(currentDoc), items: recalculatedItems };
+
+        const updatedAt = new Date().toISOString();
+        let saveQuery = supabase.from('roadmap_data').update({ content: savedDoc, updated_at: updatedAt }).eq('id', roadmapId);
+        saveQuery = currentVersion ? saveQuery.eq('updated_at', currentVersion) : saveQuery.is('updated_at', null);
+        const { data: savedRow, error: saveError } = await saveQuery.select('updated_at').maybeSingle();
+
+        if (saveError) return NextResponse.json({ error: 'Failed to save', message: saveError.message }, { status: 500 });
+
+        if (savedRow) {
+            const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
+            logRoadmapSaveTelemetry({ route: 'manager-save', roadmapId, outcome: 'success', status: 200, baseVersion, serverVersion: persistedVersion, changeCount: changes.length, actor: auth.sessionUser });
+            return NextResponse.json({ success: true, document: savedDoc, updatedAt: persistedVersion });
+        }
+    }
+
+    // Retry exhausted
+    const { data: latestRow } = await supabase.from('roadmap_data').select('updated_at').eq('id', roadmapId).maybeSingle();
+    const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
+    return NextResponse.json(buildVersionConflictPayload(serverVersion), { status: 409 });
 }

@@ -1,8 +1,11 @@
 /**
- * Repository layer for table-based roadmap storage.
+ * Repository layer for roadmap storage.
  *
- * Reads from normalized tables (roadmap_items, roadmap_milestones, etc.)
- * and writes back to them directly, then regenerates JSON blob as backup.
+ * Supports two storage modes:
+ *   - 'json'  : legacy — reads/writes roadmap_data.content (single JSON blob)
+ *   - 'table' : new — reads/writes normalized tables (roadmap_items, etc.)
+ *
+ * Use getStorageMode(roadmapId) to determine which mode a roadmap uses.
  */
 
 import { supabase } from '@/lib/supabase';
@@ -16,6 +19,24 @@ import type {
     NormalizedRoadmapRows,
 } from '@/types/roadmapRows';
 import { inflateRoadmapDocumentFromRows, flattenRoadmapDocumentToRows } from '@/utils/roadmapRows';
+
+// ─── Storage mode routing ────────────────────────────────────────────────────
+
+export type StorageMode = 'json' | 'table';
+
+/**
+ * Determine the storage mode for a roadmap.
+ * Returns 'json' for legacy roadmaps, 'table' for new ones.
+ * Defaults to 'json' if roadmap not found (safe fallback for existing data).
+ */
+export async function getStorageMode(roadmapId: string): Promise<StorageMode> {
+    const { data } = await supabase
+        .from('roadmaps')
+        .select('storage_mode')
+        .eq('id', roadmapId)
+        .maybeSingle();
+    return (data?.storage_mode as StorageMode) || 'json';
+}
 
 // ─── Column name mapping (camelCase TS → snake_case DB) ──────────────────────
 

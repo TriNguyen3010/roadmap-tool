@@ -9,6 +9,7 @@ const {
     supabaseMock,
     authenticateAdminRequestMock,
     authenticateTeamRequestMock,
+    getStorageModeMock,
     fullDocumentSyncMock,
     loadItemWithAncestorsMock,
     updateItemFieldsMock,
@@ -18,6 +19,7 @@ const {
     supabaseMock: { from: vi.fn(), rpc: vi.fn() },
     authenticateAdminRequestMock: vi.fn(),
     authenticateTeamRequestMock: vi.fn(),
+    getStorageModeMock: vi.fn(),
     fullDocumentSyncMock: vi.fn(),
     loadItemWithAncestorsMock: vi.fn(),
     updateItemFieldsMock: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('@/lib/serverTeamAuth', () => ({
 }));
 
 vi.mock('@/server/roadmapRowsRepo', () => ({
+    getStorageMode: getStorageModeMock,
     fullDocumentSync: fullDocumentSyncMock,
     loadItemWithAncestors: loadItemWithAncestorsMock,
     updateItemFields: updateItemFieldsMock,
@@ -77,6 +80,8 @@ describe('roadmap save routes (table-based)', () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date('2026-04-02T20:00:00.000Z'));
         vi.clearAllMocks();
+        // Default: all tests use table-based storage mode
+        getStorageModeMock.mockResolvedValue('table');
     });
 
     afterEach(() => {
