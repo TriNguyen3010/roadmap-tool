@@ -188,14 +188,25 @@ const recalculateItem = (rawItem: RoadmapItem): RoadmapItem => {
             overallProgress = Math.round(sumProgress / updatedChildren.length);
         }
 
+        // Respect manual mode: use manualStatus instead of derived status
+        const statusMode: StatusMode = item.statusMode ?? 'auto';
+        const manualStatus: ItemStatus | undefined = statusMode === 'manual'
+            ? normalizeItemStatus(item.manualStatus ?? item.status)
+            : undefined;
+        const effectiveStatus: ItemStatus = statusMode === 'manual'
+            ? (manualStatus || 'None')
+            : overallStatus;
+
         return {
             ...item,
             ...(item.children !== undefined ? { children: updatedChildren } : {}),
             priority: normalizeItemPriority(item.priority),
-            status: overallStatus,
-            startDate: overallDates.startDate,
-            endDate: overallDates.endDate,
-            progress: overallProgress,
+            statusMode,
+            manualStatus,
+            status: effectiveStatus,
+            startDate: statusMode === 'manual' ? item.startDate : overallDates.startDate,
+            endDate: statusMode === 'manual' ? item.endDate : overallDates.endDate,
+            progress: statusMode === 'manual' ? (item.progress || 0) : overallProgress,
         };
     }
 
