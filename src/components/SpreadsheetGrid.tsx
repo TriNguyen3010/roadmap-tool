@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
     ColumnWidthMode,
     GROUP_ITEM_TYPE_OPTIONS,
@@ -382,7 +383,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
     const [openStatusId, setOpenStatusId] = useState<string | null>(null);
     const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
-    const [dropdownDir, setDropdownDir] = useState<'up' | 'down'>('up');
+    const [dropdownAnchorRect, setDropdownAnchorRect] = useState<DOMRect | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
     const [dateMiniPopup, setDateMiniPopup] = useState<{
         itemId: string;
@@ -468,10 +469,9 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         });
     };
 
-    /** Detect whether a dropdown should open upward or downward based on cell position. */
-    const detectDropdownDir = (e: React.MouseEvent): 'up' | 'down' => {
-        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        return rect.top < 220 ? 'down' : 'up';
+    /** Capture the anchor rect from the clicked cell for portal-based dropdowns. */
+    const captureDropdownAnchor = (e: React.MouseEvent) => {
+        setDropdownAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
     };
 
     const phaseOptions: PhaseOption[] = useMemo(() => {
@@ -2094,7 +2094,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             setOpenPriorityId(null);
                                             setOpenStatusId(null);
                                             setOpenPhaseId(null);
-                                            setDropdownDir(detectDropdownDir(e));
+                                            captureDropdownAnchor(e);
                                             setOpenWorkTypeId(openWorkTypeId === row.id ? null : row.id);
                                         }}
                                     >
@@ -2113,46 +2113,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             <span className="mx-auto text-[10px] text-gray-300"> </span>
                                         )}
 
-                                        {canEditStructure && row.type === 'group' && openWorkTypeId === row.id && (
-                                            <div
-                                                data-worktype-dropdown="true"
-                                                className={`absolute ${dropdownDir === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 min-w-[150px] rounded border border-gray-200 bg-white shadow-lg`}
-                                            >
-                                                <div className="max-h-52 overflow-auto py-1">
-                                                    {GROUP_ITEM_TYPE_OPTIONS.map(typeOption => (
-                                                        <button
-                                                            key={typeOption}
-                                                            className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors ${row.groupItemType === typeOption ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                            onMouseDown={e => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                updateFromSource(row.id, source => ({ ...source, groupItemType: typeOption }));
-                                                                setOpenWorkTypeId(null);
-                                                            }}
-                                                        >
-                                                            {typeOption}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                                <div className="border-t border-gray-100">
-                                                    <button
-                                                        className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
-                                                        onMouseDown={e => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            updateFromSource(row.id, source => {
-                                                                const next = { ...source };
-                                                                delete next.groupItemType;
-                                                                return next;
-                                                            });
-                                                            setOpenWorkTypeId(null);
-                                                        }}
-                                                    >
-                                                        Clear
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
 
@@ -2170,7 +2130,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             setOpenWorkTypeId(null);
                                             setOpenStatusId(null);
                                             setOpenPhaseId(null);
-                                            setDropdownDir(detectDropdownDir(e));
+                                            captureDropdownAnchor(e);
                                             setOpenPriorityId(openPriorityId === row.id ? null : row.id);
                                         }}
                                         >
@@ -2183,41 +2143,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             >
                                                 {normalizedRowPriority ?? '—'}
                                             </span>
-                                            {canEditStructure && openPriorityId === row.id && (
-                                                <div data-priority-dropdown="true" className={`absolute ${dropdownDir === 'up' ? 'bottom-full' : 'top-full'} left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[90px]`}>
-                                                    {PRIORITY_LEVELS.map(p => {
-                                                        const dropdownColor: Record<string, string> = {
-                                                            High: '#dc2626',
-                                                            Medium: '#d97706',
-                                                            Low: '#16a34a',
-                                                            Reported: '#be185d',
-                                                        };
-                                                        return (
-                                                            <button key={p} className="text-left text-[11px] px-3 py-1.5 font-bold hover:bg-gray-50 transition-colors"
-                                                                style={{ color: dropdownColor[p] }}
-                                                                onMouseDown={e => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    updateFromSource(row.id, source => ({ ...source, priority: p }));
-                                                                    setOpenPriorityId(null);
-                                                                }}
-                                                            >{p}</button>
-                                                        );
-                                                    })}
-                                                    <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
-                                                        onMouseDown={e => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            updateFromSource(row.id, source => {
-                                                                const next = { ...source };
-                                                                delete next.priority;
-                                                                return next;
-                                                            });
-                                                            setOpenPriorityId(null);
-                                                        }}
-                                                    >Clear</button>
-                                                </div>
-                                            )}
                                         </div>
                                     ) : (
                                         <div className="border-r border-gray-300" style={{ width: COL_PRIORITY_W }} />
@@ -2237,7 +2162,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                         setOpenWorkTypeId(null);
                                         setOpenPriorityId(null);
                                         setOpenPhaseId(null);
-                                        setDropdownDir(detectDropdownDir(e));
+                                        captureDropdownAnchor(e);
                                         setOpenStatusId(openStatusId === row.id ? null : row.id);
                                     }}
                                     title={row.statusMode === 'auto'
@@ -2254,34 +2179,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             {row.status}
                                         </span>
                                     )}
-                                    {isStatusInlineEditable && openStatusId === row.id && (
-                                        <div data-status-dropdown="true" className={`absolute ${dropdownDir === 'up' ? 'bottom-full' : 'top-full'} left-0 z-50 bg-white border border-gray-200 rounded shadow-lg flex flex-col min-w-[188px]`}>
-                                            {STATUS_OPTIONS.map(statusOption => (
-                                                <button
-                                                    key={statusOption}
-                                                    className="text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors"
-                                                    style={statusOption === 'None' ? { color: '#9ca3af' } : { color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
-                                                    onMouseDown={e => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        applyEditableFieldChanges(
-                                                            row.id,
-                                                            [{ itemId: row.id, field: 'status', value: statusOption }],
-                                                            source => ({
-                                                                ...source,
-                                                                statusMode: 'manual',
-                                                                manualStatus: statusOption,
-                                                                status: statusOption,
-                                                            })
-                                                        );
-                                                        setOpenStatusId(null);
-                                                    }}
-                                                >
-                                                    {statusOption === 'None' ? '—' : statusOption}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Week tags */}
@@ -2296,7 +2193,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             setOpenWorkTypeId(null);
                                             setOpenPriorityId(null);
                                             setOpenStatusId(null);
-                                            setDropdownDir(detectDropdownDir(e));
+                                            captureDropdownAnchor(e);
                                             setOpenPhaseId(openPhaseId === row.id ? null : row.id);
                                         }}
                                     >
@@ -2319,61 +2216,6 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             </div>
                                         )}
 
-                                        {canEditStructure && openPhaseId === row.id && phaseOptions.length > 0 && (
-                                            <div
-                                                data-phase-dropdown="true"
-                                                className={`absolute ${dropdownDir === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} left-0 z-50 min-w-[200px] max-w-[260px] rounded border border-gray-200 bg-white shadow-lg`}
-                                            >
-                                                <div className="max-h-52 overflow-auto py-1">
-                                                    {phaseOptions.map((phase, index) => {
-                                                        const isSelected = rowPhaseIdSet.has(phase.id);
-                                                        const weekColor = normalizeWeekColor(phase.color, index);
-                                                        return (
-                                                            <button
-                                                                key={phase.id}
-                                                                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors ${isSelected ? 'font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                                style={isSelected ? { backgroundColor: hexToRgba(weekColor, 0.14), color: weekColor } : undefined}
-                                                                onMouseDown={e => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    updateFromSource(row.id, source => {
-                                                                        const current = new Set(normalizePhaseIds(source.phaseIds));
-                                                                        if (current.has(phase.id)) current.delete(phase.id);
-                                                                        else current.add(phase.id);
-                                                                        const next = { ...source };
-                                                                        const nextPhaseIds = Array.from(current);
-                                                                        if (nextPhaseIds.length > 0) next.phaseIds = nextPhaseIds;
-                                                                        else delete next.phaseIds;
-                                                                        return next;
-                                                                    });
-                                                                }}
-                                                            >
-                                                                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: weekColor }} />
-                                                                <span className={`h-3.5 w-3.5 rounded border text-[10px] leading-[13px] text-center ${isSelected ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
-                                                                <span className="truncate">{phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}</span>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                                <div className="border-t border-gray-100">
-                                                    <button
-                                                        className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
-                                                        onMouseDown={e => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            updateFromSource(row.id, source => {
-                                                                const next = { ...source };
-                                                                delete next.phaseIds;
-                                                                return next;
-                                                            });
-                                                            setOpenPhaseId(null);
-                                                        }}
-                                                    >
-                                                        Clear
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 )}
 
@@ -3306,6 +3148,167 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     onClose={() => setDateMiniPopup(null)}
                 />
             )}
+
+            {/* ── Portal-based dropdown menus (rendered outside scroll container to avoid clipping) ── */}
+            {(() => {
+                const activeId = openWorkTypeId || openPriorityId || openStatusId || openPhaseId;
+                if (!activeId || !dropdownAnchorRect) return null;
+
+                const dir = dropdownAnchorRect.top < 220 ? 'down' : 'up';
+                const style: React.CSSProperties = {
+                    position: 'fixed',
+                    left: dropdownAnchorRect.left,
+                    zIndex: 9999,
+                    ...(dir === 'up'
+                        ? { bottom: window.innerHeight - dropdownAnchorRect.top + 2 }
+                        : { top: dropdownAnchorRect.bottom + 2 }),
+                };
+
+                const activeRow = flattened.find(r => r.id === activeId);
+
+                // WorkType dropdown
+                if (openWorkTypeId && activeRow) {
+                    return createPortal(
+                        <div data-worktype-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg min-w-[150px]" style={style}>
+                            <div className="max-h-52 overflow-auto py-1">
+                                {GROUP_ITEM_TYPE_OPTIONS.map(typeOption => (
+                                    <button
+                                        key={typeOption}
+                                        className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors ${activeRow.groupItemType === typeOption ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                                        onMouseDown={e => {
+                                            e.preventDefault();
+                                            updateFromSource(activeRow.id, source => ({ ...source, groupItemType: typeOption }));
+                                            setOpenWorkTypeId(null);
+                                        }}
+                                    >{typeOption}</button>
+                                ))}
+                            </div>
+                            <div className="border-t border-gray-100">
+                                <button
+                                    className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
+                                    onMouseDown={e => {
+                                        e.preventDefault();
+                                        updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.groupItemType; return next; });
+                                        setOpenWorkTypeId(null);
+                                    }}
+                                >Clear</button>
+                            </div>
+                        </div>,
+                        document.body
+                    );
+                }
+
+                // Priority dropdown
+                if (openPriorityId && activeRow) {
+                    const PRIORITY_COLORS: Record<string, string> = { High: '#dc2626', Medium: '#d97706', Low: '#16a34a', Reported: '#be185d' };
+                    return createPortal(
+                        <div data-priority-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[90px]" style={style}>
+                            {PRIORITY_LEVELS.map(p => (
+                                <button key={p} className="text-left text-[11px] px-3 py-1.5 font-bold hover:bg-gray-50 transition-colors"
+                                    style={{ color: PRIORITY_COLORS[p] }}
+                                    onMouseDown={e => {
+                                        e.preventDefault();
+                                        updateFromSource(activeRow.id, source => ({ ...source, priority: p }));
+                                        setOpenPriorityId(null);
+                                    }}
+                                >{p}</button>
+                            ))}
+                            <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                onMouseDown={e => {
+                                    e.preventDefault();
+                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.priority; return next; });
+                                    setOpenPriorityId(null);
+                                }}
+                            >Clear</button>
+                        </div>,
+                        document.body
+                    );
+                }
+
+                // Status dropdown
+                if (openStatusId && activeRow) {
+                    return createPortal(
+                        <div data-status-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[188px]" style={style}>
+                            {STATUS_OPTIONS.map(statusOption => (
+                                <button
+                                    key={statusOption}
+                                    className="text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors"
+                                    style={statusOption === 'None' ? { color: '#9ca3af' } : { color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
+                                    onMouseDown={e => {
+                                        e.preventDefault();
+                                        applyEditableFieldChanges(
+                                            activeRow.id,
+                                            [{ itemId: activeRow.id, field: 'status', value: statusOption }],
+                                            source => ({
+                                                ...source,
+                                                statusMode: 'manual',
+                                                manualStatus: statusOption,
+                                                status: statusOption,
+                                            })
+                                        );
+                                        setOpenStatusId(null);
+                                    }}
+                                >
+                                    {statusOption === 'None' ? '—' : statusOption}
+                                </button>
+                            ))}
+                        </div>,
+                        document.body
+                    );
+                }
+
+                // Phase dropdown
+                if (openPhaseId && activeRow) {
+                    const activePhaseIdSet = new Set(normalizePhaseIds(activeRow.phaseIds));
+                    return createPortal(
+                        <div data-phase-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg min-w-[200px] max-w-[260px]" style={style}>
+                            <div className="max-h-52 overflow-auto py-1">
+                                {phaseOptions.map((phase, index) => {
+                                    const isSelected = activePhaseIdSet.has(phase.id);
+                                    const weekColor = normalizeWeekColor(phase.color, index);
+                                    return (
+                                        <button
+                                            key={phase.id}
+                                            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors ${isSelected ? 'font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
+                                            style={isSelected ? { backgroundColor: hexToRgba(weekColor, 0.14), color: weekColor } : undefined}
+                                            onMouseDown={e => {
+                                                e.preventDefault();
+                                                updateFromSource(activeRow.id, source => {
+                                                    const current = new Set(normalizePhaseIds(source.phaseIds));
+                                                    if (current.has(phase.id)) current.delete(phase.id);
+                                                    else current.add(phase.id);
+                                                    const next = { ...source };
+                                                    const nextPhaseIds = Array.from(current);
+                                                    if (nextPhaseIds.length > 0) next.phaseIds = nextPhaseIds;
+                                                    else delete next.phaseIds;
+                                                    return next;
+                                                });
+                                            }}
+                                        >
+                                            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: weekColor }} />
+                                            <span className={`h-3.5 w-3.5 rounded border text-[10px] leading-[13px] text-center ${isSelected ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
+                                            <span className="truncate">{phase.label}{!phase.hasSchedule ? ' (Unscheduled)' : ''}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div className="border-t border-gray-100">
+                                <button
+                                    className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
+                                    onMouseDown={e => {
+                                        e.preventDefault();
+                                        updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.phaseIds; return next; });
+                                        setOpenPhaseId(null);
+                                    }}
+                                >Clear</button>
+                            </div>
+                        </div>,
+                        document.body
+                    );
+                }
+
+                return null;
+            })()}
 
         </div>
     );
