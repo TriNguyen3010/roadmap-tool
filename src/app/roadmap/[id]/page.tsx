@@ -202,6 +202,7 @@ export default function RoadmapPage() {
   const [guestMode, setGuestMode] = useState(false);
   const [hasUnsavedSharedChanges, setHasUnsavedSharedChanges] = useState(false);
   const [hasPendingReleaseMetaPatch, setHasPendingReleaseMetaPatch] = useState(false);
+  const [storageMode, setStorageMode] = useState<'json' | 'table' | null>(null);
   const currentVersionRef = useRef<string | null>(null);
   const saveInFlightRef = useRef(false);
   const latestLoadedSettingsRef = useRef<Partial<RoadmapViewSettings> | null>(null);
@@ -401,6 +402,10 @@ export default function RoadmapPage() {
       const res = await fetch(`/api/roadmap/${roadmapId}/version`, { cache: 'no-store' });
       if (!res.ok) return null;
       const payload = await res.json().catch(() => ({}));
+      if (payload?.storageMode === 'json' || payload?.storageMode === 'table') {
+        setStorageMode(payload.storageMode);
+        console.log('[roadmap] storageMode from server:', payload.storageMode);
+      }
       return typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
     } catch {
       return null;
@@ -1407,6 +1412,8 @@ export default function RoadmapPage() {
         isTimelineOnly={timelineOnly}
         onToggleTimelineOnly={() => setTimelineOnly(prev => !prev)}
         onBackToHome={() => { void handleBackToHome(); }}
+        isJsonMode={storageMode === 'json'}
+        onQuickFilterChange={handleFilterChange}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid

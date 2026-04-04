@@ -3,9 +3,14 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
     Save, Download, FileJson, Loader2, Flag, Check,
-    Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft
+    Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft,
+    ChevronsUp, ChevronsDown
 } from 'lucide-react';
 import { normalizeWeekColor, PhaseOption } from '@/types/roadmap';
+import type { QuickFilterState, QuickFilterStatusState, QuickFilterTeamState, QuickFilterPriorityState } from '@/types/quickFilter';
+import QuickFilterStatus from './QuickFilterStatus';
+import QuickFilterTeam from './QuickFilterTeam';
+import QuickFilterPriority from './QuickFilterPriority';
 
 export type QuickViewMode = 'web' | 'app' | 'reported';
 
@@ -66,6 +71,13 @@ interface ToolbarProps {
     isTimelineOnly: boolean;
     onToggleTimelineOnly: () => void;
     onBackToHome?: () => void;
+    isJsonMode?: boolean;
+    quickFilter: QuickFilterState;
+    onQuickFilterStatusChange: (next: QuickFilterStatusState) => void;
+    onQuickFilterTeamChange: (next: QuickFilterTeamState) => void;
+    onQuickFilterPriorityChange: (next: QuickFilterPriorityState) => void;
+    onExpandAll: () => void;
+    onCollapseAll: () => void;
 }
 
 export default function Toolbar({
@@ -76,7 +88,9 @@ export default function Toolbar({
     isGoogleAuthenticated, googleAuthLoading, authLabel, authTeamLabel, onGoogleLogin, onGoogleLogout,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
-    isReportedMode, isTimelineOnly, onToggleTimelineOnly, onBackToHome
+    isReportedMode, isTimelineOnly, onToggleTimelineOnly, onBackToHome,
+    isJsonMode, quickFilter, onQuickFilterStatusChange, onQuickFilterTeamChange, onQuickFilterPriorityChange,
+    onExpandAll, onCollapseAll
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -242,20 +256,60 @@ export default function Toolbar({
                         </div>
                     )}
 
-                    <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
-                        {quickViewButtons.map(button => (
-                            <button
-                                key={button.mode}
-                                onClick={() => onToggleQuickViewMode(button.mode)}
-                                title="Quick filter: kết hợp AND với các filter khác"
-                                className={`h-8 shrink-0 rounded-[9px] border px-3 text-xs font-semibold transition-colors ${button.mode === 'reported' ? 'max-w-[190px] truncate' : ''} ${button.active
-                                    ? 'border-[#F0B90B] bg-[#F0B90B] text-slate-900'
-                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
-                                    }`}
-                            >
-                                {button.label}
-                            </button>
-                        ))}
+                    {isJsonMode ? (
+                        <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                            {quickViewButtons.map(button => (
+                                <button
+                                    key={button.mode}
+                                    onClick={() => onToggleQuickViewMode(button.mode)}
+                                    title="Quick filter: kết hợp AND với các filter khác"
+                                    className={`h-8 shrink-0 rounded-[9px] border px-3 text-xs font-semibold transition-colors ${button.mode === 'reported' ? 'max-w-[190px] truncate' : ''} ${button.active
+                                        ? 'border-[#F0B90B] bg-[#F0B90B] text-slate-900'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                                        }`}
+                                >
+                                    {button.label}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex shrink-0 items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+                            <QuickFilterStatus
+                                state={quickFilter.status}
+                                onChange={onQuickFilterStatusChange}
+                                isDisabled={quickFilter.activeMode !== null && quickFilter.activeMode !== 'status'}
+                            />
+                            <QuickFilterTeam
+                                state={quickFilter.team}
+                                onChange={onQuickFilterTeamChange}
+                                isDisabled={quickFilter.activeMode !== null && quickFilter.activeMode !== 'team'}
+                            />
+                            <QuickFilterPriority
+                                state={quickFilter.priority}
+                                onChange={onQuickFilterPriorityChange}
+                                isDisabled={quickFilter.activeMode !== null && quickFilter.activeMode !== 'priority'}
+                            />
+                        </div>
+                    )}
+
+                    {/* Expand/Collapse All */}
+                    <div className="flex shrink-0 items-center gap-0.5">
+                        <button
+                            type="button"
+                            onClick={onExpandAll}
+                            title="Mở tất cả"
+                            className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800"
+                        >
+                            <ChevronsDown size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onCollapseAll}
+                            title="Đóng tất cả"
+                            className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800"
+                        >
+                            <ChevronsUp size={14} />
+                        </button>
                     </div>
 
                     <button

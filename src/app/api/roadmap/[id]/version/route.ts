@@ -11,6 +11,7 @@ export async function GET(
     try {
         const { id } = await params;
         const mode = await getStorageMode(id);
+        console.log(`[version] roadmap=${id} storageMode=${mode}`);
 
         if (mode === 'json') {
             // Legacy: read from roadmap_data
@@ -21,7 +22,7 @@ export async function GET(
                 .single();
             if (error) throw error;
             return NextResponse.json(
-                { updatedAt: typeof data.updated_at === 'string' ? data.updated_at : null },
+                { updatedAt: typeof data.updated_at === 'string' ? data.updated_at : null, storageMode: 'json' },
                 { headers: { 'Cache-Control': 'no-store' } }
             );
         }
@@ -29,7 +30,7 @@ export async function GET(
         // Table-based: read from roadmaps table
         const updatedAt = await loadRoadmapVersion(id);
         return NextResponse.json(
-            { updatedAt },
+            { updatedAt, storageMode: 'table' },
             { headers: { 'Cache-Control': 'no-store' } }
         );
     } catch (error) {
