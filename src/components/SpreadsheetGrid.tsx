@@ -2596,6 +2596,28 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 className="absolute inset-0"
                                                 style={{ overflow: 'visible' }}
                                             >
+                                                {/* ── Baseline axis: solid line from first dot → timeline end ── */}
+                                                {(() => {
+                                                    const axisBaseline = ROW_HEIGHT - 6;
+                                                    const axisColor = hasActiveInfo ? '#475569' : '#94a3b8';
+                                                    const axisWidth = hasActiveInfo ? 2 : 1.9;
+                                                    const timelineEndX = (timelineLeftOffset + timelineUnits.length * timelineUnitWidth) - segMinLeft;
+
+                                                    // Find leftmost start dot
+                                                    const firstSeg = childSegments.reduce((min, s) => s.left < min.left ? s : min, childSegments[0]);
+                                                    const axisX1 = (firstSeg.left - segMinLeft) + getArcEndpointPadding(firstSeg.width, timelineUnitWidth);
+
+                                                    return timelineEndX > axisX1 ? (
+                                                        <line
+                                                            x1={axisX1} y1={axisBaseline}
+                                                            x2={timelineEndX} y2={axisBaseline}
+                                                            stroke={axisColor}
+                                                            strokeWidth={axisWidth}
+                                                            opacity={1.0}
+                                                            strokeLinecap="round"
+                                                        />
+                                                    ) : null;
+                                                })()}
                                                 {layeredChildSegments.map((seg, index) => {
                                                     const localLeft = seg.left - segMinLeft;
                                                     const arcPad = getArcEndpointPadding(seg.width, timelineUnitWidth);
@@ -2745,6 +2767,22 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     className="absolute inset-0"
                                                     style={{ overflow: 'visible' }}
                                                 >
+                                                    {/* ── Baseline axis for leaf/child arc → solid line to timeline end ── */}
+                                                    {!isSingleDayBar && (() => {
+                                                        const leafAxisY = ROW_HEIGHT - 6;
+                                                        const leafX1 = getArcEndpointPadding(barWidth, timelineUnitWidth);
+                                                        const leafTimelineEndX = (timelineLeftOffset + timelineUnits.length * timelineUnitWidth) - barLeft;
+                                                        return leafTimelineEndX > leafX1 ? (
+                                                            <line
+                                                                x1={leafX1} y1={leafAxisY}
+                                                                x2={leafTimelineEndX} y2={leafAxisY}
+                                                                stroke={hasActiveInfo ? '#475569' : '#94a3b8'}
+                                                                strokeWidth={hasActiveInfo ? 2 : 1.9}
+                                                                opacity={1.0}
+                                                                strokeLinecap="round"
+                                                            />
+                                                        ) : null;
+                                                    })()}
                                                     <TimelineArc
                                                         startX={getArcEndpointPadding(barWidth, timelineUnitWidth)}
                                                         endX={Math.max(getArcEndpointPadding(barWidth, timelineUnitWidth), barWidth - getArcEndpointPadding(barWidth, timelineUnitWidth))}
