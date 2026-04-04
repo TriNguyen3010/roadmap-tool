@@ -63,6 +63,18 @@ import {
 } from '@/utils/phaseDateApply';
 import { getDocumentPermission } from '@/utils/permissions';
 import { buildViewSettingsStorageKey, parseStoredViewSettings, stripViewSettingsFromDocument } from '@/utils/roadmapViewSettings';
+import type {
+    QuickFilterState,
+    QuickFilterStatusState,
+    QuickFilterTeamState,
+    QuickFilterPriorityState,
+    QuickFilterMode,
+} from '@/types/quickFilter';
+import {
+    EMPTY_QUICK_FILTER_STATUS,
+    EMPTY_QUICK_FILTER_TEAM,
+    EMPTY_QUICK_FILTER_PRIORITY,
+} from '@/types/quickFilter';
 
 const DEFAULT_FEATURES_COL_WIDTH = 260;
 const MIN_FEATURES_COL_WIDTH = 120;
@@ -220,6 +232,12 @@ export default function RoadmapPage() {
   const [filterSubcategory, setFilterSubcategory] = useState<string[]>([]);
   const [filterGroupItemType, setFilterGroupItemType] = useState<string[]>([]);
   const [isReportedMode, setIsReportedMode] = useState(false);
+
+  // Quick filter v2 state (mutual exclusion: only one mode active at a time)
+  const [quickFilterMode, setQuickFilterMode] = useState<QuickFilterMode>(null);
+  const [qfStatus, setQfStatus] = useState<QuickFilterStatusState>(EMPTY_QUICK_FILTER_STATUS);
+  const [qfTeam, setQfTeam] = useState<QuickFilterTeamState>(EMPTY_QUICK_FILTER_TEAM);
+  const [qfPriority, setQfPriority] = useState<QuickFilterPriorityState>(EMPTY_QUICK_FILTER_PRIORITY);
 
   const [showWorkType, setShowWorkType] = useState(true);
   const [showPriority, setShowPriority] = useState(true);
@@ -676,26 +694,57 @@ export default function RoadmapPage() {
     setGuestMode(false);
   }, [hasUnsavedSharedChanges, logoutGoogle, showConfirm]);
 
+  // Compute effective filters: quick filter overrides Status/Team/Priority when active
+  const effectiveFilters = useMemo(() => {
+      let effectiveStatus = filterStatus;
+      let effectiveTeam = filterTeam;
+      let effectivePriority = filterPriority;
+
+      if (storageMode !== 'json' && quickFilterMode) {
+          switch (quickFilterMode) {
+              case 'status':
+                  effectiveStatus = qfStatus.statuses;
+                  effectiveTeam = [];
+                  effectivePriority = [];
+                  break;
+              case 'team':
+                  effectiveTeam = qfTeam.teams;
+                  effectiveStatus = qfTeam.statuses;
+                  effectivePriority = [];
+                  break;
+              case 'priority':
+                  effectivePriority = qfPriority.priorities;
+                  effectiveTeam = qfPriority.teams;
+                  effectiveStatus = [];
+                  break;
+          }
+      }
+
+      return {
+          category: filterCategory,
+          status: effectiveStatus,
+          team: effectiveTeam,
+          priority: effectivePriority,
+          phase: filterPhase,
+          subcategory: filterSubcategory,
+          groupItemType: filterGroupItemType,
+      };
+  }, [
+      storageMode, quickFilterMode, qfStatus, qfTeam, qfPriority,
+      filterCategory, filterStatus, filterTeam, filterPriority,
+      filterPhase, filterSubcategory, filterGroupItemType,
+  ]);
+
   const exportVisibleRows = useMemo(() => {
     if (!data) return [];
-    const filters = {
-      category: filterCategory, status: filterStatus, team: filterTeam,
-      priority: filterPriority, phase: filterPhase, subcategory: filterSubcategory,
-      groupItemType: filterGroupItemType,
-    };
-    return getVisibleFlattenedRows(data.items, filters, expandedIds, hiddenRowIds);
-  }, [data, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, expandedIds, hiddenRowIds]);
+    return getVisibleFlattenedRows(data.items, effectiveFilters, expandedIds, hiddenRowIds);
+  }, [data, effectiveFilters, expandedIds, hiddenRowIds]);
 
   const exportSummaryRows = useMemo(() => {
     if (!data) return [];
-    const filters = {
-      category: filterCategory, status: filterStatus, team: filterTeam,
-      priority: filterPriority, phase: filterPhase, subcategory: filterSubcategory,
-      groupItemType: filterGroupItemType,
-    };
-    const filteredItems = filterRoadmapTree(data.items, filters);
+    const filteredItems = filterRoadmapTree(data.items, effectiveFilters);
     return flattenRoadmap(filteredItems);
-  }, [data, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType]);
+  }, [data, effectiveFilters]);
 
   const exportVisibleColumns = useMemo<ExcelExportColumn[]>(() => {
     const cols: ExcelExportColumn[] = [
@@ -1135,6 +1184,36 @@ export default function RoadmapPage() {
     else if (type === 'groupItemType') setFilterGroupItemType(normalizeGroupItemTypeFilter(values));
   }, []);
 
+  const handleQfStatusChange = useCallback((next: QuickFilterStatusState) => {
+      setQfStatus(next);
+      setQuickFilterMode(next.statuses.length > 0 ? 'status' : null);
+  }, []);
+
+  const handleQfTeamChange = useCallback((next: QuickFilterTeamState) => {
+      setQfTeam(next);
+      if (next.teams.length > 0) {
+          setQuickFilterMode('team');
+      } else if (next.statuses.length === 0) {
+          setQuickFilterMode(null);
+      }
+  }, []);
+
+  const handleQfPriorityChange = useCallback((next: QuickFilterPriorityState) => {
+      setQfPriority(next);
+      if (next.priorities.length > 0) {
+          setQuickFilterMode('priority');
+      } else if (next.teams.length === 0) {
+          setQuickFilterMode(null);
+      }
+  }, []);
+
+  const quickFilterState = useMemo<QuickFilterState>(() => ({
+      activeMode: quickFilterMode,
+      status: qfStatus,
+      team: qfTeam,
+      priority: qfPriority,
+  }), [quickFilterMode, qfStatus, qfTeam, qfPriority]);
+
   const handleToggleQuickViewMode = useCallback((mode: QuickViewMode) => {
     if (mode === 'reported') {
       setIsReportedMode(prev => {
@@ -1171,6 +1250,25 @@ export default function RoadmapPage() {
   const handleExitReportedMode = useCallback(() => {
     setIsReportedMode(false);
     setFilterPriority(prev => removeReportedPriority(prev));
+  }, []);
+
+  const handleExpandAll = useCallback(() => {
+      if (!data) return;
+      const ids = new Set<string>();
+      const collect = (items: RoadmapItem[]) => {
+          for (const item of items) {
+              if (item.children?.length) {
+                  ids.add(item.id);
+                  collect(item.children);
+              }
+          }
+      };
+      collect(data.items);
+      setExpandedIds(ids);
+  }, [data]);
+
+  const handleCollapseAll = useCallback(() => {
+      setExpandedIds(new Set());
   }, []);
 
   useEffect(() => {
@@ -1413,7 +1511,12 @@ export default function RoadmapPage() {
         onToggleTimelineOnly={() => setTimelineOnly(prev => !prev)}
         onBackToHome={() => { void handleBackToHome(); }}
         isJsonMode={storageMode === 'json'}
-        onQuickFilterChange={handleFilterChange}
+        quickFilter={quickFilterState}
+        onQuickFilterStatusChange={handleQfStatusChange}
+        onQuickFilterTeamChange={handleQfTeamChange}
+        onQuickFilterPriorityChange={handleQfPriorityChange}
+        onExpandAll={handleExpandAll}
+        onCollapseAll={handleCollapseAll}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
@@ -1428,10 +1531,10 @@ export default function RoadmapPage() {
           timelineOnly={timelineOnly}
           timelineTaskW={timelineTaskWidth}
           setTimelineTaskW={setTimelineTaskWidth}
-          filterCategory={filterCategory}
-          filterStatus={filterStatus}
-          filterTeam={filterTeam}
-          filterPriority={filterPriority}
+          filterCategory={effectiveFilters.category}
+          filterStatus={effectiveFilters.status}
+          filterTeam={effectiveFilters.team}
+          filterPriority={effectiveFilters.priority}
           filterPhase={filterPhase}
           filterSubcategory={filterSubcategory}
           filterGroupItemType={filterGroupItemType}
