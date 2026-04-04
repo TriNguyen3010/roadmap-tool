@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import {
-    ItemStatus,
+    TEAM_ROLES,
     TeamRole,
     normalizeItemPriority,
     normalizePhaseIds,
@@ -42,25 +42,13 @@ export interface BuiltRoadmapExcelFile {
     excelBuffer: ArrayBuffer;
 }
 
-type WindowWithFilePicker = Window & {
-    showSaveFilePicker?: (options?: {
-        suggestedName?: string;
-        types?: Array<{
-            description?: string;
-            accept: Record<string, string[]>;
-        }>;
-    }) => Promise<{
-        createWritable: () => Promise<{
-            write: (data: ArrayBuffer | Blob | Uint8Array) => Promise<void>;
-            close: () => Promise<void>;
-        }>;
-    }>;
-};
 
-interface SummaryRow {
-    featureName: string;
-    groupName: string;
-    status: ItemStatus;
+interface TeamSummaryRow {
+    feature: string;
+    task: string;
+    status: string;
+    startDate: string;
+    endDate: string;
 }
 
 const DEFAULT_COLUMN_WIDTH: Record<ExcelExportColumnId, number> = {
@@ -79,35 +67,17 @@ const DEFAULT_COLUMN_WIDTH: Record<ExcelExportColumnId, number> = {
 
 const LEGACY_COLUMNS: ExcelExportColumn[] = [
     { id: 'id', header: 'ID' },
-    { id: 'name', header: 'Tên' },
+    { id: 'name', header: 'Name' },
     { id: 'note', header: 'Note' },
-    { id: 'type', header: 'Loại' },
-    { id: 'status', header: 'Trạng thái' },
-    { id: 'progress', header: 'Tiến độ (%)' },
-    { id: 'startDate', header: 'Ngày bắt đầu' },
-    { id: 'endDate', header: 'Ngày kết thúc' },
+    { id: 'type', header: 'Type' },
+    { id: 'status', header: 'Status' },
+    { id: 'progress', header: 'Progress (%)' },
+    { id: 'startDate', header: 'Start Date' },
+    { id: 'endDate', header: 'End Date' },
 ];
 
-const SUMMARY_SHEET_NAME = 'Summary by Object';
-const SUMMARY_HEADERS = ['ID', 'Nội dung'];
-const SUMMARY_GROUP_STATUSES: ItemStatus[] = [
-  'FE Handle', 'FE in progress', 'FE Done',
-  'BE Handle', 'BE in progress', 'BE Done',
-  'DevOps Handle', 'DevOps in progress', 'DevOps Done',
-  'QC Handle', 'QC in progress', 'QC Done - Staging', 'QC Done - Pro',
-  'Task To do', 'Task In progress', 'Task Pending', 'Task Done',
-  'Not Started',
-  'None',
-];
-const SUMMARY_FE_STATUSES: ItemStatus[] = ['FE Handle', 'FE in progress', 'FE Done'];
-const SUMMARY_BE_STATUSES: ItemStatus[] = ['BE Handle', 'BE in progress', 'BE Done'];
-const SUMMARY_DEVOPS_STATUSES: ItemStatus[] = ['DevOps Handle', 'DevOps in progress', 'DevOps Done'];
-const SUMMARY_BA_STATUSES: ItemStatus[] = ['BA Handle', 'BA in progress', 'BA Done'];
-const SUMMARY_PD_STATUSES: ItemStatus[] = [
-  'PD Handle', 'PD in progress UI/UX', 'PD in progress Visual', 'PD Done UI/UX', 'PD Done Visual',
-];
-const SUMMARY_QC_STATUSES: ItemStatus[] = ['QC Handle', 'QC in progress', 'QC Done - Staging', 'QC Done - Pro'];
-const SUMMARY_GROWTH_STATUSES: ItemStatus[] = ['Growth Handle', 'Growth in progress', 'Growth Done'];
+const TEAM_SUMMARY_SHEET_NAME = 'Team Summary';
+const TEAM_SUMMARY_HEADERS = ['#', 'Feature', 'Task', 'Status', 'Start', 'End'];
 
 function sanitizeFileBaseName(name: string | undefined): string {
     const fallback = 'roadmap';
@@ -140,7 +110,7 @@ function buildRowById(rows: FlattenedItem[]): Map<string, FlattenedItem> {
 function findAncestorByType(
     row: FlattenedItem,
     rowById: Map<string, FlattenedItem>,
-    targetType: 'category' | 'subcategory' | 'group'
+    targetType: 'category' | 'subcategory' | 'group' | 'item'
 ): FlattenedItem | undefined {
     for (let i = row.parentIds.length - 1; i >= 0; i--) {
         const ancestor = rowById.get(row.parentIds[i]);
@@ -149,194 +119,62 @@ function findAncestorByType(
     return undefined;
 }
 
-function isUnderSubcategory(
-    row: FlattenedItem,
-    rowById: Map<string, FlattenedItem>,
-    subcategoryName: string
-): boolean {
-    const ancestorSubcategory = findAncestorByType(row, rowById, 'subcategory');
-    if (!ancestorSubcategory) return false;
-    return ancestorSubcategory.name.trim().toLowerCase() === subcategoryName.trim().toLowerCase();
-}
-
-function getSummaryGroupName(row: FlattenedItem, rowById: Map<string, FlattenedItem>): string {
-    const categoryAncestor = findAncestorByType(row, rowById, 'category');
-    if (categoryAncestor) return categoryAncestor.name;
-
-    if (row.type === 'group') return row.name;
+function getTeamFeatureName(row: FlattenedItem, rowById: Map<string, FlattenedItem>): string {
     const groupAncestor = findAncestorByType(row, rowById, 'group');
-    if (groupAncestor) return groupAncestor.name;
-    return '—';
+    return groupAncestor?.name || '—';
 }
 
-function buildDescendantTeamRolesByAncestorId(rows: FlattenedItem[]): Map<string, Set<string>> {
-    const teamRolesByAncestor = new Map<string, Set<string>>();
+function getTeamTaskName(row: FlattenedItem, rowById: Map<string, FlattenedItem>): string {
+    const itemAncestor = findAncestorByType(row, rowById, 'item');
+    return itemAncestor?.name || '—';
+}
+
+function buildTeamSummaryByRole(rows: FlattenedItem[]): Map<TeamRole, TeamSummaryRow[]> {
+    const rowById = buildRowById(rows);
+    const result = new Map<TeamRole, TeamSummaryRow[]>();
+
+    for (const role of TEAM_ROLES) {
+        result.set(role, []);
+    }
+
     for (const row of rows) {
         if (row.type !== 'team' || !row.teamRole) continue;
-        for (const ancestorId of row.parentIds) {
-            const roleSet = teamRolesByAncestor.get(ancestorId) || new Set<string>();
-            roleSet.add(row.teamRole);
-            teamRolesByAncestor.set(ancestorId, roleSet);
-        }
+        const entries = result.get(row.teamRole as TeamRole);
+        if (!entries) continue;
+        entries.push({
+            feature: getTeamFeatureName(row, rowById),
+            task: getTeamTaskName(row, rowById),
+            status: row.status || 'None',
+            startDate: row.startDate || '-',
+            endDate: row.endDate || '-',
+        });
     }
-    return teamRolesByAncestor;
+
+    return result;
 }
 
-function buildSummaryRowsByObject(rows: FlattenedItem[]): {
-    app: SummaryRow[];
-    core: SummaryRow[];
-    web: SummaryRow[];
-    teamBa: SummaryRow[];
-    teamPd: SummaryRow[];
-    teamFe: SummaryRow[];
-    teamBe: SummaryRow[];
-    teamDevOps: SummaryRow[];
-    teamQc: SummaryRow[];
-    teamGrowth: SummaryRow[];
-} {
-    const rowById = buildRowById(rows);
-    const descendantTeamRolesByAncestorId = buildDescendantTeamRolesByAncestorId(rows);
-    const matchesStatuses = (row: FlattenedItem, statuses: ItemStatus[]) => statuses.includes(row.status);
-    const hasDescendantTeamRole = (row: FlattenedItem, roles: TeamRole[]) => {
-        const roleSet = descendantTeamRolesByAncestorId.get(row.id);
-        if (!roleSet) return false;
-        return roles.some(role => roleSet.has(role));
-    };
-
-    const app = rows
-        .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'App'))
-        .filter(row => matchesStatuses(row, SUMMARY_GROUP_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const core = rows
-        .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'Core'))
-        .filter(row => matchesStatuses(row, SUMMARY_GROUP_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const web = rows
-        .filter(row => row.type === 'group' && isUnderSubcategory(row, rowById, 'Web'))
-        .filter(row => matchesStatuses(row, SUMMARY_GROUP_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const teamBa = rows
-        .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['BA']))
-        .filter(row => matchesStatuses(row, SUMMARY_BA_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const teamPd = rows
-        .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['PD']))
-        .filter(row => matchesStatuses(row, SUMMARY_PD_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const teamFe = rows
-        .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['FE']))
-        .filter(row => matchesStatuses(row, SUMMARY_FE_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const teamBe = rows
-        .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['BE']))
-        .filter(row => matchesStatuses(row, SUMMARY_BE_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const teamDevOps = rows
-        .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['DevOps']))
-        .filter(row => matchesStatuses(row, SUMMARY_DEVOPS_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const teamQc = rows
-        .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['QC']))
-        .filter(row => matchesStatuses(row, SUMMARY_QC_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    const teamGrowth = rows
-        .filter(row => row.type === 'item')
-        .filter(row => hasDescendantTeamRole(row, ['Growth']))
-        .filter(row => matchesStatuses(row, SUMMARY_GROWTH_STATUSES))
-        .map(row => ({
-            featureName: row.name,
-            groupName: getSummaryGroupName(row, rowById),
-            status: row.status,
-        }));
-
-    return { app, core, web, teamBa, teamPd, teamFe, teamBe, teamDevOps, teamQc, teamGrowth };
-}
-
-function buildSummarySheetData(rows: FlattenedItem[]): (string | number)[][] {
-    const blocks = buildSummaryRowsByObject(rows);
+function buildTeamSummarySheetData(rows: FlattenedItem[]): (string | number)[][] {
+    const teamData = buildTeamSummaryByRole(rows);
     const data: (string | number)[][] = [];
 
-    const buildSummaryContent = (entry: SummaryRow): string => (
-        entry.groupName && entry.groupName !== '—'
-            ? `${entry.groupName}: ${entry.featureName} - [${entry.status}]`
-            : `${entry.featureName} - [${entry.status}]`
-    );
+    // Report timestamp header
+    data.push([`Report generated: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`]);
+    data.push([]);
 
-    const appendBlock = (title: string, entries: SummaryRow[], startIndex = 1): number => {
-        data.push([title, '']);
-        data.push([...SUMMARY_HEADERS]);
+    for (const role of TEAM_ROLES) {
+        const entries = teamData.get(role) || [];
+        data.push([`Team ${role}`]);
+        data.push([...TEAM_SUMMARY_HEADERS]);
         if (entries.length === 0) {
-            data.push(['', 'Không có dữ liệu']);
+            data.push(['', 'No data', '', '', '', '']);
         } else {
             entries.forEach((entry, index) => {
-                data.push([startIndex + index, buildSummaryContent(entry)]);
+                data.push([index + 1, entry.feature, entry.task, entry.status, entry.startDate, entry.endDate]);
             });
         }
         data.push([]);
-        return startIndex + entries.length;
-    };
+    }
 
-    const nextAfterApp = appendBlock('App (Mobile)', blocks.app, 1);
-    appendBlock('Core', blocks.core, nextAfterApp);
-    appendBlock('Web', blocks.web, 1);
-    appendBlock('Team BA', blocks.teamBa, 1);
-    appendBlock('Team PD (Product Design)', blocks.teamPd, 1);
-    appendBlock('Team FE', blocks.teamFe, 1);
-    appendBlock('Team BE', blocks.teamBe, 1);
-    appendBlock('Team DevOps', blocks.teamDevOps, 1);
-    appendBlock('Team QC', blocks.teamQc, 1);
-    appendBlock('Team Growth', blocks.teamGrowth, 1);
     return data;
 }
 
@@ -379,52 +217,18 @@ function getCellValue(
     }
 }
 
-export async function exportRoadmapToExcel(data: RoadmapDocument, options?: ExportRoadmapToExcelOptions): Promise<boolean> {
-    const { fileName, excelBuffer } = buildRoadmapExcelFile(data, options);
-
-    const windowWithFilePicker = window as WindowWithFilePicker;
-    if (typeof windowWithFilePicker.showSaveFilePicker === 'function') {
-        try {
-            const handle = await windowWithFilePicker.showSaveFilePicker({
-                suggestedName: fileName,
-                types: [
-                    {
-                        description: 'Excel Workbook',
-                        accept: {
-                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-                        },
-                    },
-                ],
-            });
-            const writable = await handle.createWritable();
-            await writable.write(excelBuffer);
-            await writable.close();
-            return true;
-        } catch (error) {
-            if (error instanceof DOMException && error.name === 'AbortError') {
-                return false;
-            }
-        }
-    }
-
-    try {
-        const wb = XLSX.read(excelBuffer, { type: 'array' });
-        XLSX.writeFile(wb, fileName, { compression: true });
-        return true;
-    } catch {
-        // Fallback to Blob download if writeFile is blocked/unavailable.
-    }
-
-    const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-    const url = window.URL.createObjectURL(dataBlob);
+export function downloadExcelFile(buffer: ArrayBuffer, fileName: string): void {
+    const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    return true;
+    URL.revokeObjectURL(url);
 }
 
 export function buildRoadmapExcelFile(data: RoadmapDocument, options?: ExportRoadmapToExcelOptions): BuiltRoadmapExcelFile {
@@ -464,17 +268,21 @@ export function buildRoadmapExcelFile(data: RoadmapDocument, options?: ExportRoa
     XLSX.utils.book_append_sheet(wb, ws, 'Roadmap');
 
     if (includeSummary) {
-        const summaryData = buildSummarySheetData(summaryRows);
+        const summaryData = buildTeamSummarySheetData(summaryRows);
         const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
         summaryWs['!cols'] = [
-            { wch: 28 },
-            { wch: 100 },
+            { wch: 5 },   // #
+            { wch: 45 },  // Feature
+            { wch: 40 },  // Task
+            { wch: 20 },  // Status
+            { wch: 12 },  // Start
+            { wch: 12 },  // End
         ];
-        XLSX.utils.book_append_sheet(wb, summaryWs, SUMMARY_SHEET_NAME);
+        XLSX.utils.book_append_sheet(wb, summaryWs, TEAM_SUMMARY_SHEET_NAME);
     }
 
     if (data.milestones?.length) {
-        const msHeaders = ['ID', 'Tên Week', 'Ngày bắt đầu', 'Ngày kết thúc', 'Màu'];
+        const msHeaders = ['ID', 'Week Name', 'Start Date', 'End Date', 'Color'];
         const msData = [
             msHeaders,
             ...data.milestones.map(m => [m.id, m.label, m.startDate, m.endDate, m.color]),
@@ -484,7 +292,7 @@ export function buildRoadmapExcelFile(data: RoadmapDocument, options?: ExportRoa
         XLSX.utils.book_append_sheet(wb, msWs, 'Weeks');
     }
 
-    const modeSuffix = mode === 'current-view' ? 'current-view' : 'full-data';
+    const modeSuffix = mode === 'current-view' ? 'team-summary' : 'full-data';
     const baseName = sanitizeFileBaseName(data.releaseName);
     const fileName = `${baseName}_${modeSuffix}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`;
 

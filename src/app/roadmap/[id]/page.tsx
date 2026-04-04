@@ -38,7 +38,7 @@ import {
   toLegacyImageFields
 } from '@/types/roadmap';
 import type { RoadmapAdminPatchRequest, RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
-import { buildRoadmapExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
+import { buildRoadmapExcelFile, downloadExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
 import {
   buildRoadmapChannelName,
   isVersionNewer,
@@ -98,16 +98,7 @@ function normalizeDateValue(value: string | undefined): string {
   return normalizeMilestoneDateValue(value);
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 0x8000;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
-}
+
 
 function stripQuickViewSubcategories(subcategories: string[]): string[] {
   const next = new Set(subcategories);
@@ -748,15 +739,15 @@ export default function RoadmapPage() {
   const exportVisibleColumns = useMemo<ExcelExportColumn[]>(() => {
     const cols: ExcelExportColumn[] = [
       { id: 'id', header: 'ID' },
-      { id: 'name', header: 'Tên' },
+      { id: 'name', header: 'Name' },
       { id: 'note', header: 'Note' },
     ];
     if (showWorkType) cols.push({ id: 'workType', header: 'WorkType' });
     if (showPriority) cols.push({ id: 'priority', header: 'Priority' });
     cols.push({ id: 'status', header: 'Status' });
     if (showPhase) cols.push({ id: 'phase', header: 'Week' });
-    if (showStartDate) cols.push({ id: 'startDate', header: 'Ngày bắt đầu' });
-    if (showEndDate) cols.push({ id: 'endDate', header: 'Ngày kết thúc' });
+    if (showStartDate) cols.push({ id: 'startDate', header: 'Start Date' });
+    if (showEndDate) cols.push({ id: 'endDate', header: 'End Date' });
     return cols;
   }, [showWorkType, showPriority, showPhase, showStartDate, showEndDate]);
 
@@ -985,7 +976,7 @@ export default function RoadmapPage() {
     roadmapId,
   ]);
 
-  const handleExportExcelCurrentView = async () => {
+  const handleExportExcelCurrentView = () => {
     if (!data) return;
     try {
       const built = buildRoadmapExcelFile(data, {
@@ -995,51 +986,23 @@ export default function RoadmapPage() {
         columns: exportVisibleColumns,
         includeSummary: true,
       });
-
-      const res = await fetch('/api/export/timeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: built.fileName,
-          contentBase64: arrayBufferToBase64(built.excelBuffer),
-        }),
-      });
-
-      if (!res.ok) throw new Error(`Export timeline failed: ${res.status}`);
-      const payload = await res.json().catch(() => ({}));
-      const relativePath = typeof payload?.relativePath === 'string'
-        ? payload.relativePath
-        : `storage/timeline-exports/${built.fileName}`;
-      addToast(`Đã lưu Excel (Current View) vào ${relativePath}`, 'success');
+      downloadExcelFile(built.excelBuffer, built.fileName);
+      addToast(`Exported ${built.fileName}`, 'success');
     } catch (err) {
       console.error(err);
-      addToast('Lỗi khi xuất Excel (Current View).', 'error');
+      addToast('Failed to export Excel (Current View).', 'error');
     }
   };
 
-  const handleExportExcelFullData = async () => {
+  const handleExportExcelFullData = () => {
     if (!data) return;
     try {
       const built = buildRoadmapExcelFile(data, { mode: 'full-data', includeSummary: false });
-
-      const res = await fetch('/api/export/timeline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fileName: built.fileName,
-          contentBase64: arrayBufferToBase64(built.excelBuffer),
-        }),
-      });
-
-      if (!res.ok) throw new Error(`Export timeline failed: ${res.status}`);
-      const payload = await res.json().catch(() => ({}));
-      const relativePath = typeof payload?.relativePath === 'string'
-        ? payload.relativePath
-        : `storage/timeline-exports/${built.fileName}`;
-      addToast(`Đã lưu Excel (Full Data) vào ${relativePath}`, 'success');
+      downloadExcelFile(built.excelBuffer, built.fileName);
+      addToast(`Exported ${built.fileName}`, 'success');
     } catch (err) {
       console.error(err);
-      addToast('Lỗi khi xuất Excel (Full Data).', 'error');
+      addToast('Failed to export Excel (Full Data).', 'error');
     }
   };
 
