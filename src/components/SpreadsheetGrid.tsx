@@ -42,6 +42,11 @@ import TimelineArc from './TimelineArc';
 
 interface GridProps {
     data: RoadmapDocument;
+    reportedData?: RoadmapDocument | null;
+    reportedBridgeReadOnly?: boolean;
+    reportedBridgeLoading?: boolean;
+    reportedBridgeError?: string | null;
+    reportedBridgeLabel?: string | null;
     onDataChange: (newData: RoadmapDocument, shouldSave?: boolean) => void;
     onRootAdd: (newItem: RoadmapItem) => void;
     showConfirm: (message: string) => Promise<boolean>;
@@ -87,6 +92,23 @@ interface GridProps {
     hiddenRowIds: Set<string>;
     setHiddenRowIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
 }
+
+const NO_EDIT_PERMISSION: EditPermission = {
+    canEditStatus: false,
+    canEditDates: false,
+    canEditNotes: false,
+    canEditStructure: false,
+    canEditMilestones: false,
+    canManageRoadmap: false,
+};
+
+const EMPTY_REPORTED_DOCUMENT: RoadmapDocument = {
+    releaseName: '',
+    startDate: '',
+    endDate: '',
+    milestones: [],
+    items: [],
+};
 
 const ROW_HEIGHT = 28;
 const COL_W = 26;
@@ -361,7 +383,7 @@ function getRowDisplayDepth(row: Pick<FlattenedItem, 'depth' | 'type'>): number 
     return displayDepth;
 }
 
-export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
+export default function SpreadsheetGrid({ data, reportedData, reportedBridgeReadOnly = false, reportedBridgeLoading = false, reportedBridgeError = null, reportedBridgeLabel = null, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     timelineMode, timelineOnly, timelineTaskW, setTimelineTaskW,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
     isSaving, saveState, saveTick, currentUser, documentPermission, onManagerFieldChanges,
@@ -413,10 +435,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         message: string;
         startedAtSaveTick: number;
     } | null>(null);
-    const canEditStructure = documentPermission.canEditStructure;
+    const isReportedReadOnly = reportedMode && reportedBridgeReadOnly;
+    const viewData = isReportedReadOnly
+        ? (reportedData ?? EMPTY_REPORTED_DOCUMENT)
+        : (reportedMode && reportedData ? reportedData : data);
+    const effectiveDocumentPermission = isReportedReadOnly ? NO_EDIT_PERMISSION : documentPermission;
+    const canEditStructure = effectiveDocumentPermission.canEditStructure;
     const getRowPermission = useCallback((itemId: string): EditPermission => {
-        return getEditPermission(currentUser, itemId, data.items);
-    }, [currentUser, data.items]);
+        if (isReportedReadOnly) return NO_EDIT_PERMISSION;
+        return getEditPermission(currentUser, itemId, viewData.items);
+    }, [currentUser, isReportedReadOnly, viewData.items]);
     const [isQuickNoteEditing, setIsQuickNoteEditing] = useState(false);
     const [quickNoteDraft, setQuickNoteDraft] = useState('');
     const [quickNoteSaving, setQuickNoteSaving] = useState(false);
@@ -476,7 +504,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     };
 
     const phaseOptions: PhaseOption[] = useMemo(() => {
-        const milestones = data.milestones || [];
+        const milestones = viewData.milestones || [];
         return milestones.map((phase, index) => {
             const id = (phase.id || '').trim() || `phase_${index + 1}`;
             const label = normalizeWeekLabel(phase.label, index);
@@ -484,7 +512,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             const color = normalizeWeekColor(phase.color, index);
             return { id, label, hasSchedule, color };
         });
-    }, [data.milestones]);
+    }, [viewData.milestones]);
 
     const phaseLabelById = useMemo(() => {
         const labelMap = new Map<string, string>();
@@ -525,16 +553,16 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             return Array.from(descendantPhaseSet);
         };
 
-        data.items.forEach(item => {
+        viewData.items.forEach(item => {
             walk(item);
         });
 
         return result;
-    }, [data.items]);
+    }, [viewData.items]);
 
     const flattened: FlattenedItem[] = useMemo(() => {
         return getExpandedFlattenedRows(
-            data.items,
+            viewData.items,
             {
                 category: filterCategory,
                 status: filterStatus,
@@ -546,19 +574,19 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
             },
             expandedIds
         );
-    }, [data.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, expandedIds]);
+    }, [viewData.items, filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, expandedIds]);
 
     const reportedScopeRows = useMemo(() => {
-        const filteredTree = filterRoadmapTree(data.items, {
-            category: filterCategory,
-            status: filterStatus,
-            team: filterTeam,
-            phase: filterPhase,
-            subcategory: filterSubcategory,
-            groupItemType: filterGroupItemType,
+        const filteredTree = filterRoadmapTree(viewData.items, {
+            category: isReportedReadOnly ? [] : filterCategory,
+            status: isReportedReadOnly ? [] : filterStatus,
+            team: isReportedReadOnly ? [] : filterTeam,
+            phase: isReportedReadOnly ? [] : filterPhase,
+            subcategory: isReportedReadOnly ? [] : filterSubcategory,
+            groupItemType: isReportedReadOnly ? [] : filterGroupItemType,
         });
         return flattenRoadmap(filteredTree);
-    }, [data.items, filterCategory, filterStatus, filterTeam, filterPhase, filterSubcategory, filterGroupItemType]);
+    }, [viewData.items, isReportedReadOnly, filterCategory, filterStatus, filterTeam, filterPhase, filterSubcategory, filterGroupItemType]);
 
     const reportedScopeById = useMemo(() => {
         const map = new Map<string, FlattenedItem>();
@@ -588,7 +616,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     const reportedEntries = useMemo(() => {
         return reportedScopeRows
-            .filter(row => (row.type === 'group' || row.type === 'item') && !hiddenRowIds.has(row.id))
+            .filter(row => (row.type === 'group' || row.type === 'item') && (isReportedReadOnly || !hiddenRowIds.has(row.id)))
             .filter(row => normalizeItemPriority(row.priority) === 'Reported')
             .map(row => {
                 const { categoryName, subcategoryName } = getCategoryAndSubcategory(row);
@@ -599,7 +627,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                     images: normalizeItemImages(row),
                 };
             });
-    }, [reportedScopeRows, hiddenRowIds, getCategoryAndSubcategory]);
+    }, [reportedScopeRows, hiddenRowIds, isReportedReadOnly, getCategoryAndSubcategory]);
 
     const reportedReviewCards = useMemo<ReportedReviewCard[]>(() => {
         const cards: ReportedReviewCard[] = reportedEntries.map(entry => {
@@ -659,6 +687,11 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
         if (!exists) setReportedCategoryFilter('__ALL__');
     }, [reportedCategories, reportedCategoryFilter]);
 
+    useEffect(() => {
+        if (!reportedMode || !isReportedReadOnly) return;
+        setReportedCategoryFilter('__ALL__');
+    }, [reportedMode, isReportedReadOnly]);
+
     const selectedReportedCategory = reportedCategoryFilter === '__ALL__' ? null : reportedCategoryFilter;
     const selectedReportedCategoryStat = useMemo(
         () => reportedCategories.find(category => category.name === selectedReportedCategory) || null,
@@ -700,8 +733,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
     const activeNoteItem = useMemo(() => {
         if (!activeNotePreview) return null;
-        return findNodeById(data.items, activeNotePreview.id);
-    }, [activeNotePreview, data.items]);
+        return findNodeById(viewData.items, activeNotePreview.id);
+    }, [activeNotePreview, viewData.items]);
     const activeNotePermission = useMemo(
         () => activeNoteItem ? getRowPermission(activeNoteItem.id) : null,
         [activeNoteItem, getRowPermission]
@@ -710,8 +743,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
     const activeNoteOriginal = activeNoteItem?.quickNote || '';
     const activeImagePreviewItem = useMemo(() => {
         if (!activeImagePreviewId) return null;
-        return findNodeById(data.items, activeImagePreviewId);
-    }, [activeImagePreviewId, data.items]);
+        return findNodeById(viewData.items, activeImagePreviewId);
+    }, [activeImagePreviewId, viewData.items]);
     const activeImagePreviewPermission = useMemo(
         () => activeImagePreviewItem ? getRowPermission(activeImagePreviewItem.id) : null,
         [activeImagePreviewItem, getRowPermission]
@@ -1556,6 +1589,18 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                             <p className="text-[11px] text-slate-500">
                                 {reportedItemsCount} reported · {reportedWithImageCount} có ảnh · {reportedWithoutImageCount} thiếu ảnh
                             </p>
+                            {reportedBridgeLabel && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                                        {reportedBridgeLabel}
+                                    </span>
+                                    {isReportedReadOnly && (
+                                        <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                                            Source: main
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         {/* Quick stats badges */}
                         <div className="flex shrink-0 items-center gap-2">
@@ -1619,9 +1664,24 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                         {/* Content area */}
                         <div className="flex min-h-0 flex-col overflow-hidden">
                             {/* Inline alerts */}
-                            {(!documentPermission.canEditStatus || isSaving || (!isSaving && saveState === 'error') || reportedImageErrorCount > 0 || (reportedMainState === 'ready' && visibleReportedWithoutImageCount > 0)) && (
+                            {(!effectiveDocumentPermission.canEditStatus || isSaving || (!isSaving && saveState === 'error') || reportedImageErrorCount > 0 || (reportedMainState === 'ready' && visibleReportedWithoutImageCount > 0) || reportedBridgeLoading || !!reportedBridgeError || isReportedReadOnly) && (
                                 <div className="flex shrink-0 flex-col gap-1.5 border-b border-slate-200 bg-white px-4 py-2">
-                                    {!documentPermission.canEditStatus && (
+                                    {isReportedReadOnly && (
+                                        <div className="rounded border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-[11px] font-semibold text-sky-700">
+                                            Đang xem dữ liệu Reported từ roadmap main ở chế độ read-only.
+                                        </div>
+                                    )}
+                                    {reportedBridgeLoading && (
+                                        <div className="animate-pulse rounded border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700">
+                                            Đang tải dữ liệu reported...
+                                        </div>
+                                    )}
+                                    {reportedBridgeError && (
+                                        <div className="rounded border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700">
+                                            {reportedBridgeError}
+                                        </div>
+                                    )}
+                                    {!isReportedReadOnly && !effectiveDocumentPermission.canEditStatus && (
                                         <div className="rounded border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-700">
                                             Viewer mode - Dang nhap dung team de chinh status va note.
                                         </div>
@@ -1651,14 +1711,28 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
 
                             {/* Scrollable card grid */}
                             <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                                {reportedMainState === 'no-reported-data' && (
+                                {reportedBridgeLoading && (
+                                    <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-4 text-center">
+                                        <p className="text-sm font-semibold text-slate-700">Đang tải Reported Data</p>
+                                        <p className="mt-1 text-xs text-slate-500">Đang lấy dữ liệu reported từ roadmap main.</p>
+                                    </div>
+                                )}
+
+                                {!reportedBridgeLoading && reportedBridgeError && (
+                                    <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-rose-300 px-4 text-center">
+                                        <p className="text-sm font-semibold text-rose-700">Không tải được Reported Data</p>
+                                        <p className="mt-1 text-xs text-rose-500">{reportedBridgeError}</p>
+                                    </div>
+                                )}
+
+                                {!reportedBridgeLoading && !reportedBridgeError && reportedMainState === 'no-reported-data' && (
                                     <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-4 text-center">
                                         <p className="text-sm font-semibold text-slate-700">No Reported Data</p>
                                         <p className="mt-1 text-xs text-slate-500">Không có item <code>Priority = Reported</code> theo bộ lọc hiện tại.</p>
                                     </div>
                                 )}
 
-                                {reportedMainState === 'empty-category' && (
+                                {!reportedBridgeLoading && !reportedBridgeError && reportedMainState === 'empty-category' && (
                                     <div className="flex h-full min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 px-4 text-center">
                                         <p className="text-sm font-semibold text-slate-700">Empty Category</p>
                                         <p className="mt-1 text-xs text-slate-500">
@@ -1667,7 +1741,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                     </div>
                                 )}
 
-                                {reportedMainState === 'ready' && (
+                                {!reportedBridgeLoading && !reportedBridgeError && reportedMainState === 'ready' && (
                                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                                         {visibleReportedCards.map(card => {
                                             const preview = card.images[0] || null;
@@ -2901,7 +2975,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                 <div className="flex flex-col overflow-hidden border-l border-slate-200 bg-white">
                                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-4">
                                         {/* Feedback messages */}
-                                        {!documentPermission.canEditStatus && (
+                                        {!effectiveDocumentPermission.canEditStatus && (
                                             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
                                                 Viewer mode - Dang nhap dung team de chinh status va note.
                                             </div>

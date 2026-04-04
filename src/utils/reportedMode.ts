@@ -3,6 +3,10 @@ import {
   normalizePriorityFilterValues,
 } from '../types/roadmap';
 
+const REPORTED_SOURCE_OVERRIDES: Record<string, string> = {
+  'a8335e0e-55ec-42c9-920f-d64c32825cc8': 'main',
+};
+
 export function ensureReportedPriority(priorities: string[]): PriorityFilterValue[] {
   if (priorities.includes('Reported')) {
     return normalizePriorityFilterValues(priorities);
@@ -25,4 +29,8 @@ export function toggleReportedMode(
       ? ensureReportedPriority(priorities)
       : removeReportedPriority(priorities),
   };
+}
+
+export function resolveReportedSourceRoadmapId(roadmapId: string): string {
+  return REPORTED_SOURCE_OVERRIDES[roadmapId] || roadmapId;
 }

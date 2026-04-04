@@ -54,6 +54,7 @@ import {
 import {
   ensureReportedPriority,
   removeReportedPriority,
+  resolveReportedSourceRoadmapId,
 } from '@/utils/reportedMode';
 import {
   applyDatesByAllPhases,
@@ -206,6 +207,9 @@ export default function RoadmapPage() {
   const [hasUnsavedSharedChanges, setHasUnsavedSharedChanges] = useState(false);
   const [hasPendingReleaseMetaPatch, setHasPendingReleaseMetaPatch] = useState(false);
   const [storageMode, setStorageMode] = useState<'json' | 'table' | null>(null);
+  const [reportedSourceData, setReportedSourceData] = useState<RoadmapDocument | null>(null);
+  const [reportedSourceLoading, setReportedSourceLoading] = useState(false);
+  const [reportedSourceError, setReportedSourceError] = useState<string | null>(null);
   const currentVersionRef = useRef<string | null>(null);
   const saveInFlightRef = useRef(false);
   const latestLoadedSettingsRef = useRef<Partial<RoadmapViewSettings> | null>(null);
@@ -257,6 +261,11 @@ export default function RoadmapPage() {
   } = useGoogleAuth();
   const documentPermission = useMemo<EditPermission>(() => getDocumentPermission(authUser), [authUser]);
   const canManageRoadmap = documentPermission.canManageRoadmap;
+  const reportedSourceRoadmapId = useMemo(
+    () => resolveReportedSourceRoadmapId(roadmapId),
+    [roadmapId]
+  );
+  const isReportedBridgeActive = isReportedMode && reportedSourceRoadmapId !== roadmapId;
   const viewSettingsScope = useMemo(() => {
     if (authUser?.email) return authUser.email.trim().toLowerCase();
     if (guestMode) return 'guest';
@@ -1301,6 +1310,46 @@ export default function RoadmapPage() {
     setFilterPriority(prev => ensureReportedPriority(prev));
   }, [isReportedMode]);
 
+  useEffect(() => {
+    if (!isReportedBridgeActive) {
+      setReportedSourceLoading(false);
+      setReportedSourceError(null);
+      setReportedSourceData(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadReportedSource = async () => {
+      setReportedSourceLoading(true);
+      setReportedSourceError(null);
+
+      try {
+        const res = await fetch(`/api/roadmap/${reportedSourceRoadmapId}`, { cache: 'no-store' });
+        if (!res.ok) throw new Error('reported source fetch failed');
+
+        const json = await res.json();
+        if (cancelled) return;
+
+        const normalized = normalizeDocument(json as RoadmapDocument);
+        setReportedSourceData(stripViewSettingsFromDocument(normalized));
+      } catch {
+        if (!cancelled) {
+          setReportedSourceData(null);
+          setReportedSourceError('Không thể tải dữ liệu reported từ roadmap main.');
+        }
+      } finally {
+        if (!cancelled) setReportedSourceLoading(false);
+      }
+    };
+
+    void loadReportedSource();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isReportedBridgeActive, normalizeDocument, reportedSourceRoadmapId]);
+
   const handleDataChange = (newData: RoadmapDocument, shouldSave?: boolean) => {
     if (!canManageRoadmap) return;
     const normalized = normalizeDocument(newData);
@@ -1547,6 +1596,11 @@ export default function RoadmapPage() {
         <SpreadsheetGrid
           key={canManageRoadmap ? 'admin-grid' : authUser ? 'manager-grid' : 'viewer-grid'}
           data={data}
+          reportedData={reportedSourceData}
+          reportedBridgeReadOnly={isReportedBridgeActive}
+          reportedBridgeLoading={reportedSourceLoading}
+          reportedBridgeError={reportedSourceError}
+          reportedBridgeLabel={isReportedBridgeActive ? 'Reported' : null}
           onDataChange={handleDataChange}
           onRootAdd={handleRootAdd}
           showConfirm={showConfirm}

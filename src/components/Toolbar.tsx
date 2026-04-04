@@ -312,6 +312,20 @@ export default function Toolbar({
                         </button>
                     </div>
 
+                    {!isJsonMode && (
+                        <button
+                            type="button"
+                            onClick={() => onToggleQuickViewMode('reported')}
+                            title="Quick filter: kết hợp AND với các filter khác"
+                            className={`flex h-8 shrink-0 items-center rounded-[9px] border px-3 text-xs font-semibold transition-colors ${isReportedMode
+                                ? 'border-[#F0B90B] bg-[#F0B90B] text-slate-900'
+                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
+                                }`}
+                        >
+                            Reported
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         onClick={() => {
