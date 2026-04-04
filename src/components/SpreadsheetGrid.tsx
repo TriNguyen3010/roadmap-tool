@@ -103,8 +103,6 @@ const COL_DATE_DEFAULT = 85;
 const GAP_H = 8;       // height of hidden-row gap indicator
 const MIN_TIMELINE_TASK_W = 140;
 const MAX_TIMELINE_TASK_W = 420;
-const ARC_EDGE_PAD = 4;
-
 // Gap render entry type
 type RenderEntry =
     | { kind: 'row'; row: FlattenedItem }
@@ -341,8 +339,11 @@ function countWorkdays(start: Date, end: Date): number {
     return count;
 }
 
-function getArcEndpointPadding(spanWidth: number): number {
-    return Math.min(ARC_EDGE_PAD, Math.max(2, Math.floor(spanWidth / 4)));
+/** Arc endpoints always sit at the center of the boundary day cell. */
+function getArcEndpointPadding(spanWidth: number, unitWidth: number): number {
+    // For single-day bars (spanWidth === unitWidth), center = unitWidth/2
+    // For multi-day bars, center of first/last unit cell = unitWidth/2
+    return unitWidth / 2;
 }
 
 function estimatePhaseCellWidth(labels: string[]): number {
@@ -2523,7 +2524,7 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                             >
                                                 {layeredChildSegments.map((seg, index) => {
                                                     const localLeft = seg.left - segMinLeft;
-                                                    const arcPad = getArcEndpointPadding(seg.width);
+                                                    const arcPad = getArcEndpointPadding(seg.width, timelineUnitWidth);
                                                     return (
                                                         <TimelineArc
                                                             key={`${row.id}-${seg.childName}-${seg.startDate}-${seg.endDate}-${index}`}
@@ -2671,8 +2672,8 @@ export default function SpreadsheetGrid({ data, onDataChange, onRootAdd, showCon
                                                     style={{ overflow: 'visible' }}
                                                 >
                                                     <TimelineArc
-                                                        startX={getArcEndpointPadding(barWidth)}
-                                                        endX={Math.max(getArcEndpointPadding(barWidth), barWidth - getArcEndpointPadding(barWidth))}
+                                                        startX={getArcEndpointPadding(barWidth, timelineUnitWidth)}
+                                                        endX={Math.max(getArcEndpointPadding(barWidth, timelineUnitWidth), barWidth - getArcEndpointPadding(barWidth, timelineUnitWidth))}
                                                         color={barColor}
                                                         rowHeight={ROW_HEIGHT}
                                                         isActive={hasActiveInfo}
