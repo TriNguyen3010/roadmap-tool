@@ -10,7 +10,7 @@ import QuickFilterDropdown from './QuickFilterDropdown';
 const ACCENT = '#F0B90B';
 
 const STATUS_PRESET_DOING = {
-    label: 'Đang làm',
+    label: 'In Progress',
     values: STATUS_OPTIONS.filter(s =>
         s.includes('Handle') || s.includes('in progress') || s === 'Task Pending'
     ),
@@ -93,11 +93,11 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
                     {/* Status sub-filter */}
                     <div className="border-b border-gray-100 px-2.5 py-2">
                         <div className="mb-1.5 flex items-center justify-between">
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trạng thái</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Status</span>
                             {state.statuses.length > 0 && (
                                 <button type="button" onClick={() => onChange({ ...state, statuses: [] })}
                                     className="text-[10px] font-semibold text-gray-400 hover:text-gray-600">
-                                    Xoá
+                                    Clear
                                 </button>
                             )}
                         </div>
@@ -130,11 +130,11 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
                             <div className="flex gap-2">
                                 <button type="button" onClick={selectAllTeams}
                                     className="text-[10px] font-semibold text-amber-600 hover:text-amber-700">
-                                    Chọn hết
+                                    Select all
                                 </button>
                                 <button type="button" onClick={clearTeams}
                                     className="text-[10px] font-semibold text-gray-400 hover:text-gray-600">
-                                    Xoá
+                                    Clear
                                 </button>
                             </div>
                         </div>

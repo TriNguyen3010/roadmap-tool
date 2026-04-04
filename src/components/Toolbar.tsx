@@ -16,20 +16,20 @@ export type QuickViewMode = 'web' | 'app' | 'reported';
 
 // ── Before options: weeks (negative offset from today)
 export const BEFORE_OPTIONS: { label: string; weeks: number }[] = [
-    { label: '2T', weeks: 2 },
-    { label: '1Th', weeks: 4 },
-    { label: '2Th', weeks: 8 },
+    { label: '2W', weeks: 2 },
+    { label: '1M', weeks: 4 },
+    { label: '2M', weeks: 8 },
 ];
 
 // ── After options: months
 export const AFTER_OPTIONS: { label: string; months: number }[] = [
-    { label: '1Th', months: 1 },
-    { label: '2Th', months: 2 },
-    { label: '3Th', months: 3 },
-    { label: '4Th', months: 4 },
-    { label: '6Th', months: 6 },
-    { label: '9Th', months: 9 },
-    { label: '12Th', months: 12 },
+    { label: '1M', months: 1 },
+    { label: '2M', months: 2 },
+    { label: '3M', months: 3 },
+    { label: '4M', months: 4 },
+    { label: '6M', months: 6 },
+    { label: '9M', months: 9 },
+    { label: '12M', months: 12 },
 ];
 
 interface ToolbarProps {
@@ -198,7 +198,7 @@ export default function Toolbar({
                 onLoadJson?.(parsed);
                 setSettingsOpen(false);
             } catch {
-                alert("File JSON không hợp lệ!");
+                alert("Invalid JSON file!");
             }
         };
         reader.readAsText(file);
@@ -217,7 +217,7 @@ export default function Toolbar({
                     {onBackToHome && (
                         <button
                             onClick={onBackToHome}
-                            title="Về trang danh sách Roadmap"
+                            title="Back to Roadmap list"
                             className="flex h-8 shrink-0 items-center gap-1 rounded-[9px] border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900"
                         >
                             <ArrowLeft size={12} />
@@ -297,7 +297,7 @@ export default function Toolbar({
                         <button
                             type="button"
                             onClick={onExpandAll}
-                            title="Mở tất cả"
+                            title="Expand all"
                             className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800"
                         >
                             <ChevronsDown size={14} />
@@ -305,7 +305,7 @@ export default function Toolbar({
                         <button
                             type="button"
                             onClick={onCollapseAll}
-                            title="Đóng tất cả"
+                            title="Collapse all"
                             className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800"
                         >
                             <ChevronsUp size={14} />
@@ -320,8 +320,8 @@ export default function Toolbar({
                         }}
                         disabled={isReportedMode}
                         title={isReportedMode
-                            ? 'Timeline Only không dùng trong Reported mode'
-                            : 'Ẩn toàn bộ thông tin task, chỉ giữ timeline'
+                            ? 'Timeline Only is not available in Reported mode'
+                            : 'Hide all task info, show timeline only'
                         }
                         className={`flex h-8 shrink-0 items-center rounded-[9px] border px-3 text-xs font-semibold transition-colors ${isReportedMode
                             ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
@@ -336,7 +336,7 @@ export default function Toolbar({
                     <div className="relative shrink-0" ref={phasePickerRef}>
                         <button
                             type="button"
-                            title={availablePhases.length === 0 ? 'Chưa có week, mở manage weeks để tạo mới' : 'Lọc week nhanh'}
+                            title={availablePhases.length === 0 ? 'No weeks yet, open Manage to create' : 'Quick week filter'}
                             onClick={() => {
                                 if (phasePickerOpen) {
                                     closePhasePicker();
@@ -398,7 +398,7 @@ export default function Toolbar({
                                 <div className="mt-1.5 max-h-56 overflow-y-auto">
                                     {visiblePhases.length === 0 ? (
                                         <p className="px-1 py-2 text-xs text-gray-400">
-                                            {availablePhases.length === 0 ? 'Chưa có week. Hãy mở Manage để tạo week.' : 'Không tìm thấy week phù hợp.'}
+                                            {availablePhases.length === 0 ? 'No weeks yet. Open Manage to create.' : 'No matching weeks found.'}
                                         </p>
                                     ) : (
                                         visiblePhases.map((phase, index) => {
@@ -460,14 +460,14 @@ export default function Toolbar({
                             className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
                         >
                             {googleAuthLoading ? <Loader2 size={13} className="animate-spin text-slate-400" /> : <Unlock size={13} className="text-slate-500" />}
-                            <span>Dang nhap</span>
+                            <span>Sign in</span>
                         </button>
                     )}
 
                     {isJsonMode && (
                         <button
                             onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); closePhasePicker(); }}
-                            title="Mở side panel Filter"
+                            title="Open Filter side panel"
                             className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isFilterPopupOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : activeFilterCount > 0 ? 'border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                         >
                             <Filter size={13} className={activeFilterCount > 0 || isFilterPopupOpen ? 'text-indigo-500' : 'text-slate-500'} />
@@ -478,7 +478,7 @@ export default function Toolbar({
                     <button
                         onClick={() => canEdit && onSave()}
                         disabled={isSaving || !canEdit}
-                        title={!canEdit ? 'Viewer mode: cần Unlock Editor để lưu' : isSaving ? 'Đang lưu...' : 'Lưu JSON'}
+                        title={!canEdit ? 'Viewer mode: unlock editor to save' : isSaving ? 'Saving...' : 'Save'}
                         className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-50 disabled:text-slate-400"
                     >
                         {isSaving ? <Loader2 size={13} className="animate-spin text-slate-400" /> : <Save size={13} className={canEdit ? 'text-slate-500' : 'text-slate-300'} />}
@@ -488,7 +488,7 @@ export default function Toolbar({
                     <div className="relative" ref={settingsRef}>
                         <button
                             onClick={() => { setSettingsOpen(p => !p); closePhasePicker(); }}
-                            title="Cài đặt"
+                            title="Settings"
                             className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${settingsOpen ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'}`}
                         >
                             <Settings size={13} className={settingsOpen ? 'animate-spin-slow' : ''} />
@@ -502,7 +502,7 @@ export default function Toolbar({
                             <div className="flex items-center justify-between px-4 py-2.5 bg-indigo-600 text-white">
                                 <div className="flex items-center gap-1.5 text-sm font-bold">
                                     <Settings size={13} />
-                                    <span>Cài đặt</span>
+                                    <span>Settings</span>
                                 </div>
                                 <button onClick={() => setSettingsOpen(false)} className="hover:bg-white/20 rounded p-0.5 transition-colors">
                                     <X size={14} />
@@ -511,13 +511,13 @@ export default function Toolbar({
 
                             {/* ── Timeline section ── */}
                             <div className="px-4 py-3 border-b border-gray-100">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Phạm vi Timeline</p>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Timeline Range</p>
 
                                 {/* Before current date */}
                                 <div className="mb-2.5">
                                     <div className="flex items-center gap-1 mb-1">
                                         <ChevronRight size={10} className="text-gray-400 rotate-180" />
-                                        <span className="text-xs text-gray-500 font-semibold">Trước hiện tại</span>
+                                        <span className="text-xs text-gray-500 font-semibold">Before today</span>
                                     </div>
                                     <div className="flex gap-1">
                                         {BEFORE_OPTIONS.map(opt => (
@@ -539,7 +539,7 @@ export default function Toolbar({
                                 <div>
                                     <div className="flex items-center gap-1 mb-1">
                                         <ChevronRight size={10} className="text-gray-400" />
-                                        <span className="text-xs text-gray-500 font-semibold">Sau hiện tại</span>
+                                        <span className="text-xs text-gray-500 font-semibold">After today</span>
                                     </div>
                                     <div className="flex flex-wrap gap-1">
                                         {AFTER_OPTIONS.map(opt => (
@@ -560,14 +560,14 @@ export default function Toolbar({
 
                             {/* ── Actions section ── */}
                             <div className="px-4 py-3 flex flex-col gap-2">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Hành động</p>
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Actions</p>
 
                                 <button
                                     onClick={() => { onExportExcelCurrentView?.(); setSettingsOpen(false); }}
                                     className="flex items-center gap-2 w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-semibold transition-colors"
                                 >
                                     <Download size={13} />
-                                    <span>Xuất Excel (Current View)</span>
+                                    <span>Export Excel (Current View)</span>
                                 </button>
 
                                 <button
@@ -575,7 +575,7 @@ export default function Toolbar({
                                     className="flex items-center gap-2 w-full px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-semibold transition-colors"
                                 >
                                     <Download size={13} />
-                                    <span>Xuất Excel (Full Data)</span>
+                                    <span>Export Excel (Full Data)</span>
                                 </button>
 
                                 {isJsonMode && (
@@ -585,17 +585,17 @@ export default function Toolbar({
                                             className="flex items-center gap-2 w-full px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors"
                                         >
                                             <FileJson size={13} />
-                                            <span>Lưu JSON backup</span>
+                                            <span>Download JSON backup</span>
                                         </button>
 
                                         <button
                                             onClick={() => fileInputRef.current?.click()}
                                             disabled={!canEdit}
-                                            title={!canEdit ? 'Viewer mode: cần Unlock Editor để tải lên JSON' : 'Tải lên JSON'}
+                                            title={!canEdit ? 'Viewer mode: unlock editor to upload JSON' : 'Upload JSON'}
                                             className="flex items-center gap-2 w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-colors"
                                         >
                                             <Upload size={13} />
-                                            <span>Tải lên JSON</span>
+                                            <span>Upload JSON</span>
                                         </button>
                                     </>
                                 )}

@@ -10,7 +10,7 @@ import QuickFilterDropdown from './QuickFilterDropdown';
 const ACCENT = '#F0B90B';
 
 const PRESET_DOING = {
-    label: 'Đang làm',
+    label: 'In Progress',
     values: STATUS_OPTIONS.filter(s =>
         s.includes('Handle') || s.includes('in progress') || s === 'Task Pending'
     ),
@@ -89,7 +89,7 @@ export default function QuickFilterStatus({ state, onChange, isDisabled }: Props
                             {count > 0 && (
                                 <button type="button" onClick={() => onChange({ statuses: [] })}
                                     className="text-[10px] font-semibold text-gray-400 hover:text-gray-600">
-                                    Xoá tất cả
+                                    Clear all
                                 </button>
                             )}
                         </div>

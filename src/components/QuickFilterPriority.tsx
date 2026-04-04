@@ -75,7 +75,7 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
                             {count > 0 && (
                                 <button type="button" onClick={() => onChange({ ...state, priorities: [] })}
                                     className="text-[10px] font-semibold text-gray-400 hover:text-gray-600">
-                                    Xoá
+                                    Clear
                                 </button>
                             )}
                         </div>
@@ -108,11 +108,11 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
                             <div className="flex gap-2">
                                 <button type="button" onClick={selectAllTeams}
                                     className="text-[10px] font-semibold text-amber-600 hover:text-amber-700">
-                                    Chọn hết
+                                    Select all
                                 </button>
                                 <button type="button" onClick={clearTeams}
                                     className="text-[10px] font-semibold text-gray-400 hover:text-gray-600">
-                                    Xoá
+                                    Clear
                                 </button>
                             </div>
                         </div>
