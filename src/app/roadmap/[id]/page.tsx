@@ -422,7 +422,6 @@ export default function RoadmapPage() {
       const payload = await res.json().catch(() => ({}));
       if (payload?.storageMode === 'json' || payload?.storageMode === 'table') {
         setStorageMode(payload.storageMode);
-        console.log('[roadmap] storageMode from server:', payload.storageMode);
       }
       return typeof payload?.updatedAt === 'string' ? payload.updatedAt : null;
     } catch {

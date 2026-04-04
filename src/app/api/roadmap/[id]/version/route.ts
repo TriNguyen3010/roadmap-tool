@@ -11,7 +11,6 @@ export async function GET(
     try {
         const { id } = await params;
         const mode = await getStorageMode(id);
-        console.log(`[version] roadmap=${id} storageMode=${mode}`);
 
         if (mode === 'json') {
             // Legacy: read from roadmap_data
