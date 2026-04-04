@@ -1251,19 +1251,53 @@ export default function RoadmapPage() {
     setFilterPriority(prev => removeReportedPriority(prev));
   }, []);
 
-  const handleExpandAll = useCallback(() => {
+  const handleExpandOneLevel = useCallback(() => {
       if (!data) return;
-      const ids = new Set<string>();
-      const collect = (items: RoadmapItem[]) => {
-          for (const item of items) {
-              if (item.children?.length) {
-                  ids.add(item.id);
-                  collect(item.children);
+      setExpandedIds(prev => {
+          // Build depth map and collect all expandable ids (nodes with children)
+          const depthMap = new Map<string, number>();
+          const expandableIds = new Set<string>();
+          const walk = (items: RoadmapItem[], depth: number) => {
+              for (const item of items) {
+                  depthMap.set(item.id, depth);
+                  if (item.children?.length) {
+                      expandableIds.add(item.id);
+                      walk(item.children, depth + 1);
+                  }
+              }
+          };
+          walk(data.items, 0);
+
+          // If nothing is expanded yet, expand depth 0
+          if (prev.size === 0) {
+              const next = new Set<string>();
+              for (const id of expandableIds) {
+                  if (depthMap.get(id) === 0) next.add(id);
+              }
+              return next;
+          }
+
+          // Find the min depth among expandable ids that are NOT yet expanded
+          let minUnexpandedDepth = Infinity;
+          for (const id of expandableIds) {
+              if (!prev.has(id)) {
+                  const d = depthMap.get(id)!;
+                  if (d < minUnexpandedDepth) minUnexpandedDepth = d;
               }
           }
-      };
-      collect(data.items);
-      setExpandedIds(ids);
+
+          // All expandable nodes already expanded
+          if (minUnexpandedDepth === Infinity) return prev;
+
+          // Add all expandable ids at that depth
+          const next = new Set(prev);
+          for (const id of expandableIds) {
+              if (!prev.has(id) && depthMap.get(id) === minUnexpandedDepth) {
+                  next.add(id);
+              }
+          }
+          return next;
+      });
   }, [data]);
 
   const handleCollapseOneLevel = useCallback(() => {
@@ -1543,7 +1577,7 @@ export default function RoadmapPage() {
         onQuickFilterStatusChange={handleQfStatusChange}
         onQuickFilterTeamChange={handleQfTeamChange}
         onQuickFilterPriorityChange={handleQfPriorityChange}
-        onExpandAll={handleExpandAll}
+        onExpandAll={handleExpandOneLevel}
         onCollapseAll={handleCollapseOneLevel}
       />
       <div className="flex-1 overflow-hidden">
