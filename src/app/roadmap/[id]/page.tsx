@@ -1266,9 +1266,38 @@ export default function RoadmapPage() {
       setExpandedIds(ids);
   }, [data]);
 
-  const handleCollapseAll = useCallback(() => {
-      setExpandedIds(new Set());
-  }, []);
+  const handleCollapseOneLevel = useCallback(() => {
+      if (!data) return;
+      setExpandedIds(prev => {
+          if (prev.size === 0) return prev;
+          // Find the deepest expanded level and collapse it
+          // Build depth map: id → depth
+          const depthMap = new Map<string, number>();
+          const walk = (items: RoadmapItem[], depth: number) => {
+              for (const item of items) {
+                  depthMap.set(item.id, depth);
+                  if (item.children?.length) walk(item.children, depth + 1);
+              }
+          };
+          walk(data.items, 0);
+
+          // Find the max depth among currently expanded ids
+          let maxDepth = -1;
+          for (const id of prev) {
+              const d = depthMap.get(id);
+              if (d !== undefined && d > maxDepth) maxDepth = d;
+          }
+          if (maxDepth < 0) return new Set<string>();
+
+          // Remove all expanded ids at maxDepth
+          const next = new Set<string>();
+          for (const id of prev) {
+              const d = depthMap.get(id);
+              if (d !== undefined && d < maxDepth) next.add(id);
+          }
+          return next;
+      });
+  }, [data]);
 
   useEffect(() => {
     if (!isReportedMode) return;
@@ -1515,7 +1544,7 @@ export default function RoadmapPage() {
         onQuickFilterTeamChange={handleQfTeamChange}
         onQuickFilterPriorityChange={handleQfPriorityChange}
         onExpandAll={handleExpandAll}
-        onCollapseAll={handleCollapseAll}
+        onCollapseAll={handleCollapseOneLevel}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid

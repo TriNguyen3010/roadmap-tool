@@ -7,7 +7,7 @@ import type { QuickFilterPriorityState } from '@/types/quickFilter';
 import QuickFilterButton from './QuickFilterButton';
 import QuickFilterDropdown from './QuickFilterDropdown';
 
-const ACCENT = '#ea580c';
+const ACCENT = '#F0B90B';
 const VISIBLE_PRIORITIES = PRIORITY_LEVELS.filter(p => p !== 'Reported');
 
 interface Props {
@@ -29,18 +29,6 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
     const selectedPriorities = new Set(state.priorities);
     const selectedTeams = new Set(state.teams);
     const count = state.priorities.length;
-
-    const togglePriority = (value: string) => {
-        const next = new Set(state.priorities);
-        if (next.has(value)) next.delete(value);
-        else next.add(value);
-        const nextPriorities = Array.from(next);
-        // When first priority is selected and no teams yet, default to all teams
-        const nextTeams = state.teams.length === 0 && nextPriorities.length > 0
-            ? [...TEAM_ROLES]
-            : state.teams;
-        onChange({ priorities: nextPriorities, teams: nextTeams });
-    };
 
     const applyPriorityPreset = (value: string) => {
         const isExact = state.priorities.length === 1 && state.priorities[0] === value;
@@ -99,9 +87,9 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
                                     <button key={p} type="button" onClick={() => applyPriorityPreset(p)}
                                         className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                                             isExact
-                                                ? 'border-transparent text-white'
+                                                ? 'border-transparent text-slate-900'
                                                 : isSelected
-                                                    ? 'border-transparent text-white opacity-80'
+                                                    ? 'border-transparent text-slate-900 opacity-80'
                                                     : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800'
                                         }`}
                                         style={isSelected ? { backgroundColor: ACCENT } : undefined}
@@ -113,31 +101,13 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
                         </div>
                     </div>
 
-                    {/* Full priority checkbox list */}
-                    <div className="border-b border-gray-100 px-1.5 py-1.5">
-                        {VISIBLE_PRIORITIES.map(option => {
-                            const checked = selectedPriorities.has(option);
-                            return (
-                                <label key={option} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50"
-                                    onClick={() => togglePriority(option)}>
-                                    <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                                        checked ? 'border-transparent text-white' : 'border-gray-300'
-                                    }`} style={checked ? { backgroundColor: ACCENT } : undefined}>
-                                        {checked && <Check size={10} strokeWidth={3} />}
-                                    </span>
-                                    <span className="text-xs text-gray-700">{option}</span>
-                                </label>
-                            );
-                        })}
-                    </div>
-
                     {/* Team sub-filter */}
                     <div className="px-2.5 py-2">
                         <div className="mb-1.5 flex items-center justify-between">
                             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Team</span>
                             <div className="flex gap-2">
                                 <button type="button" onClick={selectAllTeams}
-                                    className="text-[10px] font-semibold text-orange-600 hover:text-orange-700">
+                                    className="text-[10px] font-semibold text-amber-600 hover:text-amber-700">
                                     Chọn hết
                                 </button>
                                 <button type="button" onClick={clearTeams}

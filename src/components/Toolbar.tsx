@@ -464,14 +464,16 @@ export default function Toolbar({
                         </button>
                     )}
 
-                    <button
-                        onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); closePhasePicker(); }}
-                        title="Mở side panel Filter"
-                        className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isFilterPopupOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : activeFilterCount > 0 ? 'border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-                    >
-                        <Filter size={13} className={activeFilterCount > 0 || isFilterPopupOpen ? 'text-indigo-500' : 'text-slate-500'} />
-                        <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
-                    </button>
+                    {isJsonMode && (
+                        <button
+                            onClick={() => { onOpenFilterPopup(); setSettingsOpen(false); closePhasePicker(); }}
+                            title="Mở side panel Filter"
+                            className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isFilterPopupOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : activeFilterCount > 0 ? 'border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <Filter size={13} className={activeFilterCount > 0 || isFilterPopupOpen ? 'text-indigo-500' : 'text-slate-500'} />
+                            <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
+                        </button>
+                    )}
 
                     <button
                         onClick={() => canEdit && onSave()}
@@ -576,23 +578,27 @@ export default function Toolbar({
                                     <span>Xuất Excel (Full Data)</span>
                                 </button>
 
-                                <button
-                                    onClick={() => { onDownloadJson?.(); setSettingsOpen(false); }}
-                                    className="flex items-center gap-2 w-full px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors"
-                                >
-                                    <FileJson size={13} />
-                                    <span>Lưu JSON backup</span>
-                                </button>
+                                {isJsonMode && (
+                                    <>
+                                        <button
+                                            onClick={() => { onDownloadJson?.(); setSettingsOpen(false); }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-xs font-semibold transition-colors"
+                                        >
+                                            <FileJson size={13} />
+                                            <span>Lưu JSON backup</span>
+                                        </button>
 
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={!canEdit}
-                                    title={!canEdit ? 'Viewer mode: cần Unlock Editor để tải lên JSON' : 'Tải lên JSON'}
-                                    className="flex items-center gap-2 w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-colors"
-                                >
-                                    <Upload size={13} />
-                                    <span>Tải lên JSON</span>
-                                </button>
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            disabled={!canEdit}
+                                            title={!canEdit ? 'Viewer mode: cần Unlock Editor để tải lên JSON' : 'Tải lên JSON'}
+                                            className="flex items-center gap-2 w-full px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold transition-colors"
+                                        >
+                                            <Upload size={13} />
+                                            <span>Tải lên JSON</span>
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}

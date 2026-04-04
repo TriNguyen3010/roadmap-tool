@@ -7,7 +7,7 @@ import type { QuickFilterStatusState } from '@/types/quickFilter';
 import QuickFilterButton from './QuickFilterButton';
 import QuickFilterDropdown from './QuickFilterDropdown';
 
-const ACCENT = '#6366f1';
+const ACCENT = '#F0B90B';
 
 const PRESET_DOING = {
     label: 'Đang làm',
@@ -101,9 +101,9 @@ export default function QuickFilterStatus({ state, onChange, isDisabled }: Props
                                     <button key={preset.label} type="button" onClick={() => applyPreset(preset)}
                                         className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                                             exact
-                                                ? 'border-transparent text-white'
+                                                ? 'border-transparent text-slate-900'
                                                 : partial
-                                                    ? 'border-transparent text-white opacity-80'
+                                                    ? 'border-transparent text-slate-900 opacity-80'
                                                     : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800'
                                         }`}
                                         style={exact || partial ? { backgroundColor: ACCENT } : undefined}
@@ -123,7 +123,7 @@ export default function QuickFilterStatus({ state, onChange, isDisabled }: Props
                                 <label key={option} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50"
                                     onClick={() => toggleStatus(option)}>
                                     <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                                        checked ? 'border-transparent text-white' : 'border-gray-300'
+                                        checked ? 'border-transparent text-slate-900' : 'border-gray-300'
                                     }`} style={checked ? { backgroundColor: ACCENT } : undefined}>
                                         {checked && <Check size={10} strokeWidth={3} />}
                                     </span>

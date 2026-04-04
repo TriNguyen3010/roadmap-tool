@@ -7,7 +7,7 @@ import type { QuickFilterTeamState } from '@/types/quickFilter';
 import QuickFilterButton from './QuickFilterButton';
 import QuickFilterDropdown from './QuickFilterDropdown';
 
-const ACCENT = '#0891b2';
+const ACCENT = '#F0B90B';
 
 const STATUS_PRESET_DOING = {
     label: 'Đang làm',
@@ -109,9 +109,9 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
                                     <button key={preset.label} type="button" onClick={() => applyStatusPreset(preset)}
                                         className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                                             exact
-                                                ? 'border-transparent text-white'
+                                                ? 'border-transparent text-slate-900'
                                                 : partial
-                                                    ? 'border-transparent text-white opacity-80'
+                                                    ? 'border-transparent text-slate-900 opacity-80'
                                                     : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800'
                                         }`}
                                         style={exact || partial ? { backgroundColor: ACCENT } : undefined}
@@ -129,7 +129,7 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
                             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Team</span>
                             <div className="flex gap-2">
                                 <button type="button" onClick={selectAllTeams}
-                                    className="text-[10px] font-semibold text-cyan-600 hover:text-cyan-700">
+                                    className="text-[10px] font-semibold text-amber-600 hover:text-amber-700">
                                     Chọn hết
                                 </button>
                                 <button type="button" onClick={clearTeams}

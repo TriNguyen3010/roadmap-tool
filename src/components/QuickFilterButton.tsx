@@ -43,7 +43,7 @@ export default function QuickFilterButton({
                 isDisabled
                     ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
                     : isActive
-                        ? 'border-transparent text-white'
+                        ? 'border-transparent text-slate-900'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
             }`}
             style={isActive && !isDisabled ? { backgroundColor: accentColor, borderColor: accentColor } : undefined}
