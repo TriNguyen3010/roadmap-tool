@@ -9,9 +9,9 @@ interface LoginFormProps {
 export function LoginForm({ onGoogleLogin, onGuestView, error }: LoginFormProps) {
     return (
         <div className="mx-auto w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold text-slate-900">Dang nhap Roadmap</h2>
+            <h2 className="mb-2 text-lg font-semibold text-slate-900">Sign in to Roadmap</h2>
             <p className="mb-6 text-sm text-slate-500">
-                Dang nhap bang Google de dung dung quyen team, hoac vao che do viewer.
+                Sign in with Google to use team permissions, or continue as a viewer.
             </p>
 
             {error && (
@@ -30,12 +30,12 @@ export function LoginForm({ onGoogleLogin, onGuestView, error }: LoginFormProps)
                     <path d="M5.84 14.09A6.96 6.96 0 0 1 5.49 12c0-.73.13-1.43.35-2.09V7.07H2.18A10.95 10.95 0 0 0 1 12c0 1.78.43 3.45 1.18 4.93z" fill="#FBBC05" />
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                 </svg>
-                Dang nhap bang Google
+                Sign in with Google
             </button>
 
             <div className="my-4 flex items-center gap-3">
                 <hr className="flex-1 border-slate-200" />
-                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Hoac</span>
+                <span className="text-xs uppercase tracking-[0.2em] text-slate-400">Or</span>
                 <hr className="flex-1 border-slate-200" />
             </div>
 
@@ -43,7 +43,7 @@ export function LoginForm({ onGoogleLogin, onGuestView, error }: LoginFormProps)
                 onClick={onGuestView}
                 className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-500 transition-colors hover:bg-slate-50"
             >
-                Xem khong can dang nhap
+                View without signing in
             </button>
         </div>
     );
