@@ -1,15 +1,9 @@
-export function calcArcHeight(arcWidth: number, rowHeight: number): number {
-  const minHeight = 6;
-  const maxHeight = Math.max(minHeight, rowHeight - 10);
-  return Math.min(maxHeight, Math.max(minHeight, arcWidth * 0.18));
+export function calcArcHeight(_arcWidth: number, rowHeight: number): number {
+  return Math.max(6, rowHeight * 0.55);
 }
 
-export function calcLayeredArcHeight(index: number, total: number, rowHeight: number): number {
-  const maxHeight = Math.max(8, rowHeight - 8);
-  const minHeight = 6;
-  if (total <= 1) return maxHeight;
-  const step = (maxHeight - minHeight) / Math.max(total - 1, 1);
-  return Math.max(minHeight, maxHeight - index * step);
+export function calcLayeredArcHeight(_index: number, _total: number, rowHeight: number): number {
+  return Math.max(6, rowHeight * 0.55);
 }
 
 export function sortArcsByWidth<T extends { width: number }>(arcs: T[]): T[] {
