@@ -86,7 +86,7 @@ async function saveTableBased(id: string, requestBody: unknown, auth: Authentica
     }
 
     const normalizedDoc = normalizeSharedRoadmapDocument(incoming as RoadmapDocument);
-    const result = await fullDocumentSync(id, normalizedDoc);
+    const result = await fullDocumentSync(id, normalizedDoc, auth.sessionUser.email);
 
     if (!result.success) {
         logRoadmapSaveTelemetry({ route: 'admin-save', roadmapId: id, outcome: 'error', status: 500, reason: result.error ?? 'sync-failed', actor: auth.sessionUser });

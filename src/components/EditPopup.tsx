@@ -27,6 +27,7 @@ import { createItemWithTimestamps } from '@/utils/roadmapHelpers';
 import { formatFullDateTime, formatRelativeTime, wasUpdated } from '@/utils/timeFormat';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
+import ChangeHistory from './ChangeHistory';
 
 interface EditPopupProps {
     item: RoadmapItem;
@@ -493,20 +494,21 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                 footer={(
                     <div className="flex flex-col gap-3">
                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Lịch sử</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Timestamps</p>
                             <div className="mt-2 flex flex-col gap-1.5 text-[11px] text-slate-600">
                                 <div className="flex items-center justify-between gap-3">
-                                    <span className="font-semibold text-slate-500">Tạo</span>
+                                    <span className="font-semibold text-slate-500">Created</span>
                                     <span className="text-right text-slate-700" title={createdAtTitle}>{createdAtLabel}</span>
                                 </div>
                                 {showUpdatedAt && (
                                     <div className="flex items-center justify-between gap-3">
-                                        <span className="font-semibold text-slate-500">Sửa lần cuối</span>
+                                        <span className="font-semibold text-slate-500">Last modified</span>
                                         <span className="text-right text-slate-700" title={updatedAtTitle}>{updatedAtLabel}</span>
                                     </div>
                                 )}
                             </div>
                         </div>
+                        <ChangeHistory itemId={item.id} />
                         <div className="rounded-lg border border-gray-200 bg-white p-2">
                             <input
                                 ref={fileInputRef}

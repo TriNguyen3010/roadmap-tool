@@ -14,6 +14,7 @@ import {
     loadRoadmapDocumentFromRows,
     updateItemFields,
     regenerateJsonBlob,
+    insertItemChange,
     type ItemFieldPatch,
 } from '@/server/roadmapRowsRepo';
 
@@ -83,6 +84,15 @@ export async function POST(
                 continue;
             }
 
+            // Capture old value before applying patch (for changelog)
+            const oldValueMap: Record<string, string | null> = {
+                status: item.status ?? null,
+                startDate: item.startDate ?? null,
+                endDate: item.endDate ?? null,
+                quickNote: item.quickNote ?? null,
+            };
+            const oldValue = oldValueMap[change.field] ?? null;
+
             // Build field patch for this row
             const patch: ItemFieldPatch = {};
 
@@ -102,6 +112,19 @@ export async function POST(
             const result = await updateItemFields(roadmapId, change.itemId, patch);
             if (!result.success) {
                 violations.push(`Failed to update item "${change.itemId}": ${result.error}`);
+            } else {
+                // Write changelog — record old→new for this field
+                const newValue = change.value != null ? String(change.value) : null;
+                if (oldValue !== newValue) {
+                    await insertItemChange(roadmapId, {
+                        itemId: change.itemId,
+                        team: managerTeam,
+                        field: change.field,
+                        oldValue,
+                        newValue,
+                        changedBy: auth.sessionUser.email,
+                    });
+                }
             }
         }
 

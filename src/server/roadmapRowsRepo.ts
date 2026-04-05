@@ -316,7 +316,8 @@ function diffSingleRow(
 
 export async function fullDocumentSync(
     roadmapId: string,
-    document: RoadmapDocument
+    document: RoadmapDocument,
+    changedByEmail?: string
 ): Promise<{ success: boolean; updatedAt: string; error?: string }> {
     const now = new Date().toISOString();
 
@@ -416,10 +417,200 @@ export async function fullDocumentSync(
         if (updError) return { success: false, updatedAt: '', error: `Update ${upd.itemId}: ${updError.message}` };
     }
 
+    // 6b. Write changelog for updated items (field-level audit)
+    if (changedByEmail && diff.updates.length > 0) {
+        const currentMap = new Map(currentItems.map(r => [r.itemId, r]));
+        const nextMap = new Map(nextSnapshot.items.map(r => [r.itemId, r]));
+        const changeRecords: InsertItemChangeInput[] = [];
+
+        // DB column → camelCase field name mapping for tracked fields
+        const TRACKED_DB_FIELDS: Record<string, string> = {
+            status: 'status',
+            start_date: 'startDate',
+            end_date: 'endDate',
+            quick_note: 'quickNote',
+        };
+
+        for (const upd of diff.updates) {
+            const currentRow = currentMap.get(upd.itemId);
+            const nextRow = nextMap.get(upd.itemId);
+            if (!currentRow || !nextRow) continue;
+
+            // Resolve team from item or ancestor chain
+            const team = nextRow.teamRole ?? currentRow.teamRole ?? null;
+
+            for (const [dbCol, fieldName] of Object.entries(TRACKED_DB_FIELDS)) {
+                if (!(dbCol in upd.fields)) continue;
+                const oldVal = (currentRow as unknown as Record<string, unknown>)[fieldName];
+                const newVal = (nextRow as unknown as Record<string, unknown>)[fieldName];
+                const oldStr = oldVal != null ? String(oldVal) : null;
+                const newStr = newVal != null ? String(newVal) : null;
+                if (oldStr !== newStr) {
+                    changeRecords.push({
+                        itemId: upd.itemId,
+                        team,
+                        field: fieldName,
+                        oldValue: oldStr,
+                        newValue: newStr,
+                        changedBy: changedByEmail,
+                    });
+                }
+            }
+        }
+
+        if (changeRecords.length > 0) {
+            await insertItemChanges(roadmapId, changeRecords);
+        }
+    }
+
     // 7. Regenerate JSON blob as backup
     await regenerateJsonBlob(roadmapId);
 
     return { success: true, updatedAt: now };
+}
+
+// ─── Change tracking (audit log) ────────────────────────────────────────────
+
+export interface ItemChangeRecord {
+    id: string;
+    roadmapId: string;
+    itemId: string;
+    team: string | null;
+    field: string;
+    oldValue: string | null;
+    newValue: string | null;
+    changedBy: string;
+    changedAt: string;
+}
+
+export interface InsertItemChangeInput {
+    itemId: string;
+    team: string | null;
+    field: string;
+    oldValue: string | null;
+    newValue: string | null;
+    changedBy: string;
+}
+
+/**
+ * Insert a single change record into roadmap_item_changes.
+ */
+export async function insertItemChange(
+    roadmapId: string,
+    change: InsertItemChangeInput
+): Promise<void> {
+    await supabase.from('roadmap_item_changes').insert({
+        roadmap_id: roadmapId,
+        item_id: change.itemId,
+        team: change.team,
+        field: change.field,
+        old_value: change.oldValue,
+        new_value: change.newValue,
+        changed_by: change.changedBy,
+    });
+}
+
+/**
+ * Insert multiple change records in a single batch.
+ */
+export async function insertItemChanges(
+    roadmapId: string,
+    changes: InsertItemChangeInput[]
+): Promise<void> {
+    if (changes.length === 0) return;
+    await supabase.from('roadmap_item_changes').insert(
+        changes.map(c => ({
+            roadmap_id: roadmapId,
+            item_id: c.itemId,
+            team: c.team,
+            field: c.field,
+            old_value: c.oldValue,
+            new_value: c.newValue,
+            changed_by: c.changedBy,
+        }))
+    );
+}
+
+function mapDbRowToChange(row: Record<string, unknown>): ItemChangeRecord {
+    return {
+        id: row.id as string,
+        roadmapId: row.roadmap_id as string,
+        itemId: row.item_id as string,
+        team: (row.team as string) ?? null,
+        field: row.field as string,
+        oldValue: (row.old_value as string) ?? null,
+        newValue: (row.new_value as string) ?? null,
+        changedBy: row.changed_by as string,
+        changedAt: row.changed_at as string,
+    };
+}
+
+/**
+ * Load the latest change per (team, field) for an item.
+ * Only returns changes for the 3 key fields: status, startDate, endDate.
+ * Used for the compact default view in EditPopup.
+ */
+export async function loadLatestChanges(
+    roadmapId: string,
+    itemId: string
+): Promise<ItemChangeRecord[]> {
+    // Supabase doesn't support DISTINCT ON directly.
+    // Use a raw RPC or fetch recent rows and deduplicate in JS.
+    const { data, error } = await supabase
+        .from('roadmap_item_changes')
+        .select('*')
+        .eq('roadmap_id', roadmapId)
+        .eq('item_id', itemId)
+        .in('field', ['status', 'startDate', 'endDate'])
+        .order('changed_at', { ascending: false })
+        .limit(100); // fetch enough to cover all team×field combos
+
+    if (error || !data) return [];
+
+    // Deduplicate: keep only the latest per (team, field)
+    const seen = new Set<string>();
+    const result: ItemChangeRecord[] = [];
+    for (const row of data) {
+        const key = `${row.team ?? ''}::${row.field}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(mapDbRowToChange(row));
+    }
+
+    return result;
+}
+
+/**
+ * Load full paginated change history for an item.
+ * Supports filtering by team.
+ */
+export async function loadChangeHistory(
+    roadmapId: string,
+    itemId: string,
+    options?: { limit?: number; offset?: number; team?: string }
+): Promise<{ changes: ItemChangeRecord[]; total: number }> {
+    const limit = options?.limit ?? 20;
+    const offset = options?.offset ?? 0;
+
+    let query = supabase
+        .from('roadmap_item_changes')
+        .select('*', { count: 'exact' })
+        .eq('roadmap_id', roadmapId)
+        .eq('item_id', itemId)
+        .order('changed_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+    if (options?.team) {
+        query = query.eq('team', options.team);
+    }
+
+    const { data, error, count } = await query;
+    if (error || !data) return { changes: [], total: 0 };
+
+    return {
+        changes: data.map(mapDbRowToChange),
+        total: count ?? 0,
+    };
 }
 
 // ─── Reverse dual-write: rows → JSON blob backup ────────────────────────────
