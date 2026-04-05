@@ -12,7 +12,7 @@ const ACCENT = '#F0B90B';
 const PRESET_DOING = {
     label: 'In Progress',
     values: STATUS_OPTIONS.filter(s =>
-        s.includes('Handle') || s.includes('in progress') || s === 'Task Pending'
+        s.includes('in progress') || s === 'Task In progress'
     ),
 };
 const PRESET_TODO = {
