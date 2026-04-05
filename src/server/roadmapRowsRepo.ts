@@ -418,6 +418,7 @@ export async function fullDocumentSync(
     }
 
     // 6b. Write changelog for updated items (field-level audit)
+    console.log('[changelog] fullDocumentSync:', { changedByEmail: changedByEmail ?? null, inserts: diff.inserts.length, updates: diff.updates.length, deletes: diff.deletes.length });
     if (changedByEmail && diff.updates.length > 0) {
         const currentMap = new Map(currentItems.map(r => [r.itemId, r]));
         const nextMap = new Map(nextSnapshot.items.map(r => [r.itemId, r]));
@@ -458,6 +459,7 @@ export async function fullDocumentSync(
             }
         }
 
+        console.log('[changelog] changeRecords to insert:', changeRecords.length, changeRecords.map(r => `${r.field}: ${r.oldValue} → ${r.newValue}`));
         if (changeRecords.length > 0) {
             await insertItemChanges(roadmapId, changeRecords);
         }
@@ -499,7 +501,7 @@ export async function insertItemChange(
     roadmapId: string,
     change: InsertItemChangeInput
 ): Promise<void> {
-    await supabase.from('roadmap_item_changes').insert({
+    const { error } = await supabase.from('roadmap_item_changes').insert({
         roadmap_id: roadmapId,
         item_id: change.itemId,
         team: change.team,
@@ -508,6 +510,9 @@ export async function insertItemChange(
         new_value: change.newValue,
         changed_by: change.changedBy,
     });
+    if (error) {
+        console.error('[changelog] insertItemChange failed:', error.message, change);
+    }
 }
 
 /**
@@ -518,7 +523,7 @@ export async function insertItemChanges(
     changes: InsertItemChangeInput[]
 ): Promise<void> {
     if (changes.length === 0) return;
-    await supabase.from('roadmap_item_changes').insert(
+    const { error } = await supabase.from('roadmap_item_changes').insert(
         changes.map(c => ({
             roadmap_id: roadmapId,
             item_id: c.itemId,
@@ -529,6 +534,9 @@ export async function insertItemChanges(
             changed_by: c.changedBy,
         }))
     );
+    if (error) {
+        console.error('[changelog] insertItemChanges failed:', error.message, `(${changes.length} records)`);
+    }
 }
 
 function mapDbRowToChange(row: Record<string, unknown>): ItemChangeRecord {
@@ -565,7 +573,12 @@ export async function loadLatestChanges(
         .order('changed_at', { ascending: false })
         .limit(100); // fetch enough to cover all team×field combos
 
-    if (error || !data) return [];
+    if (error) {
+        console.error('[changelog] loadLatestChanges error:', error.message);
+        return [];
+    }
+    if (!data) return [];
+    console.log('[changelog] loadLatestChanges:', { roadmapId, itemId, rowCount: data.length });
 
     // Deduplicate: keep only the latest per (team, field)
     const seen = new Set<string>();
