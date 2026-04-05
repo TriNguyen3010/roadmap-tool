@@ -168,37 +168,37 @@ const DEPTH_STYLES: { bg: string; font: string }[] = [
 const STATUS_BAR_COLOR: Record<string, string> = {
   'Not Started':       '#9ca3af',
   'Sếp Vinh':          '#f43f5e',
-  // BA
-  'BA Handle':         '#94a3b8',
-  'BA in progress':          '#64748b',
-  'BA Done':           '#475569',
-  // PD
-  'PD Handle':         '#fbbf24',
-  'PD in progress UI/UX':    '#f59e0b',
-  'PD in progress Visual':   '#d97706',
-  'PD Done UI/UX':     '#b45309',
-  'PD Done Visual':    '#92400e',
-  // DevOps
-  'DevOps Handle':     '#a78bfa',
-  'DevOps in progress':      '#8b5cf6',
-  'DevOps Done':       '#7c3aed',
-  // FE
-  'FE Handle':         '#60a5fa',
-  'FE in progress':          '#3b82f6',
-  'FE Done':           '#2563eb',
-  // BE
-  'BE Handle':         '#34d399',
-  'BE in progress':          '#10b981',
-  'BE Done':           '#059669',
-  // QC
-  'QC Handle':         '#f472b6',
-  'QC in progress':          '#ec4899',
-  'QC Done - Staging': '#db2777',
-  'QC Done - Pro':     '#be185d',
+  // BA — yellow
+  'BA Handle':         '#fbbf24',
+  'BA in progress':          '#f59e0b',
+  'BA Done':           '#d97706',
+  // PD — pink
+  'PD Handle':         '#f472b6',
+  'PD in progress UI/UX':    '#ec4899',
+  'PD in progress Visual':   '#db2777',
+  'PD Done UI/UX':     '#be185d',
+  'PD Done Visual':    '#9d174d',
+  // DevOps — red
+  'DevOps Handle':     '#f87171',
+  'DevOps in progress':      '#ef4444',
+  'DevOps Done':       '#dc2626',
+  // FE — purple
+  'FE Handle':         '#a78bfa',
+  'FE in progress':          '#8b5cf6',
+  'FE Done':           '#7c3aed',
+  // BE — blue
+  'BE Handle':         '#60a5fa',
+  'BE in progress':          '#3b82f6',
+  'BE Done':           '#2563eb',
+  // QC — green
+  'QC Handle':         '#4ade80',
+  'QC in progress':          '#22c55e',
+  'QC Done - Staging': '#16a34a',
+  'QC Done - Pro':     '#15803d',
   // Growth
-  'Growth Handle':     '#4ade80',
-  'Growth in progress':      '#22c55e',
-  'Growth Done':       '#16a34a',
+  'Growth Handle':     '#fb923c',
+  'Growth in progress':      '#f97316',
+  'Growth Done':       '#ea580c',
   // Generic
   'Task To do':             '#94a3b8',
   'Task In progress':       '#3b82f6',
@@ -209,37 +209,37 @@ const STATUS_BAR_COLOR: Record<string, string> = {
 const STATUS_TAG_BG: Record<string, string> = {
   'Not Started':       '#f3f4f6',
   'Sếp Vinh':          '#ffe4e6',
-  // BA
-  'BA Handle':         '#f1f5f9',
-  'BA in progress':          '#e2e8f0',
-  'BA Done':           '#cbd5e1',
-  // PD
-  'PD Handle':         '#ffedd5',
-  'PD in progress UI/UX':    '#fef3c7',
-  'PD in progress Visual':   '#fde68a',
-  'PD Done UI/UX':     '#fef08a',
-  'PD Done Visual':    '#fef9c3',
-  // DevOps
-  'DevOps Handle':     '#ede9fe',
-  'DevOps in progress':      '#ddd6fe',
-  'DevOps Done':       '#c4b5fd',
-  // FE
-  'FE Handle':         '#dbeafe',
-  'FE in progress':          '#bfdbfe',
-  'FE Done':           '#93c5fd',
-  // BE
-  'BE Handle':         '#d1fae5',
-  'BE in progress':          '#a7f3d0',
-  'BE Done':           '#6ee7b7',
-  // QC
-  'QC Handle':         '#fce7f3',
-  'QC in progress':          '#fbcfe8',
-  'QC Done - Staging': '#f9a8d4',
-  'QC Done - Pro':     '#f472b6',
-  // Growth
-  'Growth Handle':     '#dcfce7',
-  'Growth in progress':      '#bbf7d0',
-  'Growth Done':       '#86efac',
+  // BA — yellow
+  'BA Handle':         '#fef3c7',
+  'BA in progress':          '#fde68a',
+  'BA Done':           '#fcd34d',
+  // PD — pink
+  'PD Handle':         '#fce7f3',
+  'PD in progress UI/UX':    '#fbcfe8',
+  'PD in progress Visual':   '#f9a8d4',
+  'PD Done UI/UX':     '#f472b6',
+  'PD Done Visual':    '#ec4899',
+  // DevOps — red
+  'DevOps Handle':     '#fee2e2',
+  'DevOps in progress':      '#fecaca',
+  'DevOps Done':       '#fca5a5',
+  // FE — purple
+  'FE Handle':         '#ede9fe',
+  'FE in progress':          '#ddd6fe',
+  'FE Done':           '#c4b5fd',
+  // BE — blue
+  'BE Handle':         '#dbeafe',
+  'BE in progress':          '#bfdbfe',
+  'BE Done':           '#93c5fd',
+  // QC — green
+  'QC Handle':         '#dcfce7',
+  'QC in progress':          '#bbf7d0',
+  'QC Done - Staging': '#86efac',
+  'QC Done - Pro':     '#4ade80',
+  // Growth — orange
+  'Growth Handle':     '#ffedd5',
+  'Growth in progress':      '#fed7aa',
+  'Growth Done':       '#fdba74',
   // Generic
   'Task To do':             '#f1f5f9',
   'Task In progress':       '#dbeafe',
@@ -249,37 +249,37 @@ const STATUS_TAG_BG: Record<string, string> = {
 const STATUS_TAG_TEXT: Record<string, string> = {
   'Not Started':       '#374151',
   'Sếp Vinh':          '#9f1239',
-  // BA
-  'BA Handle':         '#475569',
-  'BA in progress':          '#334155',
-  'BA Done':           '#1e293b',
-  // PD
-  'PD Handle':         '#9a3412',
-  'PD in progress UI/UX':    '#92400e',
-  'PD in progress Visual':   '#78350f',
-  'PD Done UI/UX':     '#713f12',
-  'PD Done Visual':    '#854d0e',
-  // DevOps
-  'DevOps Handle':     '#6d28d9',
-  'DevOps in progress':      '#5b21b6',
-  'DevOps Done':       '#4c1d95',
-  // FE
-  'FE Handle':         '#1d4ed8',
-  'FE in progress':          '#1e40af',
-  'FE Done':           '#1e3a8a',
-  // BE
-  'BE Handle':         '#065f46',
-  'BE in progress':          '#064e3b',
-  'BE Done':           '#064e3b',
-  // QC
-  'QC Handle':         '#9d174d',
-  'QC in progress':          '#831843',
-  'QC Done - Staging': '#701a75',
-  'QC Done - Pro':     '#4a044e',
-  // Growth
-  'Growth Handle':     '#166534',
-  'Growth in progress':      '#14532d',
-  'Growth Done':       '#14532d',
+  // BA — yellow
+  'BA Handle':         '#92400e',
+  'BA in progress':          '#78350f',
+  'BA Done':           '#713f12',
+  // PD — pink
+  'PD Handle':         '#9d174d',
+  'PD in progress UI/UX':    '#831843',
+  'PD in progress Visual':   '#701a75',
+  'PD Done UI/UX':     '#4a044e',
+  'PD Done Visual':    '#4a044e',
+  // DevOps — red
+  'DevOps Handle':     '#991b1b',
+  'DevOps in progress':      '#7f1d1d',
+  'DevOps Done':       '#7f1d1d',
+  // FE — purple
+  'FE Handle':         '#6d28d9',
+  'FE in progress':          '#5b21b6',
+  'FE Done':           '#4c1d95',
+  // BE — blue
+  'BE Handle':         '#1d4ed8',
+  'BE in progress':          '#1e40af',
+  'BE Done':           '#1e3a8a',
+  // QC — green
+  'QC Handle':         '#166534',
+  'QC in progress':          '#14532d',
+  'QC Done - Staging': '#14532d',
+  'QC Done - Pro':     '#064e3b',
+  // Growth — orange
+  'Growth Handle':     '#9a3412',
+  'Growth in progress':      '#7c2d12',
+  'Growth Done':       '#7c2d12',
   // Generic
   'Task To do':             '#475569',
   'Task In progress':       '#1e40af',
