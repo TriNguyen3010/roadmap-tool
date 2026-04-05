@@ -2598,7 +2598,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                             >
                                                 {/* ── Baseline axis: solid line from first dot → timeline end ── */}
                                                 {(() => {
-                                                    const axisBaseline = ROW_HEIGHT - 6;
+                                                    const axisBaseline = 6;
                                                     const axisColor = hasActiveInfo ? '#475569' : '#94a3b8';
                                                     const axisWidth = hasActiveInfo ? 2 : 1.9;
                                                     const timelineEndX = (timelineLeftOffset + timelineUnits.length * timelineUnitWidth) - segMinLeft;
@@ -2769,7 +2769,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 >
                                                     {/* ── Baseline axis for leaf/child arc → solid line to timeline end ── */}
                                                     {!isSingleDayBar && (() => {
-                                                        const leafAxisY = ROW_HEIGHT - 6;
+                                                        const leafAxisY = 6;
                                                         const leafX1 = getArcEndpointPadding(barWidth, timelineUnitWidth);
                                                         const leafTimelineEndX = (timelineLeftOffset + timelineUnits.length * timelineUnitWidth) - barLeft;
                                                         return leafTimelineEndX > leafX1 ? (

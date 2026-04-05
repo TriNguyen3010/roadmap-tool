@@ -26,7 +26,7 @@ export default function TimelineArc({
     const start = Math.min(startX, endX);
     const end = Math.max(startX, endX);
     const span = end - start;
-    const baseline = rowHeight - 6;
+    const baseline = 6;
     const dotRadius = isActive ? 3.4 : 3;
     const midX = (start + end) / 2;
 
@@ -44,7 +44,7 @@ export default function TimelineArc({
     }
 
     const height = arcHeight ?? calcArcHeight(span, rowHeight);
-    const controlY = Math.max(2, baseline - height);
+    const controlY = Math.min(rowHeight - 2, baseline + height);
     const pathD = `M ${start},${baseline} Q ${midX},${controlY} ${end},${baseline}`;
 
     return (
