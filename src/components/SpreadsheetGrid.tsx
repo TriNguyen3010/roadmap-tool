@@ -2584,7 +2584,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                         /* ── Multi-arc parent row ── */
                                         <div
                                             className="absolute inset-y-0 cursor-pointer hover:z-20 group-hover/gantt:z-10"
-                                            style={{ left: segMinLeft, width: segTotalWidth, zIndex: hasActiveInfo ? 150 : 5 }}
+                                            style={{ left: segMinLeft, width: segTotalWidth, zIndex: hasActiveInfo ? 40 : 5 }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
@@ -2755,7 +2755,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                         barLeft >= 0 && (
                                             <div
                                                 className="absolute inset-y-0 cursor-pointer transition-all hover:z-20 group-hover/gantt:z-10"
-                                                style={{ left: barLeft, width: barWidth, zIndex: hasActiveInfo ? 150 : 5 }}
+                                                style={{ left: barLeft, width: barWidth, zIndex: hasActiveInfo ? 40 : 5 }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
