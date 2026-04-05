@@ -9,7 +9,8 @@ import {
     validateBaseVersion,
 } from '@/utils/roadmapSaveFlow';
 import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
-import { getStorageMode, fullDocumentSync } from '@/server/roadmapRowsRepo';
+import { getStorageMode, fullDocumentSync, insertItemChanges, type InsertItemChangeInput } from '@/server/roadmapRowsRepo';
+import type { RoadmapItem } from '@/types/roadmap';
 
 export const runtime = 'nodejs';
 
@@ -50,7 +51,7 @@ async function saveLegacyJson(id: string, requestBody: unknown, auth: Authentica
     const { document: incoming, baseVersion } = resolveDocumentSaveRequest(requestBody);
 
     const { data: currentRow, error: readError } = await supabase
-        .from('roadmap_data').select('updated_at').eq('id', id).maybeSingle();
+        .from('roadmap_data').select('content, updated_at').eq('id', id).maybeSingle();
     if (readError) return NextResponse.json({ error: 'Failed to read roadmap version' }, { status: 500 });
     if (!currentRow) return NextResponse.json({ error: 'Roadmap not found' }, { status: 404 });
 
@@ -72,9 +73,69 @@ async function saveLegacyJson(id: string, requestBody: unknown, auth: Authentica
         return NextResponse.json(buildVersionConflictPayload(serverVersion), { status: 409 });
     }
 
+    // Write changelog: diff old document vs new document
+    const oldDoc = currentRow.content as RoadmapDocument | null;
+    if (oldDoc) {
+        const changeRecords = diffDocumentTreeForChangelog(
+            oldDoc.items ?? [],
+            normalizedDoc.items ?? [],
+            auth.sessionUser.email
+        );
+        if (changeRecords.length > 0) {
+            await insertItemChanges(id, changeRecords);
+        }
+    }
+
     const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
     logRoadmapSaveTelemetry({ route: 'admin-save', roadmapId: id, outcome: 'success', status: 200, baseVersion, serverVersion: persistedVersion, actor: auth.sessionUser });
     return NextResponse.json({ success: true, updatedAt: persistedVersion });
+}
+
+// ── Changelog diff for JSON document trees ──────────────────────────────────
+
+const TRACKED_ITEM_FIELDS = ['status', 'startDate', 'endDate', 'quickNote'] as const;
+
+function diffDocumentTreeForChangelog(
+    oldItems: RoadmapItem[],
+    newItems: RoadmapItem[],
+    changedBy: string
+): InsertItemChangeInput[] {
+    const oldMap = new Map<string, RoadmapItem>();
+    flattenTree(oldItems, oldMap);
+    const newMap = new Map<string, RoadmapItem>();
+    flattenTree(newItems, newMap);
+
+    const records: InsertItemChangeInput[] = [];
+
+    for (const [itemId, newItem] of newMap) {
+        const oldItem = oldMap.get(itemId);
+        if (!oldItem) continue; // new item, no "old" to compare
+
+        const team = resolveTeamFromItem(newItem) ?? resolveTeamFromItem(oldItem) ?? null;
+
+        for (const field of TRACKED_ITEM_FIELDS) {
+            const oldVal = (oldItem as unknown as Record<string, unknown>)[field];
+            const newVal = (newItem as unknown as Record<string, unknown>)[field];
+            const oldStr = oldVal != null ? String(oldVal) : null;
+            const newStr = newVal != null ? String(newVal) : null;
+            if (oldStr !== newStr) {
+                records.push({ itemId, team, field, oldValue: oldStr, newValue: newStr, changedBy });
+            }
+        }
+    }
+
+    return records;
+}
+
+function flattenTree(items: RoadmapItem[], map: Map<string, RoadmapItem>): void {
+    for (const item of items) {
+        map.set(item.id, item);
+        if (item.children) flattenTree(item.children, map);
+    }
+}
+
+function resolveTeamFromItem(item: RoadmapItem): string | null {
+    return (item as unknown as Record<string, unknown>).teamRole as string | null ?? null;
 }
 
 // ── Table-based save (last-write-wins) ───────────────────────────────────────

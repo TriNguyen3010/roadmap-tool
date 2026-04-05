@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateTeamRequest, type AuthenticatedTeamRequest } from '@/lib/serverTeamAuth';
 import { isAdminLevel, type AuthManagerTeam } from '@/types/auth';
-import { TEAM_ROLES, type RoadmapDocument, type ItemStatus } from '@/types/roadmap';
+import { TEAM_ROLES, type RoadmapDocument, type RoadmapItem, type ItemStatus } from '@/types/roadmap';
 import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
 import { applyChangesToTree, validateManagerChanges } from '@/utils/permissionCheck';
 import { normalizeRoadmapItemTimestamps, recalculateRoadmap } from '@/utils/roadmapHelpers';
@@ -15,7 +15,9 @@ import {
     updateItemFields,
     regenerateJsonBlob,
     insertItemChange,
+    insertItemChanges,
     type ItemFieldPatch,
+    type InsertItemChangeInput,
 } from '@/server/roadmapRowsRepo';
 
 export const runtime = 'nodejs';
@@ -243,6 +245,32 @@ async function managerSaveLegacyJson(
         if (saveError) return NextResponse.json({ error: 'Failed to save', message: saveError.message }, { status: 500 });
 
         if (savedRow) {
+            // Write changelog for legacy JSON save
+            const changeRecords: InsertItemChangeInput[] = [];
+            const itemMap = new Map<string, RoadmapItem>();
+            flattenItemTree(currentItems, itemMap);
+
+            for (const change of changes) {
+                const oldItem = itemMap.get(change.itemId);
+                if (!oldItem) continue;
+                const oldVal = (oldItem as unknown as Record<string, unknown>)[change.field];
+                const oldStr = oldVal != null ? String(oldVal) : null;
+                const newStr = change.value != null ? String(change.value) : null;
+                if (oldStr !== newStr) {
+                    changeRecords.push({
+                        itemId: change.itemId,
+                        team: managerTeam,
+                        field: change.field,
+                        oldValue: oldStr,
+                        newValue: newStr,
+                        changedBy: auth.sessionUser.email,
+                    });
+                }
+            }
+            if (changeRecords.length > 0) {
+                await insertItemChanges(roadmapId, changeRecords);
+            }
+
             const persistedVersion = normalizeVersion(typeof savedRow.updated_at === 'string' ? savedRow.updated_at : updatedAt) ?? updatedAt;
             logRoadmapSaveTelemetry({ route: 'manager-save', roadmapId, outcome: 'success', status: 200, baseVersion, serverVersion: persistedVersion, changeCount: changes.length, actor: auth.sessionUser });
             return NextResponse.json({ success: true, document: savedDoc, updatedAt: persistedVersion });
@@ -253,4 +281,11 @@ async function managerSaveLegacyJson(
     const { data: latestRow } = await supabase.from('roadmap_data').select('updated_at').eq('id', roadmapId).maybeSingle();
     const serverVersion = normalizeVersion(typeof latestRow?.updated_at === 'string' ? latestRow.updated_at : null);
     return NextResponse.json(buildVersionConflictPayload(serverVersion), { status: 409 });
+}
+
+function flattenItemTree(items: RoadmapItem[], map: Map<string, RoadmapItem>): void {
+    for (const item of items) {
+        map.set(item.id, item);
+        if (item.children) flattenItemTree(item.children, map);
+    }
 }
