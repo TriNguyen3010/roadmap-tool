@@ -125,6 +125,7 @@ export async function POST(
                         oldValue,
                         newValue,
                         changedBy: auth.sessionUser.email,
+                        changedByLabel: auth.sessionUser.label,
                     });
                 }
             }
@@ -264,6 +265,7 @@ async function managerSaveLegacyJson(
                         oldValue: oldStr,
                         newValue: newStr,
                         changedBy: auth.sessionUser.email,
+                        changedByLabel: auth.sessionUser.label,
                     });
                 }
             }

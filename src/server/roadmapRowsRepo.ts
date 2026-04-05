@@ -317,7 +317,8 @@ function diffSingleRow(
 export async function fullDocumentSync(
     roadmapId: string,
     document: RoadmapDocument,
-    changedByEmail?: string
+    changedByEmail?: string,
+    changedByLabel?: string
 ): Promise<{ success: boolean; updatedAt: string; error?: string }> {
     const now = new Date().toISOString();
 
@@ -454,6 +455,7 @@ export async function fullDocumentSync(
                         oldValue: oldStr,
                         newValue: newStr,
                         changedBy: changedByEmail,
+                        changedByLabel: changedByLabel ?? null,
                     });
                 }
             }
@@ -482,6 +484,7 @@ export interface ItemChangeRecord {
     oldValue: string | null;
     newValue: string | null;
     changedBy: string;
+    changedByLabel: string | null;
     changedAt: string;
 }
 
@@ -492,6 +495,7 @@ export interface InsertItemChangeInput {
     oldValue: string | null;
     newValue: string | null;
     changedBy: string;
+    changedByLabel?: string | null;
 }
 
 /**
@@ -509,6 +513,7 @@ export async function insertItemChange(
         old_value: change.oldValue,
         new_value: change.newValue,
         changed_by: change.changedBy,
+        changed_by_label: change.changedByLabel ?? null,
     });
     if (error) {
         console.error('[changelog] insertItemChange failed:', error.message, change);
@@ -532,6 +537,7 @@ export async function insertItemChanges(
             old_value: c.oldValue,
             new_value: c.newValue,
             changed_by: c.changedBy,
+            changed_by_label: c.changedByLabel ?? null,
         }))
     );
     if (error) {
@@ -549,36 +555,54 @@ function mapDbRowToChange(row: Record<string, unknown>): ItemChangeRecord {
         oldValue: (row.old_value as string) ?? null,
         newValue: (row.new_value as string) ?? null,
         changedBy: row.changed_by as string,
+        changedByLabel: (row.changed_by_label as string) ?? null,
         changedAt: row.changed_at as string,
     };
 }
 
 /**
- * Load the latest change per (team, field) for an item.
+ * Load direct children of type 'team' for a given item.
+ * Used to resolve which item IDs to query for parent aggregation.
+ */
+export async function loadTeamChildrenIds(
+    roadmapId: string,
+    itemId: string
+): Promise<string[]> {
+    const { data, error } = await supabase
+        .from('roadmap_items')
+        .select('item_id')
+        .eq('roadmap_id', roadmapId)
+        .eq('parent_item_id', itemId)
+        .eq('item_type', 'team');
+    if (error || !data) return [];
+    return data.map(row => row.item_id as string);
+}
+
+/**
+ * Load the latest change per (team, field) for one or more items.
  * Only returns changes for the 3 key fields: status, startDate, endDate.
  * Used for the compact default view in EditPopup.
  */
 export async function loadLatestChanges(
     roadmapId: string,
-    itemId: string
+    itemIds: string[]
 ): Promise<ItemChangeRecord[]> {
-    // Supabase doesn't support DISTINCT ON directly.
-    // Use a raw RPC or fetch recent rows and deduplicate in JS.
+    if (itemIds.length === 0) return [];
+
     const { data, error } = await supabase
         .from('roadmap_item_changes')
         .select('*')
         .eq('roadmap_id', roadmapId)
-        .eq('item_id', itemId)
+        .in('item_id', itemIds)
         .in('field', ['status', 'startDate', 'endDate'])
         .order('changed_at', { ascending: false })
-        .limit(100); // fetch enough to cover all team×field combos
+        .limit(100);
 
     if (error) {
         console.error('[changelog] loadLatestChanges error:', error.message);
         return [];
     }
     if (!data) return [];
-    console.log('[changelog] loadLatestChanges:', { roadmapId, itemId, rowCount: data.length });
 
     // Deduplicate: keep only the latest per (team, field)
     const seen = new Set<string>();
@@ -594,14 +618,16 @@ export async function loadLatestChanges(
 }
 
 /**
- * Load full paginated change history for an item.
+ * Load full paginated change history for one or more items.
  * Supports filtering by team.
  */
 export async function loadChangeHistory(
     roadmapId: string,
-    itemId: string,
+    itemIds: string[],
     options?: { limit?: number; offset?: number; team?: string }
 ): Promise<{ changes: ItemChangeRecord[]; total: number }> {
+    if (itemIds.length === 0) return { changes: [], total: 0 };
+
     const limit = options?.limit ?? 20;
     const offset = options?.offset ?? 0;
 
@@ -609,7 +635,7 @@ export async function loadChangeHistory(
         .from('roadmap_item_changes')
         .select('*', { count: 'exact' })
         .eq('roadmap_id', roadmapId)
-        .eq('item_id', itemId)
+        .in('item_id', itemIds)
         .order('changed_at', { ascending: false })
         .range(offset, offset + limit - 1);
 

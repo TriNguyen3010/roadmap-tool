@@ -79,7 +79,8 @@ async function saveLegacyJson(id: string, requestBody: unknown, auth: Authentica
         const changeRecords = diffDocumentTreeForChangelog(
             oldDoc.items ?? [],
             normalizedDoc.items ?? [],
-            auth.sessionUser.email
+            auth.sessionUser.email,
+            auth.sessionUser.label
         );
         if (changeRecords.length > 0) {
             await insertItemChanges(id, changeRecords);
@@ -98,7 +99,8 @@ const TRACKED_ITEM_FIELDS = ['status', 'startDate', 'endDate', 'quickNote'] as c
 function diffDocumentTreeForChangelog(
     oldItems: RoadmapItem[],
     newItems: RoadmapItem[],
-    changedBy: string
+    changedBy: string,
+    changedByLabel?: string
 ): InsertItemChangeInput[] {
     const oldMap = new Map<string, RoadmapItem>();
     flattenTree(oldItems, oldMap);
@@ -119,7 +121,7 @@ function diffDocumentTreeForChangelog(
             const oldStr = oldVal != null ? String(oldVal) : null;
             const newStr = newVal != null ? String(newVal) : null;
             if (oldStr !== newStr) {
-                records.push({ itemId, team, field, oldValue: oldStr, newValue: newStr, changedBy });
+                records.push({ itemId, team, field, oldValue: oldStr, newValue: newStr, changedBy, changedByLabel: changedByLabel ?? null });
             }
         }
     }
@@ -147,7 +149,7 @@ async function saveTableBased(id: string, requestBody: unknown, auth: Authentica
     }
 
     const normalizedDoc = normalizeSharedRoadmapDocument(incoming as RoadmapDocument);
-    const result = await fullDocumentSync(id, normalizedDoc, auth.sessionUser.email);
+    const result = await fullDocumentSync(id, normalizedDoc, auth.sessionUser.email, auth.sessionUser.label);
 
     if (!result.success) {
         logRoadmapSaveTelemetry({ route: 'admin-save', roadmapId: id, outcome: 'error', status: 500, reason: result.error ?? 'sync-failed', actor: auth.sessionUser });

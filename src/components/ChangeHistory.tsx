@@ -14,6 +14,7 @@ interface ChangeRecord {
     oldValue: string | null;
     newValue: string | null;
     changedBy: string;
+    changedByLabel: string | null;
     changedAt: string;
 }
 
@@ -47,9 +48,12 @@ function relativeTime(iso: string): string {
 }
 
 function shortEmail(email: string): string {
-    // Show part before @ to save space
     const idx = email.indexOf('@');
     return idx > 0 ? email.slice(0, idx) : email;
+}
+
+function displayAuthor(change: ChangeRecord): string {
+    return change.changedByLabel || shortEmail(change.changedBy);
 }
 
 // ── Team color mapping ──────────────────────────────────────────────────────
@@ -233,7 +237,7 @@ function ChangeRow({ change }: { change: ChangeRecord }) {
             <span className="text-slate-400">→</span>
             <span className="font-medium text-slate-700">{displayValue(change.newValue)}</span>
             <span className="ml-auto shrink-0 text-[10px] text-slate-400" title={change.changedAt}>
-                {relativeTime(change.changedAt)} · {shortEmail(change.changedBy)}
+                {relativeTime(change.changedAt)} · {displayAuthor(change)}
             </span>
         </div>
     );
@@ -254,7 +258,7 @@ function FullChangeRow({ change }: { change: ChangeRecord }) {
             <span className="text-slate-400">→</span>
             <span className="font-medium text-slate-700">{displayValue(change.newValue)}</span>
             <span className="ml-auto shrink-0 text-[10px] text-slate-400" title={change.changedAt}>
-                {relativeTime(change.changedAt)} · {shortEmail(change.changedBy)}
+                {relativeTime(change.changedAt)} · {displayAuthor(change)}
             </span>
         </div>
     );

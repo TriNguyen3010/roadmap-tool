@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateTeamRequest } from '@/lib/serverTeamAuth';
-import { loadLatestChanges, loadChangeHistory } from '@/server/roadmapRowsRepo';
+import { loadLatestChanges, loadChangeHistory, loadTeamChildrenIds } from '@/server/roadmapRowsRepo';
 
 export const runtime = 'nodejs';
 
@@ -13,6 +13,9 @@ export const runtime = 'nodejs';
  *   limit=20              — page size (full mode only)
  *   offset=0              — pagination offset (full mode only)
  *   team=FE               — filter by team (full mode only)
+ *
+ * Parent aggregation: if the item has direct children of type 'team',
+ * changes are loaded for those children instead of the item itself.
  */
 export async function GET(
     request: NextRequest,
@@ -24,11 +27,16 @@ export async function GET(
     }
 
     const { id: roadmapId, itemId } = await params;
+
+    // Detect parent: if item has team children, query their changes
+    const teamChildIds = await loadTeamChildrenIds(roadmapId, itemId);
+    const targetIds = teamChildIds.length > 0 ? teamChildIds : [itemId];
+
     const url = new URL(request.url);
     const mode = url.searchParams.get('mode') || 'latest';
 
     if (mode === 'latest') {
-        const changes = await loadLatestChanges(roadmapId, itemId);
+        const changes = await loadLatestChanges(roadmapId, targetIds);
         return NextResponse.json({ changes });
     }
 
@@ -37,7 +45,7 @@ export async function GET(
     const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10), 0);
     const team = url.searchParams.get('team') || undefined;
 
-    const result = await loadChangeHistory(roadmapId, itemId, { limit, offset, team });
+    const result = await loadChangeHistory(roadmapId, targetIds, { limit, offset, team });
     return NextResponse.json({
         changes: result.changes,
         total: result.total,
