@@ -3255,12 +3255,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                     comparisonValue={dateMiniPopup.siblingValue}
                     comparisonMode={dateMiniPopup.field === 'startDate' ? 'greater_than' : 'less_than'}
                     onSave={(newDate) => {
-                        updateFromSource(dateMiniPopup.itemId, source => {
-                            const next = { ...source };
-                            if (newDate) next[dateMiniPopup.field] = newDate;
-                            else delete next[dateMiniPopup.field];
-                            return next;
-                        }, true);
+                        applyEditableFieldChanges(
+                            dateMiniPopup.itemId,
+                            [{ itemId: dateMiniPopup.itemId, field: dateMiniPopup.field, value: newDate ?? null }],
+                            source => {
+                                const next = { ...source };
+                                if (newDate) next[dateMiniPopup.field] = newDate;
+                                else delete next[dateMiniPopup.field];
+                                return next;
+                            }
+                        );
                         setDateMiniPopup(null);
                     }}
                     onClose={() => setDateMiniPopup(null)}
