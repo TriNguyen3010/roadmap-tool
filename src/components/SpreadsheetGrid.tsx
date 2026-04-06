@@ -2640,13 +2640,6 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     );
                                                 })}
                                             </svg>
-                                            <div className="absolute inset-0 z-10 flex items-center overflow-hidden pointer-events-none">
-                                                <span className="sticky left-2 text-[10.5px] font-bold text-slate-800 drop-shadow-[0_1px_1px_rgba(255,255,255,0.8)] whitespace-nowrap px-1">
-                                                    {row.status !== 'None' ? `${row.status} • ` : ''}
-                                                    {row.endDate ? format(parseISO(row.endDate), 'dd/MM') : ''}
-                                                    {workdays > 0 ? ` • ${formatWorkdayDuration(workdays)}` : ''}
-                                                </span>
-                                            </div>
                                             {hasActiveInfo && (() => {
                                                 const sdRaw = row.startDate ? parseISO(row.startDate) : null;
                                                 const edRaw = row.endDate ? parseISO(row.endDate) : null;
