@@ -3078,7 +3078,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     <ChevronDown size={13} className="shrink-0 text-slate-400" />
                                                 </button>
                                                 {isActiveImageStatusInlineEditable && openStatusId === activeImagePreviewItem.id && (
-                                                    <div data-status-dropdown="true" className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                                                    <div data-status-dropdown="true" className="absolute left-0 top-full z-50 mt-1 w-full overflow-y-auto max-h-[360px] rounded-xl border border-slate-200 bg-white shadow-xl">
                                                         {STATUS_OPTIONS.map(statusOption => (
                                                             <button
                                                                 key={statusOption}
@@ -3350,7 +3350,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 // Status dropdown
                 if (openStatusId && activeRow) {
                     return createPortal(
-                        <div data-status-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[188px]" style={style}>
+                        <div data-status-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[188px] max-h-[360px] overflow-y-auto" style={style}>
                             {STATUS_OPTIONS.map(statusOption => (
                                 <button
                                     key={statusOption}
