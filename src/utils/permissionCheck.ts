@@ -10,7 +10,7 @@ import type {
     ManagerFieldChange,
 } from '@/types/auth';
 import { touchItemTimestamp } from '@/utils/roadmapHelpers';
-import { getItemTeam, getItemTeams } from '@/utils/permissions';
+import { getItemTeam, getItemTeams, getItemType } from '@/utils/permissions';
 
 const MANAGER_ALLOWED_FIELDS = new Set<ManagerFieldChange['field']>(['status', 'startDate', 'endDate', 'quickNote']);
 const STATUS_SET = new Set<ItemStatus>(STATUS_OPTIONS);
@@ -64,18 +64,26 @@ export function validateManagerChanges(
             continue;
         }
 
-        // If change specifies a team, validate that team matches manager's team
-        if (change.team && change.team !== managerTeam) {
-            violations.push(`Manager ${managerTeam} không thể sửa team ${change.team}`);
+        // Category items are never editable by managers
+        const itemType = getItemType(change.itemId, items);
+        if (itemType === 'category') {
+            violations.push(`Item ${change.itemId} là category, manager không được sửa`);
             continue;
         }
 
-        const itemTeams = getItemTeams(change.itemId, items);
-        const targetTeam = change.team || managerTeam;
-        if (!itemTeams.includes(targetTeam)) {
-            violations.push(
-                `Item ${change.itemId} thuộc teams [${itemTeams.join(', ')}], không bao gồm ${targetTeam}`
-            );
+        // Notes still require team ownership; status/dates are open to all non-category items
+        if (change.field === 'quickNote') {
+            if (change.team && change.team !== managerTeam) {
+                violations.push(`Manager ${managerTeam} không thể sửa team ${change.team}`);
+                continue;
+            }
+            const itemTeams = getItemTeams(change.itemId, items);
+            const targetTeam = change.team || managerTeam;
+            if (!itemTeams.includes(targetTeam)) {
+                violations.push(
+                    `Item ${change.itemId} thuộc teams [${itemTeams.join(', ')}], không bao gồm ${targetTeam}`
+                );
+            }
         }
     }
 

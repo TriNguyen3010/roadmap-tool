@@ -771,7 +771,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         && !!activeImagePreviewPermission?.canEditStatus
         && activeImagePreviewItem.type !== 'category'
         && activeImagePreviewItem.type !== 'subcategory'
-        && activeImagePreviewItem.statusMode !== 'auto';
+        && (activeImagePreviewItem.statusMode !== 'auto' || !isAdminLevel(currentUser));
     const canEditActiveImagePhase = !!activeImagePreviewItem && canEditStructure && phaseOptions.length > 0;
     const canEditActiveImageNote = !!activeImagePreviewPermission?.canEditNotes;
     const activeImagePreviewStatus = activeImagePreviewItem?.status || 'Not Started';
@@ -1458,10 +1458,15 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
     const isDateInlineEditable = useCallback((row: FlattenedItem): boolean => {
         if (!getRowPermission(row.id).canEditDates) return false;
-        const hasNonTeamChildren = !!(row.children && row.children.some(child => child.type !== 'team'));
-        const isManualMode = row.statusMode === 'manual';
-        return !hasNonTeamChildren || isManualMode;
-    }, [getRowPermission]);
+        // Admin-level: keep original logic (block auto-calculated parents)
+        if (isAdminLevel(currentUser)) {
+            const hasNonTeamChildren = !!(row.children && row.children.some(child => child.type !== 'team'));
+            const isManualMode = row.statusMode === 'manual';
+            return !hasNonTeamChildren || isManualMode;
+        }
+        // Manager: can edit dates on any non-category item (permission already blocks category)
+        return true;
+    }, [currentUser, getRowPermission]);
 
     const openDateMiniPopup = useCallback((
         event: React.MouseEvent<HTMLDivElement>,
@@ -2015,7 +2020,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             color: phaseColorById.get(phaseId) || normalizeWeekColor('', chipIndex),
                         }));
                         const rowPermission = getRowPermission(row.id);
-                        const isStatusInlineEditable = rowPermission.canEditStatus && row.statusMode !== 'auto';
+                        const isStatusInlineEditable = rowPermission.canEditStatus && (row.statusMode !== 'auto' || !isAdminLevel(currentUser));
                         const isDateCellEditable = isDateInlineEditable(row);
                         const groupInlinePhaseIds = row.type === 'group' ? (groupInlinePhaseIdsById.get(row.id) || []) : [];
                         const groupInlinePhaseTags = groupInlinePhaseIds.map((phaseId, tagIndex) => ({

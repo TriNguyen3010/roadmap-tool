@@ -1,6 +1,6 @@
 import type { EditPermission, ItemId, SessionUser } from '@/types/auth';
 import { isAdminLevel } from '@/types/auth';
-import type { RoadmapItem, TeamRole as RoadmapTeamRole } from '@/types/roadmap';
+import type { ItemType, RoadmapItem, TeamRole as RoadmapTeamRole } from '@/types/roadmap';
 
 const NONE_PERMISSION: EditPermission = {
     canEditStatus: false,
@@ -40,6 +40,21 @@ export function getItemTeams(
     return [];
 }
 
+/** Find the ItemType for a given itemId by walking the tree. */
+export function getItemType(
+    itemId: ItemId,
+    items: RoadmapItem[]
+): ItemType | null {
+    for (const item of items) {
+        if (item.id === itemId) return item.type;
+        if (item.children?.length) {
+            const found = getItemType(itemId, item.children);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
 // Backward-compatible wrapper: returns first team or null
 export function getItemTeam(
     itemId: ItemId,
@@ -69,17 +84,23 @@ export function getEditPermission(
     }
 
     if (user.role === 'manager' && user.team) {
+        const itemType = getItemType(itemId, items);
+
+        // Category items are never editable by managers
+        if (itemType === 'category') return NONE_PERMISSION;
+
+        // Manager can edit status/dates for all non-category items
         const itemTeams = getItemTeams(itemId, items);
-        if (itemTeams.includes(user.team as RoadmapTeamRole)) {
-            return {
-                canEditStatus: true,
-                canEditDates: true,
-                canEditNotes: true,
-                canEditStructure: false,
-                canEditMilestones: false,
-                canManageRoadmap: false,
-            };
-        }
+        const isOwnTeam = itemTeams.includes(user.team as RoadmapTeamRole);
+
+        return {
+            canEditStatus: true,
+            canEditDates: true,
+            canEditNotes: isOwnTeam,
+            canEditStructure: false,
+            canEditMilestones: false,
+            canManageRoadmap: false,
+        };
     }
 
     return NONE_PERMISSION;

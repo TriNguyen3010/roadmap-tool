@@ -79,11 +79,19 @@ export async function POST(
 
             const item = chain[0];
 
-            // Check team permission: item must belong to manager's team
-            const itemTeam = resolveItemTeam(chain);
-            if (itemTeam !== managerTeam) {
-                violations.push(`Item "${change.itemId}" does not belong to team ${managerTeam}`);
+            // Category items are never editable by managers
+            if (item.itemType === 'category') {
+                violations.push(`Item "${change.itemId}" is a category and cannot be edited by managers`);
                 continue;
+            }
+
+            // Notes still require team ownership; status/dates are open to all non-category items
+            if (change.field === 'quickNote') {
+                const itemTeam = resolveItemTeam(chain);
+                if (itemTeam !== managerTeam) {
+                    violations.push(`Item "${change.itemId}" does not belong to team ${managerTeam}`);
+                    continue;
+                }
             }
 
             // Capture old value before applying patch (for changelog)
