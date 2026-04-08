@@ -91,6 +91,7 @@ interface GridProps {
     setExpandedIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
     hiddenRowIds: Set<string>;
     setHiddenRowIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+    addToast?: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
 const NO_EDIT_PERMISSION: EditPermission = {
@@ -390,7 +391,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     showWorkType, setShowWorkType,
     showPriority, setShowPriority, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
-    expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds
+    expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds, addToast
 }: GridProps) {
     const leftPaneRef = useRef<HTMLDivElement>(null);
     const rightPaneRef = useRef<HTMLDivElement>(null);
@@ -415,6 +416,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         siblingValue: string | undefined;
         anchorRect: DOMRect;
     } | null>(null);
+
+    const [teamRestrictionFeedback, setTeamRestrictionFeedback] = useState<{ message: string; x: number; y: number } | null>(null);
+    const hideRestrictionFeedbackTimer = useRef<NodeJS.Timeout | null>(null);
+    const showRestrictionFeedback = useCallback((message: string, e: React.MouseEvent) => {
+        if (hideRestrictionFeedbackTimer.current) clearTimeout(hideRestrictionFeedbackTimer.current);
+        setTeamRestrictionFeedback({ message, x: e.clientX, y: e.clientY });
+        hideRestrictionFeedbackTimer.current = setTimeout(() => {
+            setTeamRestrictionFeedback(null);
+        }, 3000);
+    }, []);
 
     // ── CRUD states ──
     const [editingItem, setEditingItem] = useState<RoadmapItem | null>(null);
@@ -2044,6 +2055,13 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                         const isDragOverReorder = dragOverId === row.id && dragOverMode === 'reorder';
                         const isDragOverParent = dragOverId === row.id && dragOverMode === 'parent';
 
+                        const isOtherTeamRow = currentUser?.role === 'manager' 
+                            && currentUser?.team 
+                            && !isAdminLevel(currentUser)
+                            && row.type === 'team' 
+                            && row.teamRole 
+                            && row.teamRole !== currentUser.team;
+
                         return (
                             <div key={row.id}
                                 className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOverReorder ? 'border-t-4 border-t-blue-500' : ''} ${isDragOverParent ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
@@ -2242,8 +2260,13 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     return (
                                         <div
                                             data-status-trigger="true"
-                                            className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canClickStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canClickStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : (isOtherTeamRow && currentUser?.team ? 'cursor-pointer' : '')}`}
                                             onClick={e => {
+                                                if (isOtherTeamRow && currentUser?.team && !canClickStatus) {
+                                                    e.stopPropagation();
+                                                    showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser.team}`, e);
+                                                    return;
+                                                }
                                                 if (!canClickStatus) return;
                                                 e.stopPropagation();
                                                 if (!isStatusInlineEditable) return;
@@ -2254,10 +2277,11 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 setOpenStatusId(openStatusId === row.id ? null : row.id);
                                             }}
                                             title={!showStatusVisual
-                                                ? (canClickStatus ? 'Click để đổi status' : '')
-                                                : row.statusMode === 'auto'
-                                                ? 'Status đang auto từ task con. Click để mở Edit.'
-                                                : 'Click để đổi status'}
+                                                    ? (canClickStatus ? 'Click để đổi status' : '')
+                                                    : row.statusMode === 'auto'
+                                                    ? 'Status đang auto từ task con. Click để mở Edit.'
+                                                    : 'Click để đổi status'
+                                            }
                                         >
                                             {!showStatusVisual ? (
                                                 <span className="mx-auto text-[10px] text-transparent">&nbsp;</span>
@@ -2321,9 +2345,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     (row.type === 'subcategory' || row.type === 'team') ? (
                                         <div
                                             data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
-                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : (isOtherTeamRow && currentUser?.team ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
                                             title={isDateCellEditable ? 'Click để sửa Start Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
-                                            onClick={(event) => openDateMiniPopup(event, row, 'startDate')}
+                                            onClick={(event) => {
+                                                if (isOtherTeamRow && currentUser?.team && !isDateCellEditable) {
+                                                    event.stopPropagation();
+                                                    showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser.team}`, event);
+                                                    return;
+                                                }
+                                                if (isDateCellEditable) openDateMiniPopup(event, row, 'startDate');
+                                            }}
                                         >
                                             {row.startDate ? format(parseISO(row.startDate), 'dd/MM/yy') : '-'}
                                         </div>
@@ -2337,9 +2368,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     (row.type === 'subcategory' || row.type === 'team') ? (
                                         <div
                                             data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
-                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : (isOtherTeamRow && currentUser?.team ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
                                             title={isDateCellEditable ? 'Click để sửa End Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
-                                            onClick={(event) => openDateMiniPopup(event, row, 'endDate')}
+                                            onClick={(event) => {
+                                                if (isOtherTeamRow && currentUser?.team && !isDateCellEditable) {
+                                                    event.stopPropagation();
+                                                    showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser.team}`, event);
+                                                    return;
+                                                }
+                                                if (isDateCellEditable) openDateMiniPopup(event, row, 'endDate');
+                                            }}
                                         >
                                             {row.endDate ? format(parseISO(row.endDate), 'dd/MM/yy') : '-'}
                                         </div>
@@ -3485,6 +3523,17 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 return null;
             })()}
 
+
+            {/* Team Restriction Feedback Tooltip */}
+            {teamRestrictionFeedback && createPortal(
+                <div
+                    className="fixed z-[9999] px-1.5 py-0.5 bg-[#ffffe0] border border-black text-black text-[11px] font-sans shadow-sm pointer-events-none"
+                    style={{ left: teamRestrictionFeedback.x + 10, top: teamRestrictionFeedback.y + 15 }}
+                >
+                    {teamRestrictionFeedback.message}
+                </div>,
+                document.body
+            )}
         </div>
     );
 }

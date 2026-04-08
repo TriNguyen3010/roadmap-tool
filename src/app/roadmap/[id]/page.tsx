@@ -1647,6 +1647,7 @@ export default function RoadmapPage() {
           today={today}
           expandedIds={expandedIds} setExpandedIds={setExpandedIds}
           hiddenRowIds={hiddenRowIds} setHiddenRowIds={setHiddenRowIds}
+          addToast={addToast}
         />
       </div>
       <TimelineModeFab mode={timelineMode} onModeChange={setTimelineMode} />

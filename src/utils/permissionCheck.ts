@@ -71,8 +71,8 @@ export function validateManagerChanges(
             continue;
         }
 
-        // Notes still require team ownership; status/dates are open to all non-category items
-        if (change.field === 'quickNote') {
+        // Validate team ownership for all editable fields
+        if (['status', 'startDate', 'endDate', 'quickNote'].includes(change.field)) {
             if (change.team && change.team !== managerTeam) {
                 violations.push(`Manager ${managerTeam} không thể sửa team ${change.team}`);
                 continue;
@@ -81,7 +81,7 @@ export function validateManagerChanges(
             const targetTeam = change.team || managerTeam;
             if (!itemTeams.includes(targetTeam)) {
                 violations.push(
-                    `Item ${change.itemId} thuộc teams [${itemTeams.join(', ')}], không bao gồm ${targetTeam}`
+                    `${change.field}: Item ${change.itemId} thuộc teams [${itemTeams.join(', ')}], không bao gồm ${targetTeam}`
                 );
             }
         }

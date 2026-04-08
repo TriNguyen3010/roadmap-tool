@@ -94,8 +94,8 @@ export function getEditPermission(
         const isOwnTeam = itemTeams.includes(user.team as RoadmapTeamRole);
 
         return {
-            canEditStatus: true,
-            canEditDates: true,
+            canEditStatus: isOwnTeam,
+            canEditDates: isOwnTeam,
             canEditNotes: isOwnTeam,
             canEditStructure: false,
             canEditMilestones: false,

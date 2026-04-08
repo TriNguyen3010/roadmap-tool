@@ -85,11 +85,11 @@ export async function POST(
                 continue;
             }
 
-            // Notes still require team ownership; status/dates are open to all non-category items
-            if (change.field === 'quickNote') {
+            // Validate team ownership for all editable fields
+            if (['status', 'startDate', 'endDate', 'quickNote'].includes(change.field)) {
                 const itemTeam = resolveItemTeam(chain);
                 if (itemTeam !== managerTeam) {
-                    violations.push(`Item "${change.itemId}" does not belong to team ${managerTeam}`);
+                    violations.push(`${change.field}: item "${change.itemId}" does not belong to team ${managerTeam}`);
                     continue;
                 }
             }
