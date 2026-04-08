@@ -589,6 +589,16 @@ export default function RoadmapPage() {
     };
   }, [roadmapId]);
 
+  // Debounced toast for admin when remote data changes
+  const lastVersionToastRef = useRef<number>(0);
+  const notifyVersionUpdate = useCallback(() => {
+    if (!canManageRoadmap) return;
+    const now = Date.now();
+    if (now - lastVersionToastRef.current < 10_000) return;
+    lastVersionToastRef.current = now;
+    addToast('Dữ liệu vừa được cập nhật từ nguồn khác.', 'info', 5000);
+  }, [canManageRoadmap, addToast]);
+
   const checkRemoteVersion = useCallback(async () => {
     const latestVersion = await fetchRoadmapVersion();
     if (!latestVersion) return;
@@ -603,10 +613,11 @@ export default function RoadmapPage() {
 
     // Auto-reload silently when no unsaved changes and no save in flight
     if (!saveInFlightRef.current && !hasUnsavedSharedChanges) {
+      notifyVersionUpdate();
       currentVersionRef.current = latestVersion;
       void loadRoadmap();
     }
-  }, [fetchRoadmapVersion, hasUnsavedSharedChanges, loadRoadmap]);
+  }, [fetchRoadmapVersion, hasUnsavedSharedChanges, loadRoadmap, notifyVersionUpdate]);
 
   useEffect(() => {
     if (!roadmapId || loading || (!authUser && !guestMode)) return;

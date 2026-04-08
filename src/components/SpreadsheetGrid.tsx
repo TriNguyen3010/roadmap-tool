@@ -311,6 +311,18 @@ const STATUS_OPTIONS_BY_TEAM: Record<TeamRole, ItemStatus[]> = {
     Growth: ['None', 'Not Started', 'Growth Handle', 'Growth in progress', 'Growth Done'],
 };
 
+const STATUS_OPTIONS_GENERIC: ItemStatus[] = [
+    'None', 'Not Started', 'Sếp Vinh',
+    'Task To do', 'Task In progress', 'Task Pending', 'Task Done',
+];
+
+function getStatusOptionsForRow(row: { type: string; teamRole?: string }): ItemStatus[] {
+    if (row.type === 'team' && row.teamRole) {
+        return STATUS_OPTIONS_BY_TEAM[row.teamRole as TeamRole] || STATUS_OPTIONS_GENERIC;
+    }
+    return STATUS_OPTIONS_GENERIC;
+}
+
 const COL_WORK_TYPE_W = 110;
 const COL_PRIORITY_W = 70;
 const MAX_QUICK_NOTE_LENGTH = 500;
@@ -3170,7 +3182,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 </button>
                                                 {isActiveImageStatusInlineEditable && openStatusId === activeImagePreviewItem.id && (
                                                     <div data-status-dropdown="true" className="absolute left-0 top-full z-50 mt-1 w-full overflow-y-auto max-h-[360px] rounded-xl border border-slate-200 bg-white shadow-xl">
-                                                        {STATUS_OPTIONS.map(statusOption => (
+                                                        {getStatusOptionsForRow(activeImagePreviewItem).map(statusOption => (
                                                             <button
                                                                 key={statusOption}
                                                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold transition-colors hover:bg-slate-50"
@@ -3442,7 +3454,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 if (openStatusId && activeRow) {
                     return createPortal(
                         <div data-status-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[188px] max-h-[360px] overflow-y-auto" style={style}>
-                            {STATUS_OPTIONS.map(statusOption => (
+                            {getStatusOptionsForRow(activeRow).map(statusOption => (
                                 <button
                                     key={statusOption}
                                     className="text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors"
