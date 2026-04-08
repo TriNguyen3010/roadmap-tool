@@ -2229,13 +2229,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     )
                                 )}
 
-                                {/* Status — smart visibility: category=always hide, sub/group=show only when collapsed, team=always show */}
+                                {/* Status — smart visibility: category=always hide, sub=hide when expanded (unless all groups have no status), group/team=always show */}
                                 {(() => {
-                                    const showStatus = row.type === 'team'
+                                    const allChildrenNoStatus = row.type === 'subcategory'
+                                        && row.children?.every(child => !child.status || child.status === 'None');
+                                    const showStatusVisual = row.type === 'team'
                                         || row.type === 'group'
-                                        || (row.type === 'subcategory' && !isExpanded)
+                                        || (row.type === 'subcategory' && (!isExpanded || allChildrenNoStatus))
                                         ;
-                                    const canClickStatus = showStatus && rowPermission.canEditStatus;
+                                    const canClickStatus = (row.type === 'team' || row.type === 'group' || row.type === 'subcategory')
+                                        && rowPermission.canEditStatus;
                                     return (
                                         <div
                                             data-status-trigger="true"
@@ -2250,11 +2253,13 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 captureDropdownAnchor(e);
                                                 setOpenStatusId(openStatusId === row.id ? null : row.id);
                                             }}
-                                            title={!showStatus ? '' : row.statusMode === 'auto'
+                                            title={!showStatusVisual
+                                                ? (canClickStatus ? 'Click để đổi status' : '')
+                                                : row.statusMode === 'auto'
                                                 ? 'Status đang auto từ task con. Click để mở Edit.'
                                                 : 'Click để đổi status'}
                                         >
-                                            {!showStatus ? (
+                                            {!showStatusVisual ? (
                                                 <span className="mx-auto text-[10px] text-transparent">&nbsp;</span>
                                             ) : row.statusMode === 'auto' ? (
                                                 <span className="mx-auto text-[10px] text-gray-400 italic"></span>
@@ -2724,7 +2729,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                     <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: seg.color }} />
                                                                     <span className="max-w-[120px] truncate">{seg.childName}</span>
                                                                 </div>
-                                                                <span className="text-gray-300 font-medium shrink-0 tabular-nums">End {format(curEnd, 'dd/MM/yyyy')} ({formatWorkdayDuration(countWorkdays(curStart, curEnd))})</span>
+                                                                <span className="text-gray-300 font-medium shrink-0 tabular-nums">{format(curStart, 'dd/MM')} → {format(curEnd, 'dd/MM/yyyy')} ({formatWorkdayDuration(countWorkdays(curStart, curEnd))})</span>
                                                             </div>
                                                         );
                                                     }
