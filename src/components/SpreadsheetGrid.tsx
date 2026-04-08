@@ -2196,9 +2196,9 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     </div>
                                 )}
 
-                                {/* Priority — only for group/item/subcategory, hidden when showPriority=false */}
+                                {/* Priority — only for group (plan: hide for category/subcategory/team) */}
                                 {showPriority && (
-                                    (row.type === 'group' || row.type === 'item' || row.type === 'subcategory') ? (
+                                    row.type === 'group' ? (
                                         <div
                                             data-priority-trigger="true"
                                             className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEditStructure ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
@@ -2229,98 +2229,118 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     )
                                 )}
 
-                                {/* Status */}
-                                <div
-                                    data-status-trigger="true"
-                                    className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${rowPermission.canEditStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
-                                    onClick={e => {
-                                        if (!rowPermission.canEditStatus) return;
-                                        e.stopPropagation();
-                                        if (!isStatusInlineEditable) {
-                                            return;
-                                        }
-                                        setOpenWorkTypeId(null);
-                                        setOpenPriorityId(null);
-                                        setOpenPhaseId(null);
-                                        captureDropdownAnchor(e);
-                                        setOpenStatusId(openStatusId === row.id ? null : row.id);
-                                    }}
-                                    title={row.statusMode === 'auto'
-                                        ? 'Status đang auto từ task con. Click để mở Edit.'
-                                        : 'Click để đổi status'}
-                                >
-                                    {row.statusMode === 'auto' ? (
-                                        <span className="mx-auto text-[10px] text-gray-400 italic"></span>
-                                    ) : row.status === 'None' ? (
-                                        <span className="mx-auto text-[10px] text-transparent"></span>
-                                    ) : (
-                                        <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
-                                            style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
-                                            {row.status}
-                                        </span>
-                                    )}
-                                </div>
+                                {/* Status — smart visibility: category=always hide, sub/group=show only when collapsed, team=always show */}
+                                {(() => {
+                                    const showStatus = row.type === 'team'
+                                        || row.type === 'group'
+                                        || (row.type === 'subcategory' && !isExpanded)
+                                        ;
+                                    const canClickStatus = showStatus && rowPermission.canEditStatus;
+                                    return (
+                                        <div
+                                            data-status-trigger="true"
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canClickStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                            onClick={e => {
+                                                if (!canClickStatus) return;
+                                                e.stopPropagation();
+                                                if (!isStatusInlineEditable) return;
+                                                setOpenWorkTypeId(null);
+                                                setOpenPriorityId(null);
+                                                setOpenPhaseId(null);
+                                                captureDropdownAnchor(e);
+                                                setOpenStatusId(openStatusId === row.id ? null : row.id);
+                                            }}
+                                            title={!showStatus ? '' : row.statusMode === 'auto'
+                                                ? 'Status đang auto từ task con. Click để mở Edit.'
+                                                : 'Click để đổi status'}
+                                        >
+                                            {!showStatus ? (
+                                                <span className="mx-auto text-[10px] text-transparent">&nbsp;</span>
+                                            ) : row.statusMode === 'auto' ? (
+                                                <span className="mx-auto text-[10px] text-gray-400 italic"></span>
+                                            ) : row.status === 'None' ? (
+                                                <span className="mx-auto text-[10px] text-transparent"></span>
+                                            ) : (
+                                                <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
+                                                    style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
+                                                    {row.status}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
 
-                                {/* Week tags */}
+                                {/* Week tags — show for group only */}
                                 {showPhase && (
-                                    <div
-                                        data-phase-trigger="true"
-                                        className={`flex items-center border-r border-gray-300 px-1 relative ${canEditStructure && phaseOptions.length > 0 ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
-                                        title={rowPhaseTitle || 'Chưa gán week'}
-                                        onClick={e => {
-                                            if (!canEditStructure || phaseOptions.length === 0) return;
-                                            e.stopPropagation();
-                                            setOpenWorkTypeId(null);
-                                            setOpenPriorityId(null);
-                                            setOpenStatusId(null);
-                                            captureDropdownAnchor(e);
-                                            setOpenPhaseId(openPhaseId === row.id ? null : row.id);
-                                        }}
-                                    >
-                                        {rowPhaseLabels.length === 0 ? (
-                                            <span className="mx-auto text-[10px] text-gray-400">—</span>
-                                        ) : (
-                                            <div className="flex w-full items-center justify-center gap-1 overflow-hidden">
-                                                {rowPhaseChips.map((chip, idx) => (
-                                                    <span
-                                                        key={`${row.id}-${chip.id}-${idx}`}
-                                                        className="truncate rounded-full px-1.5 py-0.5 text-[9px] font-semibold text-center"
-                                                        style={{
-                                                            backgroundColor: hexToRgba(chip.color, 0.18),
-                                                            color: chip.color,
-                                                        }}
-                                                    >
-                                                        {chip.label}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                    </div>
+                                    row.type === 'group' ? (
+                                        <div
+                                            data-phase-trigger="true"
+                                            className={`flex items-center border-r border-gray-300 px-1 relative ${canEditStructure && phaseOptions.length > 0 ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                            title={rowPhaseTitle || 'Chưa gán week'}
+                                            onClick={e => {
+                                                if (!canEditStructure || phaseOptions.length === 0) return;
+                                                e.stopPropagation();
+                                                setOpenWorkTypeId(null);
+                                                setOpenPriorityId(null);
+                                                setOpenStatusId(null);
+                                                captureDropdownAnchor(e);
+                                                setOpenPhaseId(openPhaseId === row.id ? null : row.id);
+                                            }}
+                                        >
+                                            {rowPhaseLabels.length === 0 ? (
+                                                <span className="mx-auto text-[10px] text-gray-400">—</span>
+                                            ) : (
+                                                <div className="flex w-full items-center justify-center gap-1 overflow-hidden">
+                                                    {rowPhaseChips.map((chip, idx) => (
+                                                        <span
+                                                            key={`${row.id}-${chip.id}-${idx}`}
+                                                            className="truncate rounded-full px-1.5 py-0.5 text-[9px] font-semibold text-center"
+                                                            style={{
+                                                                backgroundColor: hexToRgba(chip.color, 0.18),
+                                                                color: chip.color,
+                                                            }}
+                                                        >
+                                                            {chip.label}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="border-r border-gray-300" style={{ width: phaseW }} />
+                                    )
                                 )}
 
-                                {/* Start Date */}
+                                {/* Start Date — show for subcategory + team only */}
                                 {showStartDate && (
-                                    <div
-                                        data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
-                                        className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
-                                        title={isDateCellEditable ? 'Click để sửa Start Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
-                                        onClick={(event) => openDateMiniPopup(event, row, 'startDate')}
-                                    >
-                                        {row.startDate ? format(parseISO(row.startDate), 'dd/MM/yy') : '-'}
-                                    </div>
+                                    (row.type === 'subcategory' || row.type === 'team') ? (
+                                        <div
+                                            data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
+                                            title={isDateCellEditable ? 'Click để sửa Start Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
+                                            onClick={(event) => openDateMiniPopup(event, row, 'startDate')}
+                                        >
+                                            {row.startDate ? format(parseISO(row.startDate), 'dd/MM/yy') : '-'}
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center border-r border-gray-300 px-1 text-[10px] text-transparent">-</div>
+                                    )
                                 )}
 
-                                {/* End Date */}
+                                {/* End Date — show for subcategory + team only */}
                                 {showEndDate && (
-                                    <div
-                                        data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
-                                        className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
-                                        title={isDateCellEditable ? 'Click để sửa End Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
-                                        onClick={(event) => openDateMiniPopup(event, row, 'endDate')}
-                                    >
-                                        {row.endDate ? format(parseISO(row.endDate), 'dd/MM/yy') : '-'}
-                                    </div>
+                                    (row.type === 'subcategory' || row.type === 'team') ? (
+                                        <div
+                                            data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : 'text-gray-500'}`}
+                                            title={isDateCellEditable ? 'Click để sửa End Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
+                                            onClick={(event) => openDateMiniPopup(event, row, 'endDate')}
+                                        >
+                                            {row.endDate ? format(parseISO(row.endDate), 'dd/MM/yy') : '-'}
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center border-r border-gray-300 px-1 text-[10px] text-transparent">-</div>
+                                    )
                                 )}
 
                                 {/* Actions */}
