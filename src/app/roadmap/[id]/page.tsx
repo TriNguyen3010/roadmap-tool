@@ -1373,9 +1373,11 @@ export default function RoadmapPage() {
   const handleRootAdd = (newItem: RoadmapItem) => {
     if (!ensureCanManageRoadmap()) return;
     if (!data) return;
-    setData(stripViewSettingsFromDocument(normalizeDocument({ ...data, items: [...data.items, newItem] })));
+    const normalized = normalizeDocument({ ...data, items: [...data.items, newItem] });
+    setData(stripViewSettingsFromDocument(normalized));
     setHasUnsavedSharedChanges(true);
     setHasPendingReleaseMetaPatch(false);
+    handleSave(normalized);
   };
 
   const handleLoadJson = useCallback(async (jsonData: unknown) => {

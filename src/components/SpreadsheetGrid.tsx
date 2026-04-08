@@ -1163,7 +1163,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     // ── CRUD handlers ──
     const handleEditSave = (updated: RoadmapItem) => {
         if (!canEditStructure) return;
-        onDataChange({ ...data, items: updateNodeById(data.items, updated.id, touchItemTimestamp(updated)) });
+        onDataChange({ ...data, items: updateNodeById(data.items, updated.id, touchItemTimestamp(updated)) }, true);
         if (updated.children && updated.children.length > 0) {
             setExpandedIds(prev => new Set([...prev, updated.id]));
         }
@@ -1171,7 +1171,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     const handleDelete = async (id: string) => {
         if (!canEditStructure) return;
         if (!(await showConfirm('Bạn có chắc muốn xoá mục này và toàn bộ nội dung con của nó không?'))) return;
-        onDataChange({ ...data, items: deleteNodeById(data.items, id) });
+        onDataChange({ ...data, items: deleteNodeById(data.items, id) }, true);
     };
     const handleAddChild = (parentId: string, newItem: RoadmapItem) => {
         if (!canEditStructure) return;
@@ -1184,7 +1184,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         }
 
         setExpandedIds(nextExp);
-        onDataChange({ ...data, items: newItems });
+        onDataChange({ ...data, items: newItems }, true);
     };
 
     const isValidSameLayerDrop = useCallback((sourceId: string, targetId: string): boolean => {
@@ -2198,7 +2198,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
                                 {/* Priority — only for group (plan: hide for category/subcategory/team) */}
                                 {showPriority && (
-                                    row.type === 'group' ? (
+                                    (row.type === 'group' || row.type === 'subcategory') ? (
                                         <div
                                             data-priority-trigger="true"
                                             className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEditStructure ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
@@ -3383,7 +3383,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     style={{ color: PRIORITY_COLORS[p] }}
                                     onMouseDown={e => {
                                         e.preventDefault();
-                                        updateFromSource(activeRow.id, source => ({ ...source, priority: p }));
+                                        updateFromSource(activeRow.id, source => ({ ...source, priority: p }), true);
                                         setOpenPriorityId(null);
                                     }}
                                 >{p}</button>
@@ -3391,7 +3391,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
                                 onMouseDown={e => {
                                     e.preventDefault();
-                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.priority; return next; });
+                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.priority; return next; }, true);
                                     setOpenPriorityId(null);
                                 }}
                             >Clear</button>
