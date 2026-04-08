@@ -2800,6 +2800,14 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 );
                                             })()}
                                         </div>
+                                    ) : !hasChildSegments && row.type === 'group' && row.children && row.children.length > 0 && row.status && row.status !== 'None' && row.status !== 'Not Started' && barLeft < 0 ? (
+                                        /* ── No drawable segments: warn insufficient data ── */
+                                        <div
+                                            className="absolute inset-y-0 flex items-center px-2"
+                                            style={{ left: timelineLeftOffset + 4 }}
+                                        >
+                                            <span className="text-[9.5px] text-slate-400 italic">Insufficient date data to render timeline</span>
+                                        </div>
                                     ) : (
                                         /* ── Single arc (leaf or no child dates) ── */
                                         barLeft >= 0 && (
