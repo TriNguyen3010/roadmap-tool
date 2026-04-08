@@ -2723,11 +2723,12 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                             maxEndSeen = curEnd;
                                                         }
 
+                                                        const segStatusLabel = seg.status && seg.status !== 'None' ? seg.status : null;
                                                         renderItems.push(
                                                             <div key={`seg-${i}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
                                                                 <div className="flex items-center gap-1.5 overflow-hidden">
                                                                     <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: seg.color }} />
-                                                                    <span className="max-w-[120px] truncate">{seg.childName}</span>
+                                                                    <span className="max-w-[120px] truncate">{seg.childName}{segStatusLabel ? <span className="text-gray-400 font-normal"> ({segStatusLabel})</span> : null}</span>
                                                                 </div>
                                                                 <span className="text-gray-300 font-medium shrink-0 tabular-nums">{format(curStart, 'dd/MM')} → {format(curEnd, 'dd/MM/yyyy')} ({formatWorkdayDuration(countWorkdays(curStart, curEnd))})</span>
                                                             </div>
@@ -2735,19 +2736,20 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     }
                                                 });
 
-                                                // Children without dates but with active status
+                                                // Children without dates (show all except None/empty status)
                                                 if (row.children) {
                                                     row.children.forEach((child, i) => {
                                                         if (child.startDate && child.endDate) return;
                                                         const s = child.status || '';
-                                                        if (isDoneStatus(s)) return;
+                                                        const isInactive = !s || s === 'None';
+                                                        const statusLabel = s && s !== 'None' ? s : null;
                                                         renderItems.push(
                                                             <div key={`nodate-${i}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
                                                                 <div className="flex items-center gap-1.5 overflow-hidden">
                                                                     <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: STATUS_BAR_COLOR[s] || '#9ca3af' }} />
-                                                                    <span className="max-w-[120px] truncate">{child.name}</span>
+                                                                    <span className="max-w-[120px] truncate">{child.name}{statusLabel ? <span className="text-gray-400 font-normal"> ({statusLabel})</span> : null}</span>
                                                                 </div>
-                                                                <span className="text-amber-400 font-medium shrink-0 text-[9.5px]">Chưa input ngày</span>
+                                                                <span className={`font-medium shrink-0 text-[9.5px] ${isInactive ? 'text-slate-500' : 'text-amber-400'}`}>Chưa input ngày</span>
                                                             </div>
                                                         );
                                                     });
@@ -2776,9 +2778,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                 </span>
                                                             )}
                                                             {hasDeadline ? (
-                                                                <div className="mt-1 flex flex-col gap-0.5 text-[9.5px] text-slate-300">
-                                                                    {deadlineStart && <div>Start {deadlineStart}</div>}
-                                                                    {deadlineEnd && <div>End {deadlineEnd}</div>}
+                                                                <div className="mt-1 text-[9.5px] text-slate-300 tabular-nums">
+                                                                    {deadlineStart && deadlineEnd
+                                                                        ? `${deadlineStart.slice(0, 5)} → ${deadlineEnd}`
+                                                                        : deadlineEnd ? `End ${deadlineEnd}` : `Start ${deadlineStart}`
+                                                                    }
+                                                                    {overallDurationLabel && ` (${overallDurationLabel})`}
+                                                                </div>
+                                                            ) : overallStartLabel && overallEndLabel ? (
+                                                                <div className="mt-1 text-[9.5px] text-slate-400 tabular-nums">
+                                                                    {overallStartLabel.slice(0, 5)} → {overallEndLabel} ({overallDurationLabel})
                                                                 </div>
                                                             ) : (
                                                                 <div className="mt-1 text-[9.5px] text-slate-500 italic">Chưa có hard deadline</div>
