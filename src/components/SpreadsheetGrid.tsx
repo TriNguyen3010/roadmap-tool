@@ -2689,17 +2689,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                         new Date(summaryEndRaw.getFullYear(), summaryEndRaw.getMonth(), summaryEndRaw.getDate())
                                                     ))
                                                     : null;
-                                                let elapsedStr = "Chưa diễn ra";
-                                                if (hasValidStart && hasValidEnd) {
-                                                    const todayCompare = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                                                    const sdCompare = new Date(summaryStartRaw.getFullYear(), summaryStartRaw.getMonth(), summaryStartRaw.getDate());
-                                                    const edCompare = new Date(summaryEndRaw.getFullYear(), summaryEndRaw.getMonth(), summaryEndRaw.getDate());
-                                                    if (todayCompare > edCompare) {
-                                                        elapsedStr = 'Đã hoàn tất';
-                                                    } else if (todayCompare >= sdCompare) {
-                                                        elapsedStr = `Đã chạy ${formatWorkdayDuration(countWorkdays(sdCompare, todayCompare))} (tính tới hn)`;
-                                                    }
-                                                }
+                                                const isDoneStatus = (s: string) => !s || s === 'None' || s === 'Not Started' || s.includes('Done');
+
 
                                                 const sortedSegs = [...childSegments].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
                                                 const renderItems: React.ReactNode[] = [];
@@ -2739,26 +2730,53 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     }
                                                 });
 
+                                                // Children without dates but with active status
+                                                if (row.children) {
+                                                    row.children.forEach((child, i) => {
+                                                        if (child.startDate && child.endDate) return;
+                                                        const s = child.status || '';
+                                                        if (isDoneStatus(s)) return;
+                                                        renderItems.push(
+                                                            <div key={`nodate-${i}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
+                                                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                    <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: STATUS_BAR_COLOR[s] || '#9ca3af' }} />
+                                                                    <span className="max-w-[120px] truncate">{child.name}</span>
+                                                                </div>
+                                                                <span className="text-amber-400 font-medium shrink-0 text-[9.5px]">Chưa input ngày</span>
+                                                            </div>
+                                                        );
+                                                    });
+                                                }
+
+                                                // Find parent subcategory for deadline dates
+                                                const parentSub = flattened.find(r => r.type === 'subcategory' && row.parentIds.includes(r.id));
+                                                const deadlineStart = parentSub?.startDate ? format(parseISO(parentSub.startDate), 'dd/MM/yyyy') : null;
+                                                const deadlineEnd = parentSub?.endDate ? format(parseISO(parentSub.endDate), 'dd/MM/yyyy') : null;
+                                                const hasDeadline = deadlineStart || deadlineEnd;
+
+                                                // Group's own status for display
+                                                const groupStatus = row.status && row.status !== 'None' ? row.status : null;
+                                                const groupStatusBg = groupStatus ? (STATUS_TAG_BG[groupStatus] || '#f3f4f6') : undefined;
+                                                const groupStatusText = groupStatus ? (STATUS_TAG_TEXT[groupStatus] || '#374151') : undefined;
+
                                                 return (
                                                     <div className="absolute z-20 top-full mt-1 left-0 bg-slate-900 border border-slate-700 text-white text-[10.5px] font-medium px-2.5 py-2 rounded-lg select-none pointer-events-none shadow-xl flex flex-col gap-1.5"
-                                                        style={{ minWidth: 200, maxWidth: 260 }}>
+                                                        style={{ minWidth: 200, maxWidth: 280 }}>
                                                         <div className="border-b border-slate-700 pb-1.5">
                                                             <div className="font-bold text-slate-100 text-[11px] mb-0.5 truncate">{row.name}</div>
-                                                            <div className="text-emerald-400 font-semibold text-[9.5px]">
-                                                                {elapsedStr}
-                                                            </div>
-                                                            {(overallStartLabel || overallEndLabel) && (
+                                                            {groupStatus && (
+                                                                <span className="inline-block text-[9.5px] px-1.5 py-0.5 rounded font-semibold"
+                                                                    style={{ backgroundColor: groupStatusBg, color: groupStatusText }}>
+                                                                    {groupStatus}
+                                                                </span>
+                                                            )}
+                                                            {hasDeadline ? (
                                                                 <div className="mt-1 flex flex-col gap-0.5 text-[9.5px] text-slate-300">
-                                                                    {overallStartLabel && (
-                                                                        <div>Start {overallStartLabel}</div>
-                                                                    )}
-                                                                    {overallEndLabel && (
-                                                                        <div>
-                                                                            End {overallEndLabel}
-                                                                            {overallDurationLabel ? ` (${overallDurationLabel})` : ''}
-                                                                        </div>
-                                                                    )}
+                                                                    {deadlineStart && <div>Start {deadlineStart}</div>}
+                                                                    {deadlineEnd && <div>End {deadlineEnd}</div>}
                                                                 </div>
+                                                            ) : (
+                                                                <div className="mt-1 text-[9.5px] text-slate-500 italic">Chưa có hard deadline</div>
                                                             )}
                                                         </div>
                                                         <div className="flex flex-col">
