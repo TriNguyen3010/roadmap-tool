@@ -173,11 +173,11 @@ function getDefaultViewSettings(): RoadmapViewSettings {
     filterPhase: [],
     filterSubcategory: [],
     filterGroupItemType: [],
-    colWorkType: true,
-    colPriority: true,
-    colPhase: true,
-    colStartDate: false,
-    colEndDate: false,
+    colWorkType: false,
+    colPriority: false,
+    colPhase: false,
+    colStartDate: true,
+    colEndDate: true,
     colFeaturesWidth: DEFAULT_FEATURES_COL_WIDTH,
     colFeaturesWidthMode: 'auto',
     timelineMode: DEFAULT_TIMELINE_MODE,
@@ -234,11 +234,11 @@ export default function RoadmapPage() {
   const [qfTeam, setQfTeam] = useState<QuickFilterTeamState>(EMPTY_QUICK_FILTER_TEAM);
   const [qfPriority, setQfPriority] = useState<QuickFilterPriorityState>(EMPTY_QUICK_FILTER_PRIORITY);
 
-  const [showWorkType, setShowWorkType] = useState(true);
-  const [showPriority, setShowPriority] = useState(true);
-  const [showPhase, setShowPhase] = useState(true);
-  const [showStartDate, setShowStartDate] = useState(false);
-  const [showEndDate, setShowEndDate] = useState(false);
+  const [showWorkType, setShowWorkType] = useState(false);
+  const [showPriority, setShowPriority] = useState(false);
+  const [showPhase, setShowPhase] = useState(false);
+  const [showStartDate, setShowStartDate] = useState(true);
+  const [showEndDate, setShowEndDate] = useState(true);
   const [featuresColWidth, setFeaturesColWidth] = useState(DEFAULT_FEATURES_COL_WIDTH);
   const [featuresColWidthMode, setFeaturesColWidthMode] = useState<ColumnWidthMode>('auto');
   const [timelineMode, setTimelineMode] = useState<TimelineMode>(DEFAULT_TIMELINE_MODE);
@@ -348,11 +348,11 @@ export default function RoadmapPage() {
       : defaults.filterSubcategory || []);
     setFilterGroupItemType(normalizeGroupItemTypeFilter(next.filterGroupItemType));
     setIsReportedMode(false);
-    setShowWorkType(typeof next.colWorkType === 'boolean' ? next.colWorkType : defaults.colWorkType ?? true);
-    setShowPriority(typeof next.colPriority === 'boolean' ? next.colPriority : defaults.colPriority ?? true);
-    setShowPhase(typeof next.colPhase === 'boolean' ? next.colPhase : defaults.colPhase ?? true);
-    setShowStartDate(typeof next.colStartDate === 'boolean' ? next.colStartDate : defaults.colStartDate ?? false);
-    setShowEndDate(typeof next.colEndDate === 'boolean' ? next.colEndDate : defaults.colEndDate ?? false);
+    setShowWorkType(typeof next.colWorkType === 'boolean' ? next.colWorkType : defaults.colWorkType ?? false);
+    setShowPriority(typeof next.colPriority === 'boolean' ? next.colPriority : defaults.colPriority ?? false);
+    setShowPhase(typeof next.colPhase === 'boolean' ? next.colPhase : defaults.colPhase ?? false);
+    setShowStartDate(typeof next.colStartDate === 'boolean' ? next.colStartDate : defaults.colStartDate ?? true);
+    setShowEndDate(typeof next.colEndDate === 'boolean' ? next.colEndDate : defaults.colEndDate ?? true);
     setFeaturesColWidth(clampFeaturesColWidth(
       typeof next.colFeaturesWidth === 'number'
         ? next.colFeaturesWidth
@@ -457,7 +457,16 @@ export default function RoadmapPage() {
 
   const hydrateRoadmap = useCallback((json: RoadmapDocument, version: string | null) => {
     const normalized = normalizeDocument(json);
-    const legacySettings = normalized.settings ? { ...normalized.settings } : null;
+    const rawLegacy = normalized.settings ? { ...normalized.settings } : null;
+    // Strip column visibility from legacy/document settings — these are per-user preferences only
+    if (rawLegacy) {
+      delete rawLegacy.colWorkType;
+      delete rawLegacy.colPriority;
+      delete rawLegacy.colPhase;
+      delete rawLegacy.colStartDate;
+      delete rawLegacy.colEndDate;
+    }
+    const legacySettings = rawLegacy;
     latestLoadedSettingsRef.current = legacySettings;
     setData(stripViewSettingsFromDocument(normalized));
     setHasUnsavedSharedChanges(false);
