@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 interface QuickFilterButtonProps {
@@ -23,6 +23,22 @@ export default function QuickFilterButton({
     isOpen,
 }: QuickFilterButtonProps) {
     const ref = useRef<HTMLButtonElement>(null);
+    const isOpenRef = useRef(isOpen);
+    isOpenRef.current = isOpen;
+
+    // Native mousedown listener: stop propagation when dropdown is open
+    // so the dropdown's document-level mousedown close handler won't fire
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const handler = (e: MouseEvent) => {
+            if (isOpenRef.current) {
+                e.stopPropagation();
+            }
+        };
+        el.addEventListener('mousedown', handler, true);
+        return () => el.removeEventListener('mousedown', handler, true);
+    }, []);
 
     const handleClick = useCallback(() => {
         if (isDisabled) return;
