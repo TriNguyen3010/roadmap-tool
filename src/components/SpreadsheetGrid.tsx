@@ -1880,6 +1880,15 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                     {/* FEATURES – resize handle on right */}
                     <div className="flex items-center px-2 border-r border-gray-400 relative group/col">
                         FEATURES
+                        {canEditStructure && (
+                            <button
+                                className="ml-1.5 text-green-600 hover:text-green-800 transition-colors"
+                                title="Thêm Category"
+                                onClick={() => setAddingToParent({ id: '__ROOT__', name: 'Roadmap', childType: 'category' })}
+                            >
+                                <PlusCircle size={13} />
+                            </button>
+                        )}
                         <div
                             className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-blue-400/40 z-10"
                             onMouseDown={e => { setNameWMode('manual'); startResize(e, setNameW, 120); }}
@@ -2427,14 +2436,6 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             </div>
                         );
                     })}
-                    {canEditStructure && (
-                        <div className="p-2">
-                            <button className="text-xs text-green-700 hover:text-green-900 flex items-center gap-1 font-semibold"
-                                onClick={() => setAddingToParent({ id: '__ROOT__', name: 'Roadmap', childType: 'category' })}>
-                                <PlusCircle size={13} /> Thêm Category
-                            </button>
-                        </div>
-                    )}
                 </div>
             </div>
             )}
@@ -2986,7 +2987,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 );
                                             })()}
                                         </div>
-                                    ) : !hasChildSegments && row.type === 'group' && row.children && row.children.length > 0 && row.status && row.status !== 'None' && row.status !== 'Not Started' && barLeft < 0 ? (
+                                    ) : !hasChildSegments && (row.type === 'group' || row.type === 'team') && row.status && row.status !== 'None' && row.status !== 'Not Started' && barLeft < 0 ? (
                                         /* ── No drawable segments: warn insufficient data ── */
                                         <div
                                             className="absolute inset-y-0 flex items-center px-2"
