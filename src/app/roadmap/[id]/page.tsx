@@ -190,6 +190,32 @@ function getDefaultViewSettings(): RoadmapViewSettings {
 }
 
 
+/** Emails allowed to see admin-level notifications (version update, backup info) */
+const ADMIN_NOTIFY_EMAILS = ['trinm@coin98.finance', 'huynv@coin98.finance'];
+
+/** Banner showing last backup time — only appears when last-dump.json exists (local dev) */
+function LocalBackupBanner({ email }: { email?: string | null }) {
+  const [info, setInfo] = useState<{ timestampLocal: string; fileSize: string; status: string } | null>(null);
+
+  useEffect(() => {
+    if (!email || !ADMIN_NOTIFY_EMAILS.includes(email.toLowerCase())) return;
+    fetch('/api/last-dump')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.status === 'success') setInfo(data); })
+      .catch(() => {});
+  }, [email]);
+
+  if (!info) return null;
+
+  return (
+    <div className="shrink-0 flex items-center justify-center gap-2 bg-emerald-50 border-b border-emerald-200 px-3 py-0.5 text-[10.5px] text-emerald-700">
+      <span>🗄️ Data từ Production — dump lúc</span>
+      <span className="font-semibold">{info.timestampLocal}</span>
+      <span className="text-emerald-500">({info.fileSize})</span>
+    </div>
+  );
+}
+
 export default function RoadmapPage() {
   const params = useParams();
   const router = useRouter();
@@ -592,12 +618,13 @@ export default function RoadmapPage() {
   // Debounced toast for admin when remote data changes
   const lastVersionToastRef = useRef<number>(0);
   const notifyVersionUpdate = useCallback(() => {
-    if (!canManageRoadmap) return;
+    const email = authUser?.email?.toLowerCase();
+    if (!email || !ADMIN_NOTIFY_EMAILS.includes(email)) return;
     const now = Date.now();
     if (now - lastVersionToastRef.current < 10_000) return;
     lastVersionToastRef.current = now;
     addToast('Dữ liệu vừa được cập nhật từ nguồn khác.', 'info', 5000);
-  }, [canManageRoadmap, addToast]);
+  }, [authUser?.email, addToast]);
 
   const checkRemoteVersion = useCallback(async () => {
     const latestVersion = await fetchRoadmapVersion();
@@ -1614,6 +1641,7 @@ export default function RoadmapPage() {
         onExpandAll={handleExpandOneLevel}
         onCollapseAll={handleCollapseOneLevel}
       />
+      <LocalBackupBanner email={authUser?.email} />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
           key={canManageRoadmap ? 'admin-grid' : authUser ? 'manager-grid' : 'viewer-grid'}
