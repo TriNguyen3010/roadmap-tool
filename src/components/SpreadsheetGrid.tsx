@@ -436,7 +436,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         setTeamRestrictionFeedback({ message, x: e.clientX, y: e.clientY });
         hideRestrictionFeedbackTimer.current = setTimeout(() => {
             setTeamRestrictionFeedback(null);
-        }, 3000);
+        }, 1500);
     }, []);
 
     // ── CRUD states ──
@@ -2067,12 +2067,13 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                         const isDragOverReorder = dragOverId === row.id && dragOverMode === 'reorder';
                         const isDragOverParent = dragOverId === row.id && dragOverMode === 'parent';
 
-                        const isOtherTeamRow = currentUser?.role === 'manager' 
-                            && currentUser?.team 
-                            && !isAdminLevel(currentUser)
-                            && row.type === 'team' 
-                            && row.teamRole 
-                            && row.teamRole !== currentUser.team;
+                        const isManagerNonAdmin = currentUser?.role === 'manager' && currentUser?.team && !isAdminLevel(currentUser);
+                        const isOtherTeamRow = isManagerNonAdmin
+                            && row.type === 'team'
+                            && row.teamRole
+                            && row.teamRole !== currentUser!.team;
+                        const isNonEditableParentRow = isManagerNonAdmin
+                            && (row.type === 'group' || row.type === 'subcategory' || row.type === 'category');
 
                         return (
                             <div key={row.id}
@@ -2272,11 +2273,15 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     return (
                                         <div
                                             data-status-trigger="true"
-                                            className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canClickStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : (isOtherTeamRow && currentUser?.team ? 'cursor-pointer' : '')}`}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canClickStatus ? 'cursor-pointer hover:bg-black/5 transition-colors' : ((isOtherTeamRow || isNonEditableParentRow) ? 'cursor-pointer' : '')}`}
                                             onClick={e => {
-                                                if (isOtherTeamRow && currentUser?.team && !canClickStatus) {
+                                                if (!canClickStatus && isManagerNonAdmin) {
                                                     e.stopPropagation();
-                                                    showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser.team}`, e);
+                                                    if (isOtherTeamRow) {
+                                                        showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser!.team}`, e);
+                                                    } else if (isNonEditableParentRow) {
+                                                        showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser!.team}`, e);
+                                                    }
                                                     return;
                                                 }
                                                 if (!canClickStatus) return;
@@ -2357,12 +2362,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     (row.type === 'subcategory' || row.type === 'team') ? (
                                         <div
                                             data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
-                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : (isOtherTeamRow && currentUser?.team ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
-                                            title={isDateCellEditable ? 'Click để sửa Start Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : ((isOtherTeamRow || isNonEditableParentRow) ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
+                                            title={isDateCellEditable ? 'Click để sửa Start Date nhanh' : ''}
                                             onClick={(event) => {
-                                                if (isOtherTeamRow && currentUser?.team && !isDateCellEditable) {
+                                                if (!isDateCellEditable && isManagerNonAdmin) {
                                                     event.stopPropagation();
-                                                    showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser.team}`, event);
+                                                    if (isOtherTeamRow) {
+                                                        showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser!.team}`, event);
+                                                    } else if (isNonEditableParentRow) {
+                                                        showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser!.team}`, event);
+                                                    }
                                                     return;
                                                 }
                                                 if (isDateCellEditable) openDateMiniPopup(event, row, 'startDate');
@@ -2380,12 +2389,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     (row.type === 'subcategory' || row.type === 'team') ? (
                                         <div
                                             data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
-                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : (isOtherTeamRow && currentUser?.team ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
-                                            title={isDateCellEditable ? 'Click để sửa End Date nhanh' : 'Mục này không hỗ trợ sửa date inline'}
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : ((isOtherTeamRow || isNonEditableParentRow) ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
+                                            title={isDateCellEditable ? 'Click để sửa End Date nhanh' : ''}
                                             onClick={(event) => {
-                                                if (isOtherTeamRow && currentUser?.team && !isDateCellEditable) {
+                                                if (!isDateCellEditable && isManagerNonAdmin) {
                                                     event.stopPropagation();
-                                                    showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser.team}`, event);
+                                                    if (isOtherTeamRow) {
+                                                        showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser!.team}`, event);
+                                                    } else if (isNonEditableParentRow) {
+                                                        showRestrictionFeedback(`Bạn chỉ có thể chỉnh sửa team ${currentUser!.team}`, event);
+                                                    }
                                                     return;
                                                 }
                                                 if (isDateCellEditable) openDateMiniPopup(event, row, 'endDate');
@@ -2592,7 +2605,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             const isGrowthCamp = row.type === 'subcategory' && row.subcategoryType === 'Growth Camp';
 
                             // ── Multi-segment bar: one segment per direct child with dates ──
-                            const childSegments: { left: number; width: number; color: string; status: string; childName: string; startDate: string; endDate: string; isSingleDay: boolean }[] = [];
+                            const childSegments: { left: number; width: number; color: string; status: string; childName: string; teamRole?: string; startDate: string; endDate: string; isSingleDay: boolean }[] = [];
                             if (row.children && row.children.length > 0) {
                                 for (const child of row.children) {
                                     if (!child.startDate || !child.endDate) continue;
@@ -2615,6 +2628,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                             color: STATUS_BAR_COLOR[child.status] || '#9ca3af',
                                             status: child.status,
                                             childName: child.name,
+                                            teamRole: child.teamRole,
                                             startDate: child.startDate,
                                             endDate: child.endDate,
                                             isSingleDay: format(csd, 'yyyy-MM-dd') === format(ced, 'yyyy-MM-dd'),
@@ -2747,35 +2761,151 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 const isDoneStatus = (s: string) => !s || s === 'None' || s === 'Not Started' || s.includes('Done');
 
 
-                                                const sortedSegs = [...childSegments].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-                                                const renderItems: React.ReactNode[] = [];
-                                                let maxEndSeen: Date | null = null;
+                                                // Build team date map from segments
+                                                const teamDateMap = new Map<string, { start: Date; end: Date; seg: typeof childSegments[0] }>();
+                                                childSegments.forEach(seg => {
+                                                    const s = parseISO(seg.startDate);
+                                                    const e = parseISO(seg.endDate);
+                                                    if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
+                                                        teamDateMap.set(seg.teamRole || seg.childName, { start: s, end: e, seg });
+                                                    }
+                                                });
 
-                                                sortedSegs.forEach((seg, i) => {
+                                                // Workflow GAP detection: BA → PD → Growth(opt) → BE↔FE → DevOps → QC
+                                                // Store gaps keyed by "before which team" for inline rendering
+                                                const gapBeforeTeam = new Map<string, React.ReactNode>();
+                                                const checkGap = (fromTeam: string, toTeam: string, fromEnd: Date, toStart: Date, key: string, beforeTeam: string) => {
+                                                    const gs = addDays(fromEnd, 1);
+                                                    const ge = subDays(toStart, 1);
+                                                    if (gs <= ge) {
+                                                        const wd = countWorkdays(gs, ge);
+                                                        if (wd > 0) {
+                                                            const existing = gapBeforeTeam.get(beforeTeam);
+                                                            const node = (
+                                                                <div key={key} className="text-red-400 font-semibold px-1 py-0.5 rounded shadow-sm border border-red-500/30 bg-red-950/40 text-[9.5px] whitespace-nowrap mt-1 mb-1 flex items-center gap-1">
+                                                                    <span>⚠️</span> GAP: {fromTeam} → {toTeam} ({formatWorkdayDuration(wd)})
+                                                                </div>
+                                                            );
+                                                            if (existing) {
+                                                                gapBeforeTeam.set(beforeTeam, <>{existing}{node}</>);
+                                                            } else {
+                                                                gapBeforeTeam.set(beforeTeam, node);
+                                                            }
+                                                        }
+                                                    }
+                                                };
+
+                                                const ba = teamDateMap.get('BA');
+                                                const pd = teamDateMap.get('PD');
+                                                const growth = teamDateMap.get('Growth');
+                                                const be = teamDateMap.get('BE');
+                                                const fe = teamDateMap.get('FE');
+                                                const devops = teamDateMap.get('DevOps');
+                                                const qc = teamDateMap.get('QC');
+
+                                                // Stage 1: BA → PD
+                                                if (ba && pd) checkGap('BA', 'PD', ba.end, pd.start, 'wf-ba-pd', 'PD');
+                                                // Stage 1: PD → Growth (optional)
+                                                if (pd && growth) checkGap('PD', 'Growth', pd.end, growth.start, 'wf-pd-growth', 'Growth');
+                                                // Stage 1→2: last spec team → BE, FE
+                                                const lastSpec = growth || pd;
+                                                const lastSpecName = growth ? 'Growth' : 'PD';
+                                                if (lastSpec && be) checkGap(lastSpecName, 'BE', lastSpec.end, be.start, 'wf-spec-be', 'BE');
+                                                if (lastSpec && fe) checkGap(lastSpecName, 'FE', lastSpec.end, fe.start, 'wf-spec-fe', 'FE');
+                                                // Stage 2: BE ↔ FE (gap placed before the later team)
+                                                if (be && fe) {
+                                                    if (be.end < fe.start) checkGap('BE', 'FE', be.end, fe.start, 'wf-be-fe', 'FE');
+                                                    else if (fe.end < be.start) checkGap('FE', 'BE', fe.end, be.start, 'wf-fe-be', 'BE');
+                                                }
+                                                // Stage 2→3: max(BE,FE) → DevOps
+                                                const devEnd = be && fe ? (be.end > fe.end ? be.end : fe.end) : (be?.end || fe?.end);
+                                                const devEndName = be && fe ? (be.end > fe.end ? 'BE' : 'FE') : (be ? 'BE' : 'FE');
+                                                if (devEnd && devops) checkGap(devEndName, 'DevOps', devEnd, devops.start, 'wf-dev-devops', 'DevOps');
+                                                // Stage 3: DevOps → QC
+                                                if (devops && qc) checkGap('DevOps', 'QC', devops.end, qc.start, 'wf-devops-qc', 'QC');
+                                                // Fallback: nếu không có DevOps, check max(BE,FE) → QC
+                                                if (!devops && devEnd && qc) checkGap(devEndName, 'QC', devEnd, qc.start, 'wf-dev-qc', 'QC');
+
+                                                // Render team list sorted by workflow order with inline GAP warnings
+                                                const workflowOrder: string[] = ['BA', 'PD', 'Growth', 'BE', 'FE', 'DevOps', 'QC'];
+                                                const sortedSegs = [...childSegments].sort((a, b) => {
+                                                    const aIdx = workflowOrder.indexOf(a.teamRole || a.childName);
+                                                    const bIdx = workflowOrder.indexOf(b.teamRole || b.childName);
+                                                    return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+                                                });
+
+                                                // Also sort no-date children by workflow order
+                                                const noDateChildren = row.children
+                                                    ? [...row.children]
+                                                        .filter(child => !(child.startDate && child.endDate))
+                                                        .sort((a, b) => {
+                                                            const aIdx = workflowOrder.indexOf(a.teamRole || a.name);
+                                                            const bIdx = workflowOrder.indexOf(b.teamRole || b.name);
+                                                            return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+                                                        })
+                                                    : [];
+
+                                                // Build unified render list: interleave teams (with+without dates) by workflow order
+                                                const renderItems: React.ReactNode[] = [];
+
+                                                // Merge dated segments and no-date children into one workflow-ordered list
+                                                const renderedTeams = new Set<string>();
+
+                                                // Process each team in workflow order
+                                                workflowOrder.forEach(teamName => {
+                                                    // Insert GAP warning before this team if exists
+                                                    const gapNode = gapBeforeTeam.get(teamName);
+                                                    if (gapNode) renderItems.push(gapNode);
+
+                                                    // Render dated segment for this team
+                                                    const seg = sortedSegs.find(s => (s.teamRole || s.childName) === teamName);
+                                                    if (seg) {
+                                                        const curStart = parseISO(seg.startDate);
+                                                        const curEnd = parseISO(seg.endDate);
+                                                        if (!Number.isNaN(curStart.getTime()) && !Number.isNaN(curEnd.getTime())) {
+                                                            const segStatusLabel = seg.status && seg.status !== 'None' ? seg.status : null;
+                                                            renderItems.push(
+                                                                <div key={`seg-${teamName}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
+                                                                    <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                        <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: seg.color }} />
+                                                                        <span className="max-w-[120px] truncate">{seg.childName}{segStatusLabel ? <span className="text-gray-400 font-normal"> ({segStatusLabel})</span> : null}</span>
+                                                                    </div>
+                                                                    <span className="text-gray-300 font-medium shrink-0 tabular-nums">{format(curStart, 'dd/MM')} → {format(curEnd, 'dd/MM/yyyy')} ({formatWorkdayDuration(countWorkdays(curStart, curEnd))})</span>
+                                                                </div>
+                                                            );
+                                                            renderedTeams.add(teamName);
+                                                        }
+                                                    }
+
+                                                    // Render no-date child for this team
+                                                    const noDateChild = noDateChildren.find(c => (c.teamRole || c.name) === teamName);
+                                                    if (noDateChild && !renderedTeams.has(teamName)) {
+                                                        const s = noDateChild.status || '';
+                                                        const isInactive = !s || s === 'None';
+                                                        const statusLabel = s && s !== 'None' ? s : null;
+                                                        renderItems.push(
+                                                            <div key={`nodate-${teamName}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
+                                                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                    <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: STATUS_BAR_COLOR[s] || '#9ca3af' }} />
+                                                                    <span className="max-w-[120px] truncate">{noDateChild.name}{statusLabel ? <span className="text-gray-400 font-normal"> ({statusLabel})</span> : null}</span>
+                                                                </div>
+                                                                <span className={`font-medium shrink-0 text-[9.5px] ${isInactive ? 'text-slate-500' : 'text-amber-400'}`}>Chưa input ngày</span>
+                                                            </div>
+                                                        );
+                                                        renderedTeams.add(teamName);
+                                                    }
+                                                });
+
+                                                // Render any remaining segments/children not in workflow order
+                                                sortedSegs.forEach((seg) => {
+                                                    const teamName = seg.teamRole || seg.childName;
+                                                    if (renderedTeams.has(teamName)) return;
                                                     const curStart = parseISO(seg.startDate);
                                                     const curEnd = parseISO(seg.endDate);
                                                     if (!Number.isNaN(curStart.getTime()) && !Number.isNaN(curEnd.getTime())) {
-                                                        if (maxEndSeen) {
-                                                            const gapStart = addDays(maxEndSeen, 1);
-                                                            const gapEnd = subDays(curStart, 1);
-                                                            if (gapStart <= gapEnd) {
-                                                                const gapWorkdays = countWorkdays(gapStart, gapEnd);
-                                                                if (gapWorkdays > 0) {
-                                                                    renderItems.push(
-                                                                        <div key={`gap-${i}`} className="text-red-400 font-semibold px-1 py-0.5 rounded shadow-sm border border-red-500/30 bg-red-950/40 text-[9.5px] whitespace-nowrap mt-1 mb-1 flex items-center gap-1">
-                                                                            <span>⚠️</span> GAP {format(gapStart, 'dd/MM')} → {format(gapEnd, 'dd/MM')} ({formatWorkdayDuration(gapWorkdays)})
-                                                                        </div>
-                                                                    );
-                                                                }
-                                                            }
-                                                            if (curEnd > maxEndSeen) maxEndSeen = curEnd;
-                                                        } else {
-                                                            maxEndSeen = curEnd;
-                                                        }
-
                                                         const segStatusLabel = seg.status && seg.status !== 'None' ? seg.status : null;
                                                         renderItems.push(
-                                                            <div key={`seg-${i}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
+                                                            <div key={`seg-other-${teamName}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
                                                                 <div className="flex items-center gap-1.5 overflow-hidden">
                                                                     <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: seg.color }} />
                                                                     <span className="max-w-[120px] truncate">{seg.childName}{segStatusLabel ? <span className="text-gray-400 font-normal"> ({segStatusLabel})</span> : null}</span>
@@ -2783,33 +2913,39 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                 <span className="text-gray-300 font-medium shrink-0 tabular-nums">{format(curStart, 'dd/MM')} → {format(curEnd, 'dd/MM/yyyy')} ({formatWorkdayDuration(countWorkdays(curStart, curEnd))})</span>
                                                             </div>
                                                         );
+                                                        renderedTeams.add(teamName);
                                                     }
                                                 });
-
-                                                // Children without dates (show all except None/empty status)
-                                                if (row.children) {
-                                                    row.children.forEach((child, i) => {
-                                                        if (child.startDate && child.endDate) return;
-                                                        const s = child.status || '';
-                                                        const isInactive = !s || s === 'None';
-                                                        const statusLabel = s && s !== 'None' ? s : null;
-                                                        renderItems.push(
-                                                            <div key={`nodate-${i}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
-                                                                <div className="flex items-center gap-1.5 overflow-hidden">
-                                                                    <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: STATUS_BAR_COLOR[s] || '#9ca3af' }} />
-                                                                    <span className="max-w-[120px] truncate">{child.name}{statusLabel ? <span className="text-gray-400 font-normal"> ({statusLabel})</span> : null}</span>
-                                                                </div>
-                                                                <span className={`font-medium shrink-0 text-[9.5px] ${isInactive ? 'text-slate-500' : 'text-amber-400'}`}>Chưa input ngày</span>
+                                                noDateChildren.forEach((child) => {
+                                                    const teamName = child.teamRole || child.name;
+                                                    if (renderedTeams.has(teamName)) return;
+                                                    const s = child.status || '';
+                                                    const isInactive = !s || s === 'None';
+                                                    const statusLabel = s && s !== 'None' ? s : null;
+                                                    renderItems.push(
+                                                        <div key={`nodate-other-${teamName}`} className="flex items-center justify-between py-0.5 whitespace-nowrap gap-4">
+                                                            <div className="flex items-center gap-1.5 overflow-hidden">
+                                                                <span className="inline-block w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: STATUS_BAR_COLOR[s] || '#9ca3af' }} />
+                                                                <span className="max-w-[120px] truncate">{child.name}{statusLabel ? <span className="text-gray-400 font-normal"> ({statusLabel})</span> : null}</span>
                                                             </div>
-                                                        );
-                                                    });
-                                                }
+                                                            <span className={`font-medium shrink-0 text-[9.5px] ${isInactive ? 'text-slate-500' : 'text-amber-400'}`}>Chưa input ngày</span>
+                                                        </div>
+                                                    );
+                                                });
 
                                                 // Find parent subcategory for deadline dates
                                                 const parentSub = flattened.find(r => r.type === 'subcategory' && row.parentIds.includes(r.id));
                                                 const deadlineStart = parentSub?.startDate ? format(parseISO(parentSub.startDate), 'dd/MM/yyyy') : null;
                                                 const deadlineEnd = parentSub?.endDate ? format(parseISO(parentSub.endDate), 'dd/MM/yyyy') : null;
                                                 const hasDeadline = deadlineStart || deadlineEnd;
+                                                const dlStartDate = parentSub?.startDate ? parseISO(parentSub.startDate) : null;
+                                                const dlEndDate = parentSub?.endDate ? parseISO(parentSub.endDate) : null;
+                                                const deadlineDurationLabel = dlStartDate && dlEndDate && !Number.isNaN(dlStartDate.getTime()) && !Number.isNaN(dlEndDate.getTime())
+                                                    ? formatWorkdayDuration(countWorkdays(
+                                                        new Date(dlStartDate.getFullYear(), dlStartDate.getMonth(), dlStartDate.getDate()),
+                                                        new Date(dlEndDate.getFullYear(), dlEndDate.getMonth(), dlEndDate.getDate())
+                                                    ))
+                                                    : null;
 
                                                 // Group's own status for display
                                                 const groupStatus = row.status && row.status !== 'None' ? row.status : null;
@@ -2833,7 +2969,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                         ? `${deadlineStart.slice(0, 5)} → ${deadlineEnd}`
                                                                         : deadlineEnd ? `End ${deadlineEnd}` : `Start ${deadlineStart}`
                                                                     }
-                                                                    {overallDurationLabel && ` (${overallDurationLabel})`}
+                                                                    {deadlineDurationLabel && ` (${deadlineDurationLabel})`}
                                                                 </div>
                                                             ) : overallStartLabel && overallEndLabel ? (
                                                                 <div className="mt-1 text-[9.5px] text-slate-400 tabular-nums">
@@ -3454,10 +3590,15 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 if (openStatusId && activeRow) {
                     return createPortal(
                         <div data-status-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[188px] max-h-[360px] overflow-y-auto" style={style}>
+                            <div className="px-3 py-1.5 text-[10px] text-gray-400 border-b border-gray-100 truncate">
+                                Hiện tại: <span className="font-semibold" style={{ color: activeRow.status && activeRow.status !== 'None' ? (STATUS_TAG_TEXT[activeRow.status] || '#374151') : '#9ca3af' }}>
+                                    {activeRow.status && activeRow.status !== 'None' ? activeRow.status : '—'}
+                                </span>
+                            </div>
                             {getStatusOptionsForRow(activeRow).map(statusOption => (
                                 <button
                                     key={statusOption}
-                                    className="text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors"
+                                    className={`text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors ${statusOption === activeRow.status ? 'bg-blue-50' : ''}`}
                                     style={statusOption === 'None' ? { color: '#9ca3af' } : { color: STATUS_TAG_TEXT[statusOption] || '#374151' }}
                                     onMouseDown={e => {
                                         e.preventDefault();
