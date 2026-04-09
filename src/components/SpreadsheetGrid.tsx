@@ -162,7 +162,7 @@ const DEPTH_STYLES: { bg: string; font: string }[] = [
     { bg: '#c6d3ea', font: 'bold' },     // Level 0 (category)
     { bg: '#ffffff', font: 'bold' },     // Level 1 (subcategory)
     { bg: '#ffffff', font: 'bold' },     // Level 2 (group)
-    { bg: '#f5f5f5', font: 'normal' },   // Level 3 (item/team)
+    { bg: '#e8e8e8ca', font: 'normal' },   // Level 3 (item)
     { bg: '#f9fafb', font: 'normal' },   // Level 4/5 (team styles fallback)
 ];
 
