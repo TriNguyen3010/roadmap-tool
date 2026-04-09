@@ -2637,7 +2637,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     }
                                 }
                             }
-                            const hasChildSegments = childSegments.length > 0 && row.type !== 'category';
+                            const hasChildSegments = childSegments.length > 0 && row.type !== 'category' && row.type !== 'subcategory';
                             const segMinLeft = hasChildSegments ? Math.min(...childSegments.map(s => s.left)) : 0;
                             const segMaxRight = hasChildSegments ? Math.max(...childSegments.map(s => s.left + s.width)) : 0;
                             const segTotalWidth = segMaxRight - segMinLeft;
