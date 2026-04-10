@@ -1189,18 +1189,18 @@ export default function RoadmapPage() {
 
   const handleQfTeamChange = useCallback((next: QuickFilterTeamState) => {
       setQfTeam(next);
-      if (next.teams.length > 0) {
+      if (next.teams.length > 0 || next.statuses.length > 0) {
           setQuickFilterMode('team');
-      } else if (next.statuses.length === 0) {
+      } else {
           setQuickFilterMode(null);
       }
   }, []);
 
   const handleQfPriorityChange = useCallback((next: QuickFilterPriorityState) => {
       setQfPriority(next);
-      if (next.priorities.length > 0) {
+      if (next.priorities.length > 0 || next.teams.length > 0) {
           setQuickFilterMode('priority');
-      } else if (next.teams.length === 0) {
+      } else {
           setQuickFilterMode(null);
       }
   }, []);

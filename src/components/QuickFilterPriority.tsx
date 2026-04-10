@@ -28,15 +28,14 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
 
     const selectedPriorities = new Set(state.priorities);
     const selectedTeams = new Set(state.teams);
-    const count = state.priorities.length;
+    const count = state.priorities.length + state.teams.length;
 
     const applyPriorityPreset = (value: string) => {
         const isExact = state.priorities.length === 1 && state.priorities[0] === value;
         if (isExact) {
             onChange({ ...state, priorities: [] });
         } else {
-            const nextTeams = state.teams.length === 0 ? [...TEAM_ROLES] : state.teams;
-            onChange({ priorities: [value], teams: nextTeams });
+            onChange({ priorities: [value], teams: state.teams });
         }
     };
 

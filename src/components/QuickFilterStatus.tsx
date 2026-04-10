@@ -11,20 +11,21 @@ const ACCENT = '#F0B90B';
 
 const PRESET_DOING = {
     label: 'In Progress',
-    values: STATUS_OPTIONS.filter(s =>
-        s.includes('in progress') || s === 'Task In progress'
-    ),
+    values: ['Task In progress'],
 };
 const PRESET_TODO = {
     label: 'To do',
-    values: ['Not Started', 'Task To do'],
+    values: ['Task To do'],
 };
 const PRESET_DONE = {
     label: 'Done',
-    values: STATUS_OPTIONS.filter(s => s.includes('Done')),
+    values: ['Task Done'],
 };
 const STATUS_PRESETS = [PRESET_DOING, PRESET_TODO, PRESET_DONE];
-const VISIBLE_STATUSES = STATUS_OPTIONS.filter(s => s !== 'None');
+const TASK_STATUSES = ['Task To do', 'Task In progress', 'Task Pending', 'Task Done'];
+const TASK_SET = new Set(TASK_STATUSES);
+const OTHER_STATUSES = STATUS_OPTIONS.filter(s => s !== 'None' && !TASK_SET.has(s));
+const VISIBLE_STATUSES = [...TASK_STATUSES, ...OTHER_STATUSES];
 
 interface Props {
     state: QuickFilterStatusState;
