@@ -32,6 +32,7 @@ import ChangeHistory from './ChangeHistory';
 interface EditPopupProps {
     item: RoadmapItem;
     phases: PhaseOption[];
+    allVersions: string[];
     onSave: (updated: RoadmapItem) => void;
     onClose: () => void;
 }
@@ -65,7 +66,7 @@ const normalizeLocalImages = (images: ItemImage[]): ItemImage[] => {
     }, []);
 };
 
-export default function EditPopup({ item, phases, onSave, onClose }: EditPopupProps) {
+export default function EditPopup({ item, phases, allVersions, onSave, onClose }: EditPopupProps) {
     const hasChildren = !!(item.children && item.children.length > 0);
     const initialStatusMode: StatusMode = hasChildren ? (item.statusMode ?? 'auto') : 'manual';
     const initialImages = useMemo(() => normalizeItemImages(item), [item]);
@@ -75,6 +76,7 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
     const [statusMode, setStatusMode] = useState<StatusMode>(initialStatusMode);
     const [status, setStatus] = useState<ItemStatus>(normalizeItemStatus(item.manualStatus ?? item.status));
     const [priority, setPriority] = useState<ItemPriority | ''>(() => normalizeItemPriority(item.priority) || '');
+    const [version, setVersion] = useState(item.version || '');
     const [progress, setProgress] = useState(item.progress ?? 0);
     const [startDate, setStartDate] = useState(item.startDate || '');
     const [endDate, setEndDate] = useState(item.endDate || '');
@@ -378,6 +380,11 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
         if (item.type === 'item' || item.type === 'group' || item.type === 'subcategory') {
             if (priority) updatedItem.priority = priority;
             else delete updatedItem.priority;
+        }
+
+        if (item.type === 'group') {
+            if (version) updatedItem.version = version;
+            else delete updatedItem.version;
         }
 
         onSave(updatedItem);
@@ -732,6 +739,36 @@ export default function EditPopup({ item, phases, onSave, onClose }: EditPopupPr
                                 <option key={level} value={level}>{level}</option>
                             ))}
                         </select>
+                    </div>
+                )}
+
+                {/* Version — only for group level */}
+                {item.type === 'group' && (
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-gray-600">Version</label>
+                            {version && (
+                                <button
+                                    type="button"
+                                    className="text-[10px] font-semibold text-gray-500 hover:text-gray-700"
+                                    onClick={() => setVersion('')}
+                                >
+                                    Clear
+                                </button>
+                            )}
+                        </div>
+                        <input
+                            list="version-options"
+                            className="border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            value={version}
+                            onChange={(e) => setVersion(e.target.value)}
+                            placeholder="Chọn hoặc nhập version mới..."
+                        />
+                        <datalist id="version-options">
+                            {allVersions.map(v => (
+                                <option key={v} value={v} />
+                            ))}
+                        </datalist>
                     </div>
                 )}
 

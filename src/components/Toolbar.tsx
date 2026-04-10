@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
-    Save, Download, FileJson, Loader2, Flag, Check,
+    Download, FileJson, Loader2, Flag, Check,
     Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft,
     ChevronsUp, ChevronsDown
 } from 'lucide-react';
@@ -35,7 +35,6 @@ export const AFTER_OPTIONS: { label: string; months: number }[] = [
 interface ToolbarProps {
     documentName: string;
     onNameChange: (name: string) => void;
-    onSave: () => void;
     onExportExcelCurrentView?: () => void;
     onExportExcelFullData?: () => void;
     onOpenMilestonesPopup: () => void;
@@ -48,7 +47,6 @@ interface ToolbarProps {
     onAfterMonthsChange: (m: number) => void;
     onLoadJson?: (jsonData: unknown) => void;
     onDownloadJson?: () => void;
-    isSaving?: boolean;
     canEdit: boolean;
     isGoogleAuthenticated?: boolean;
     googleAuthLoading?: boolean;
@@ -81,9 +79,9 @@ interface ToolbarProps {
 }
 
 export default function Toolbar({
-    documentName, onNameChange, onSave, onExportExcelCurrentView, onExportExcelFullData,
+    documentName, onNameChange, onExportExcelCurrentView, onExportExcelFullData,
     onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
-    onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson, isSaving,
+    onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson,
     canEdit,
     isGoogleAuthenticated, googleAuthLoading, authLabel, authTeamLabel, onGoogleLogin, onGoogleLogout,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
@@ -488,16 +486,6 @@ export default function Toolbar({
                             <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
                         </button>
                     )}
-
-                    <button
-                        onClick={() => canEdit && onSave()}
-                        disabled={isSaving || !canEdit}
-                        title={!canEdit ? 'Viewer mode: unlock editor to save' : isSaving ? 'Saving...' : 'Save'}
-                        className="flex h-9 items-center gap-1.5 rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:bg-slate-50 disabled:text-slate-400"
-                    >
-                        {isSaving ? <Loader2 size={13} className="animate-spin text-slate-400" /> : <Save size={13} className={canEdit ? 'text-slate-500' : 'text-slate-300'} />}
-                        <span>{isSaving ? 'Saving...' : 'Save'}</span>
-                    </button>
 
                     <div className="relative" ref={settingsRef}>
                         <button

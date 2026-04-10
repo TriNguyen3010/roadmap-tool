@@ -13,6 +13,7 @@ import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LoginForm } from '@/components/LoginForm';
 import { useToast } from '@/hooks/useToast';
+import { LocalBackupBanner } from '@/components/LocalBackupBanner';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { getSupabaseBrowserClient } from '@/lib/supabaseBrowser';
 import type { EditPermission, ManagerFieldChange } from '@/types/auth';
@@ -175,6 +176,7 @@ function getDefaultViewSettings(): RoadmapViewSettings {
     filterGroupItemType: [],
     colWorkType: false,
     colPriority: false,
+    colVersion: false,
     colPhase: false,
     colStartDate: true,
     colEndDate: true,
@@ -236,6 +238,7 @@ export default function RoadmapPage() {
 
   const [showWorkType, setShowWorkType] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
+  const [showVersion, setShowVersion] = useState(false);
   const [showPhase, setShowPhase] = useState(false);
   const [showStartDate, setShowStartDate] = useState(true);
   const [showEndDate, setShowEndDate] = useState(true);
@@ -303,6 +306,7 @@ export default function RoadmapPage() {
     reportedMode: isReportedMode,
     colWorkType: showWorkType,
     colPriority: showPriority,
+    colVersion: showVersion,
     colPhase: showPhase,
     colStartDate: showStartDate,
     colEndDate: showEndDate,
@@ -316,7 +320,7 @@ export default function RoadmapPage() {
   }), [
     beforeWeeks, afterMonths, filterCategory, filterStatus, filterTeam,
     filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
-    isReportedMode, showWorkType, showPriority, showPhase, showStartDate,
+    isReportedMode, showWorkType, showPriority, showVersion, showPhase, showStartDate,
     showEndDate, featuresColWidth, featuresColWidthMode, timelineMode, timelineOnly,
     timelineTaskWidth, expandedIds, hiddenRowIds,
   ]);
@@ -350,6 +354,7 @@ export default function RoadmapPage() {
     setIsReportedMode(false);
     setShowWorkType(typeof next.colWorkType === 'boolean' ? next.colWorkType : defaults.colWorkType ?? false);
     setShowPriority(typeof next.colPriority === 'boolean' ? next.colPriority : defaults.colPriority ?? false);
+    setShowVersion(typeof next.colVersion === 'boolean' ? next.colVersion : defaults.colVersion ?? false);
     setShowPhase(typeof next.colPhase === 'boolean' ? next.colPhase : defaults.colPhase ?? false);
     setShowStartDate(typeof next.colStartDate === 'boolean' ? next.colStartDate : defaults.colStartDate ?? true);
     setShowEndDate(typeof next.colEndDate === 'boolean' ? next.colEndDate : defaults.colEndDate ?? true);
@@ -462,6 +467,7 @@ export default function RoadmapPage() {
     if (rawLegacy) {
       delete rawLegacy.colWorkType;
       delete rawLegacy.colPriority;
+      delete rawLegacy.colVersion;
       delete rawLegacy.colPhase;
       delete rawLegacy.colStartDate;
       delete rawLegacy.colEndDate;
@@ -773,12 +779,13 @@ export default function RoadmapPage() {
     ];
     if (showWorkType) cols.push({ id: 'workType', header: 'WorkType' });
     if (showPriority) cols.push({ id: 'priority', header: 'Priority' });
+    if (showVersion) cols.push({ id: 'version', header: 'Version' });
     cols.push({ id: 'status', header: 'Status' });
     if (showPhase) cols.push({ id: 'phase', header: 'Week' });
     if (showStartDate) cols.push({ id: 'startDate', header: 'Start Date' });
     if (showEndDate) cols.push({ id: 'endDate', header: 'End Date' });
     return cols;
-  }, [showWorkType, showPriority, showPhase, showStartDate, showEndDate]);
+  }, [showWorkType, showPriority, showVersion, showPhase, showStartDate, showEndDate]);
 
   const broadcastVersionUpdate = useCallback((version: string | null) => {
     if (!version || !syncChannelRef.current) return;
@@ -1525,6 +1532,7 @@ export default function RoadmapPage() {
 
   return (
     <main className="flex flex-col h-screen max-w-full overflow-hidden bg-white text-gray-900">
+      <LocalBackupBanner />
       <Toast toasts={toasts} onRemove={removeToast} />
 
       {confirmState && (
@@ -1570,7 +1578,6 @@ export default function RoadmapPage() {
       <Toolbar
         documentName={data.releaseName}
         onNameChange={handleNameChange}
-        onSave={() => handleSave(data)}
         onExportExcelCurrentView={handleExportExcelCurrentView}
         onExportExcelFullData={handleExportExcelFullData}
         onDownloadJson={handleDownloadJson}
@@ -1583,7 +1590,6 @@ export default function RoadmapPage() {
         onBeforeWeeksChange={setBeforeWeeks}
         onAfterMonthsChange={setAfterMonths}
         onLoadJson={handleLoadJson}
-        isSaving={saving}
         canEdit={canManageRoadmap}
         isGoogleAuthenticated={isAuthenticated}
         googleAuthLoading={googleAuthLoading}
@@ -1648,6 +1654,7 @@ export default function RoadmapPage() {
           onManagerFieldChanges={handleManagerFieldChanges}
           showWorkType={showWorkType} setShowWorkType={setShowWorkType}
           showPriority={showPriority} setShowPriority={setShowPriority}
+          showVersion={showVersion} setShowVersion={setShowVersion}
           showPhase={showPhase} setShowPhase={setShowPhase}
           showStartDate={showStartDate} setShowStartDate={setShowStartDate}
           showEndDate={showEndDate} setShowEndDate={setShowEndDate}

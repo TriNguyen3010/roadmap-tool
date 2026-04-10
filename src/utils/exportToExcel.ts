@@ -17,6 +17,7 @@ export type ExcelExportColumnId =
     | 'type'
     | 'workType'
     | 'priority'
+    | 'version'
     | 'status'
     | 'phase'
     | 'progress'
@@ -58,6 +59,7 @@ const DEFAULT_COLUMN_WIDTH: Record<ExcelExportColumnId, number> = {
     type: 14,
     workType: 16,
     priority: 12,
+    version: 14,
     status: 16,
     phase: 24,
     progress: 14,
@@ -199,6 +201,8 @@ function getCellValue(
             if (row.type !== 'group' && row.type !== 'item') return '';
             return normalizeItemPriority(row.priority) || '—';
         }
+        case 'version':
+            return row.type === 'group' ? (row.version || '—') : '';
         case 'status':
             if (respectCurrentViewRules && (row.type === 'category' || row.type === 'subcategory')) return '';
             return row.status;

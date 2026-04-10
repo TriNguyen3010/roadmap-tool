@@ -169,7 +169,7 @@ lines.append('')
 lines.append(f'-- 3. Roadmap items ({len(items)} rows)')
 sorted_items = sorted(items, key=lambda x: x.get('depth', 0))
 for it in sorted_items:
-    cols = 'roadmap_id, item_id, parent_item_id, sort_order, depth, item_type, name, subcategory_type, group_item_type, team_role, status, status_mode, manual_status, progress, start_date, end_date, priority, phase_ids, quick_note, created_at, updated_at, assigned_teams, team_statuses, updated_by'
+    cols = 'roadmap_id, item_id, parent_item_id, sort_order, depth, item_type, name, subcategory_type, group_item_type, team_role, status, status_mode, manual_status, progress, start_date, end_date, priority, version, phase_ids, quick_note, created_at, updated_at, assigned_teams, team_statuses, updated_by'
     vals = ', '.join([
         esc(it.get('roadmap_id')),
         esc(it.get('item_id')),
@@ -188,6 +188,7 @@ for it in sorted_items:
         esc(it.get('start_date')),
         esc(it.get('end_date')),
         esc(it.get('priority')),
+        esc(it.get('version')),
         esc_jsonb(it.get('phase_ids', [])),
         esc(it.get('quick_note')),
         esc(it.get('created_at')),

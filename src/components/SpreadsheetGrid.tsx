@@ -76,6 +76,8 @@ interface GridProps {
     setShowWorkType: (v: boolean) => void;
     showPriority: boolean;
     setShowPriority: (v: boolean) => void;
+    showVersion: boolean;
+    setShowVersion: (v: boolean) => void;
     showPhase: boolean;
     setShowPhase: (v: boolean) => void;
     showStartDate: boolean;
@@ -112,7 +114,7 @@ const EMPTY_REPORTED_DOCUMENT: RoadmapDocument = {
 };
 
 const ROW_HEIGHT = 28;
-const COL_W = 26;
+const COL_W = 18;
 const MILESTONE_HEADER_H = 22;
 
 // Fixed column widths (only ID and Actions are truly fixed)
@@ -325,6 +327,7 @@ function getStatusOptionsForRow(row: { type: string; teamRole?: string }): ItemS
 
 const COL_WORK_TYPE_W = 110;
 const COL_PRIORITY_W = 70;
+const COL_VERSION_W = 80;
 const MAX_QUICK_NOTE_LENGTH = 500;
 
 const CHILD_TYPE_MAP: Record<ItemType, ItemType | null> = {
@@ -401,7 +404,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
     isSaving, saveState, saveTick, currentUser, documentPermission, onManagerFieldChanges,
     showWorkType, setShowWorkType,
-    showPriority, setShowPriority, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
+    showPriority, setShowPriority, showVersion, setShowVersion, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
     expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds, addToast
 }: GridProps) {
@@ -417,6 +420,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     // ── Priority dropdown open state ──
     const [openWorkTypeId, setOpenWorkTypeId] = useState<string | null>(null);
     const [openPriorityId, setOpenPriorityId] = useState<string | null>(null);
+    const [openVersionId, setOpenVersionId] = useState<string | null>(null);
     const [openStatusId, setOpenStatusId] = useState<string | null>(null);
     const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
     const [dropdownAnchorRect, setDropdownAnchorRect] = useState<DOMRect | null>(null);
@@ -482,6 +486,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         if (dateMiniPopup) setDateMiniPopup(null);
         if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
+        if (openVersionId) setOpenVersionId(null);
         if (openStatusId) setOpenStatusId(null);
         if (openPhaseId) setOpenPhaseId(null);
     };
@@ -491,6 +496,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         if (dateMiniPopup) setDateMiniPopup(null);
         if (openWorkTypeId) setOpenWorkTypeId(null);
         if (openPriorityId) setOpenPriorityId(null);
+        if (openVersionId) setOpenVersionId(null);
         if (openStatusId) setOpenStatusId(null);
         if (openPhaseId) setOpenPhaseId(null);
     };
@@ -554,6 +560,19 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         phaseOptions.forEach((phase, index) => colorMap.set(phase.id, normalizeWeekColor(phase.color, index)));
         return colorMap;
     }, [phaseOptions]);
+
+    // Collect unique versions from all items (for version dropdown)
+    const allVersions: string[] = useMemo(() => {
+        const versions = new Set<string>();
+        const walk = (items: RoadmapItem[]) => {
+            for (const item of items) {
+                if (item.version) versions.add(item.version);
+                if (item.children) walk(item.children);
+            }
+        };
+        walk(data.items);
+        return Array.from(versions).sort();
+    }, [data.items]);
 
     const groupInlinePhaseIdsById = useMemo(() => {
         const result = new Map<string, string[]>();
@@ -973,6 +992,25 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
             window.removeEventListener('keydown', handleEscape);
         };
     }, [openPriorityId]);
+
+    useEffect(() => {
+        if (!openVersionId) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('[data-version-dropdown="true"]')) return;
+            if (target.closest('[data-version-trigger="true"]')) return;
+            setOpenVersionId(null);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setOpenVersionId(null);
+        };
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [openVersionId]);
 
     useEffect(() => {
         if (!openPhaseId) return;
@@ -1580,6 +1618,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         + (showPhase ? phaseW : 0)
         + (showStartDate ? startDateW : 0)
         + (showEndDate ? endDateW : 0)
+        + (showVersion ? COL_VERSION_W : 0)
         + COL_ACTIONS_W;
     const TOTAL_HEADER_H = MILESTONE_HEADER_H + ROW_HEIGHT + ROW_HEIGHT;
 
@@ -1591,6 +1630,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         + (showPhase ? ` ${phaseW}px` : '')
         + (showStartDate ? ` ${startDateW}px` : '')
         + (showEndDate ? ` ${endDateW}px` : '')
+        + (showVersion ? ` ${COL_VERSION_W}px` : '')
         + ` ${COL_ACTIONS_W}px`;
 
     return (
@@ -1599,6 +1639,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 <EditPopup
                     item={editingItem}
                     phases={phaseOptions}
+                    allVersions={allVersions}
                     onSave={handleEditSave}
                     onClose={() => setEditingItem(null)}
                 />
@@ -1969,6 +2010,17 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                         </div>
                     )}
 
+                    {/* VERSION header – click to hide */}
+                    {showVersion && (
+                        <div className="flex items-center justify-center border-r border-gray-400 cursor-pointer hover:bg-indigo-100 transition-colors select-none"
+                            title="Click để ẩn cột Version"
+                            onClick={() => setShowVersion(false)}
+                            style={{ minWidth: COL_VERSION_W, width: COL_VERSION_W }}
+                        >
+                            <span className="text-indigo-700">VER</span>
+                        </div>
+                    )}
+
                     {/* Actions column header – shows restore buttons when hidden */}
                     <div className="flex items-center flex-wrap justify-center gap-0.5 px-0.5">
                         {!showWorkType && (
@@ -1981,6 +2033,12 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             <button title="Hiện cột Priority" onClick={() => setShowPriority(true)}
                                 className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
                                 P
+                            </button>
+                        )}
+                        {!showVersion && (
+                            <button title="Hiện cột Version" onClick={() => setShowVersion(true)}
+                                className="text-[8px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 rounded px-1 transition-colors">
+                                V
                             </button>
                         )}
                         {!showPhase && (
@@ -2417,6 +2475,40 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                         </div>
                                     ) : (
                                         <div className="flex items-center justify-center border-r border-gray-300 px-1 text-[10px] text-transparent">-</div>
+                                    )
+                                )}
+
+                                {/* Version — only for group level */}
+                                {showVersion && (
+                                    row.type === 'group' ? (
+                                        <div
+                                            data-version-trigger="true"
+                                            className={`flex items-center justify-center border-r border-gray-300 px-1 relative ${canEditStructure ? 'cursor-pointer hover:bg-black/5 transition-colors' : ''}`}
+                                            style={{ width: COL_VERSION_W }}
+                                            title="Click để đổi version"
+                                            onClick={e => {
+                                                if (!canEditStructure) return;
+                                                e.stopPropagation();
+                                                setOpenWorkTypeId(null);
+                                                setOpenPriorityId(null);
+                                                setOpenStatusId(null);
+                                                setOpenPhaseId(null);
+                                                captureDropdownAnchor(e);
+                                                setOpenVersionId(openVersionId === row.id ? null : row.id);
+                                            }}
+                                        >
+                                            <span
+                                                className="text-[10px] px-1 py-0.5 rounded font-medium w-full text-center truncate"
+                                                style={{
+                                                    backgroundColor: row.version ? '#e0e7ff' : '#f3f4f6',
+                                                    color: row.version ? '#4338ca' : '#9ca3af'
+                                                }}
+                                            >
+                                                {row.version || '—'}
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <div className="border-r border-gray-300" style={{ width: COL_VERSION_W }} />
                                     )
                                 )}
 
@@ -3513,7 +3605,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
             {/* ── Portal-based dropdown menus (rendered outside scroll container to avoid clipping) ── */}
             {(() => {
-                const activeId = openWorkTypeId || openPriorityId || openStatusId || openPhaseId;
+                const activeId = openWorkTypeId || openPriorityId || openVersionId || openStatusId || openPhaseId;
                 if (!activeId || !dropdownAnchorRect) return null;
 
                 const dir = dropdownAnchorRect.top < 220 ? 'down' : 'up';
@@ -3580,6 +3672,55 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     e.preventDefault();
                                     updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.priority; return next; }, true);
                                     setOpenPriorityId(null);
+                                }}
+                            >Clear</button>
+                        </div>,
+                        document.body
+                    );
+                }
+
+                // Version dropdown
+                if (openVersionId && activeRow) {
+                    return createPortal(
+                        <div data-version-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[120px]" style={style}>
+                            <div className="px-2 py-1.5 border-b border-gray-100">
+                                <input
+                                    autoFocus
+                                    className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                                    placeholder="Nhập version..."
+                                    defaultValue={activeRow.version || ''}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            const val = (e.target as HTMLInputElement).value.trim();
+                                            if (val) {
+                                                updateFromSource(activeRow.id, source => ({ ...source, version: val }), true);
+                                            } else {
+                                                updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.version; return next; }, true);
+                                            }
+                                            setOpenVersionId(null);
+                                        }
+                                        if (e.key === 'Escape') setOpenVersionId(null);
+                                    }}
+                                />
+                            </div>
+                            {allVersions.length > 0 && (
+                                <div className="max-h-40 overflow-auto py-0.5">
+                                    {allVersions.map(v => (
+                                        <button key={v} className={`flex w-full text-left text-[11px] px-3 py-1.5 font-medium hover:bg-gray-50 transition-colors ${activeRow.version === v ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700'}`}
+                                            onMouseDown={e => {
+                                                e.preventDefault();
+                                                updateFromSource(activeRow.id, source => ({ ...source, version: v }), true);
+                                                setOpenVersionId(null);
+                                            }}
+                                        >{v}</button>
+                                    ))}
+                                </div>
+                            )}
+                            <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                onMouseDown={e => {
+                                    e.preventDefault();
+                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.version; return next; }, true);
+                                    setOpenVersionId(null);
                                 }}
                             >Clear</button>
                         </div>,

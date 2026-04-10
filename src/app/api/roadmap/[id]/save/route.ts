@@ -94,7 +94,7 @@ async function saveLegacyJson(id: string, requestBody: unknown, auth: Authentica
 
 // ── Changelog diff for JSON document trees ──────────────────────────────────
 
-const TRACKED_ITEM_FIELDS = ['status', 'startDate', 'endDate', 'quickNote'] as const;
+const TRACKED_ITEM_FIELDS = ['status', 'startDate', 'endDate', 'quickNote', 'version'] as const;
 
 function diffDocumentTreeForChangelog(
     oldItems: RoadmapItem[],

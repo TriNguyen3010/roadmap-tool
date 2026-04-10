@@ -377,6 +377,7 @@ export interface RoadmapItem {
   startDate?: string;
   endDate?: string;
   priority?: ItemPriority;
+  version?: string;
   phaseIds?: string[];
   quickNote?: string;
   images?: ItemImage[];
@@ -411,6 +412,7 @@ export interface RoadmapViewSettings {
   filterGroupItemType?: string[];
   colWorkType?: boolean;
   colPriority?: boolean;
+  colVersion?: boolean;
   colPhase?: boolean;
   colPct?: boolean;
   colStartDate?: boolean;
