@@ -824,6 +824,7 @@ export default function RoadmapPage() {
     setSaving(true);
     saveInFlightRef.current = true;
     setSaveState('idle');
+    addToast('Đang lưu...', 'info', 1500);
     try {
       if (hasPendingReleaseMetaPatch && !options?.forceFullSave) {
         const res = await fetch(`/api/roadmap/${roadmapId}`, {
@@ -870,7 +871,7 @@ export default function RoadmapPage() {
         }
         setHasUnsavedSharedChanges(false);
         setHasPendingReleaseMetaPatch(false);
-        addToast('Đã lưu tên roadmap.', 'success');
+        addToast('Đã lưu thành công.', 'success');
         setSaveState('success');
         setSaveTick(prev => prev + 1);
         return;
@@ -903,7 +904,6 @@ export default function RoadmapPage() {
         return;
       }
       if (!res.ok) throw new Error();
-      addToast('Đã lưu thành công.', 'success');
       const latestVersion = typeof payload?.updatedAt === 'string'
         ? payload.updatedAt
         : await fetchRoadmapVersion();
@@ -913,6 +913,7 @@ export default function RoadmapPage() {
       }
       setHasUnsavedSharedChanges(false);
       setHasPendingReleaseMetaPatch(false);
+      addToast('Đã lưu thành công.', 'success');
       setSaveState('success');
       setSaveTick(prev => prev + 1);
     } catch {
@@ -989,6 +990,7 @@ export default function RoadmapPage() {
       }
 
       setHasUnsavedSharedChanges(false);
+      addToast('Đã lưu thành công.', 'success');
       setSaveState('success');
       setSaveTick(prev => prev + 1);
     } catch (error) {
@@ -1111,6 +1113,7 @@ export default function RoadmapPage() {
 
         setHasUnsavedSharedChanges(false);
         setHasPendingReleaseMetaPatch(false);
+        addToast('Đã lưu thành công.', 'success');
         setSaveState('success');
         setSaveTick(prev => prev + 1);
       } catch (error) {
