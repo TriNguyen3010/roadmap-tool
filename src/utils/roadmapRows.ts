@@ -172,6 +172,7 @@ export function inflateRoadmapDocumentFromRows(
         endDate: rows.roadmap.endDate,
         milestones,
         items: buildNodes(null),
+        ...(rows.roadmap.config ? { config: rows.roadmap.config } : {}),
     };
 }
 

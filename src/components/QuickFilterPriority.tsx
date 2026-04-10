@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Check } from 'lucide-react';
-import { PRIORITY_LEVELS, TEAM_ROLES } from '@/types/roadmap';
+import { PRIORITY_LEVELS, DEFAULT_ROADMAP_CONFIG, type RoadmapConfig } from '@/types/roadmap';
 import type { QuickFilterPriorityState } from '@/types/quickFilter';
 import QuickFilterButton from './QuickFilterButton';
 import QuickFilterDropdown from './QuickFilterDropdown';
@@ -14,9 +14,10 @@ interface Props {
     state: QuickFilterPriorityState;
     onChange: (next: QuickFilterPriorityState) => void;
     isDisabled: boolean;
+    roadmapConfig?: RoadmapConfig;
 }
 
-export default function QuickFilterPriority({ state, onChange, isDisabled }: Props) {
+export default function QuickFilterPriority({ state, onChange, isDisabled, roadmapConfig = DEFAULT_ROADMAP_CONFIG }: Props) {
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
     const isOpen = anchorRect !== null;
 
@@ -47,7 +48,7 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
     };
 
     const selectAllTeams = () => {
-        onChange({ ...state, teams: [...TEAM_ROLES] });
+        onChange({ ...state, teams: [...roadmapConfig.teamRoles] });
     };
 
     const clearTeams = () => {
@@ -116,7 +117,7 @@ export default function QuickFilterPriority({ state, onChange, isDisabled }: Pro
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-0.5">
-                            {TEAM_ROLES.map(role => {
+                            {roadmapConfig.teamRoles.map(role => {
                                 const checked = selectedTeams.has(role);
                                 return (
                                     <label key={role} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50"

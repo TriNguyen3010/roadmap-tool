@@ -13,7 +13,7 @@ import {
     PRIORITY_LEVELS,
     RoadmapDocument,
     RoadmapItem,
-    STATUS_OPTIONS,
+    DEFAULT_ROADMAP_CONFIG,
     SubcategoryType,
     TimelineMode,
     normalizeWeekColor,
@@ -70,6 +70,7 @@ interface GridProps {
     saveTick: number;
     currentUser: SessionUser | null;
     documentPermission: EditPermission;
+    roadmapConfig?: import('@/types/roadmap').RoadmapConfig;
     onManagerFieldChanges: (changes: ManagerFieldChange[], optimisticData: RoadmapDocument) => Promise<void> | void;
     // Column visibility (lifted to parent for persistence)
     showWorkType: boolean;
@@ -303,26 +304,15 @@ const PRIORITY_TAG_TEXT: Record<string, string> = {
     'Low': '#166534',
     'Reported': '#9d174d',
 };
-const STATUS_OPTIONS_BY_TEAM: Record<TeamRole, ItemStatus[]> = {
-    FE: ['None', 'Not Started', 'FE Handle', 'FE in progress', 'FE Done'],
-    BE: ['None', 'Not Started', 'BE Handle', 'BE in progress', 'BE Done'],
-    QC: ['None', 'Not Started', 'QC Handle', 'QC in progress', 'QC Done - Staging', 'QC Done - Pro'],
-    PD: ['None', 'Not Started', 'PD Handle', 'PD in progress UI/UX', 'PD in progress Visual', 'PD Done UI/UX', 'PD Done Visual'],
-    BA: ['None', 'Not Started', 'BA Handle', 'BA in progress', 'BA Done'],
-    DevOps: ['None', 'Not Started', 'DevOps Handle', 'DevOps in progress', 'DevOps Done'],
-    Growth: ['None', 'Not Started', 'Growth Handle', 'Growth in progress', 'Growth Done'],
-};
-
-const STATUS_OPTIONS_GENERIC: ItemStatus[] = [
-    'None', 'Not Started', 'Sếp Vinh',
-    'Task To do', 'Task In progress', 'Task Pending', 'Task Done',
-];
-
-function getStatusOptionsForRow(row: { type: string; teamRole?: string }): ItemStatus[] {
+function getStatusOptionsForRow(
+    row: { type: string; teamRole?: string },
+    config: import('@/types/roadmap').RoadmapConfig
+): ItemStatus[] {
     if (row.type === 'team' && row.teamRole) {
-        return STATUS_OPTIONS_BY_TEAM[row.teamRole as TeamRole] || STATUS_OPTIONS_GENERIC;
+        const teamStatuses = config.teamStatuses[row.teamRole];
+        if (teamStatuses) return ['None', 'Not Started', ...teamStatuses] as ItemStatus[];
     }
-    return STATUS_OPTIONS_GENERIC;
+    return ['None', ...config.taskStatuses] as ItemStatus[];
 }
 
 const COL_WORK_TYPE_W = 110;
@@ -402,12 +392,13 @@ function getRowDisplayDepth(row: Pick<FlattenedItem, 'depth' | 'type'>): number 
 export default function SpreadsheetGrid({ data, reportedData, reportedBridgeReadOnly = false, reportedBridgeLoading = false, reportedBridgeError = null, reportedBridgeLabel = null, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     timelineMode, timelineOnly, timelineTaskW, setTimelineTaskW,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
-    isSaving, saveState, saveTick, currentUser, documentPermission, onManagerFieldChanges,
+    isSaving, saveState, saveTick, currentUser, documentPermission, roadmapConfig: roadmapConfigProp, onManagerFieldChanges,
     showWorkType, setShowWorkType,
     showPriority, setShowPriority, showVersion, setShowVersion, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
     expandedIds, setExpandedIds, hiddenRowIds, setHiddenRowIds, addToast
 }: GridProps) {
+    const roadmapConfig = roadmapConfigProp ?? DEFAULT_ROADMAP_CONFIG;
     const leftPaneRef = useRef<HTMLDivElement>(null);
     const rightPaneRef = useRef<HTMLDivElement>(null);
 
@@ -1642,11 +1633,12 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                     allVersions={allVersions}
                     onSave={handleEditSave}
                     onClose={() => setEditingItem(null)}
+                    roadmapConfig={roadmapConfig}
                 />
             )}
             {canEditStructure && addingToParent && (
                 <AddNodePopup parentId={addingToParent.id} parentName={addingToParent.name} childType={addingToParent.childType}
-                    onAdd={handleAddChild} onClose={() => setAddingToParent(null)} />
+                    onAdd={handleAddChild} onClose={() => setAddingToParent(null)} roadmapConfig={roadmapConfig} />
             )}
 
             {reportedMode ? (
@@ -3411,7 +3403,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 </button>
                                                 {isActiveImageStatusInlineEditable && openStatusId === activeImagePreviewItem.id && (
                                                     <div data-status-dropdown="true" className="absolute left-0 top-full z-50 mt-1 w-full overflow-y-auto max-h-[360px] rounded-xl border border-slate-200 bg-white shadow-xl">
-                                                        {getStatusOptionsForRow(activeImagePreviewItem).map(statusOption => (
+                                                        {getStatusOptionsForRow(activeImagePreviewItem, roadmapConfig).map(statusOption => (
                                                             <button
                                                                 key={statusOption}
                                                                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold transition-colors hover:bg-slate-50"
@@ -3737,7 +3729,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     {activeRow.status && activeRow.status !== 'None' ? activeRow.status : '—'}
                                 </span>
                             </div>
-                            {getStatusOptionsForRow(activeRow).map(statusOption => (
+                            {getStatusOptionsForRow(activeRow, roadmapConfig).map(statusOption => (
                                 <button
                                     key={statusOption}
                                     className={`text-left text-[11px] px-3 py-1.5 font-semibold hover:bg-gray-50 transition-colors ${statusOption === activeRow.status ? 'bg-blue-50' : ''}`}

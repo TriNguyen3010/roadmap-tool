@@ -21,9 +21,11 @@ import {
   ColumnWidthMode,
   Milestone,
   PhaseOption,
+  RoadmapConfig,
   RoadmapDocument,
   RoadmapItem,
   RoadmapViewSettings,
+  DEFAULT_ROADMAP_CONFIG,
   TimelineMode,
   normalizeItemImages,
   normalizeGroupItemType,
@@ -217,6 +219,9 @@ export default function RoadmapPage() {
   const latestLoadedSettingsRef = useRef<Partial<RoadmapViewSettings> | null>(null);
   const hasHydratedViewSettingsRef = useRef(false);
   const syncChannelRef = useRef<BroadcastChannel | null>(null);
+
+  // Per-roadmap config (team roles, statuses) — fallback to defaults for JSON-mode or unconfigured roadmaps
+  const roadmapConfig: RoadmapConfig = useMemo(() => data?.config ?? DEFAULT_ROADMAP_CONFIG, [data?.config]);
 
   const [beforeWeeks, setBeforeWeeks] = useState(2);
   const [afterMonths, setAfterMonths] = useState(2);
@@ -1575,6 +1580,7 @@ export default function RoadmapPage() {
           filterGroupItemType={filterGroupItemType}
           onFilterChange={handleFilterChange}
           onSaveView={handleSaveViewPreferences}
+          roadmapConfig={roadmapConfig}
         />
       )}
 
@@ -1622,6 +1628,7 @@ export default function RoadmapPage() {
         onQuickFilterPriorityChange={handleQfPriorityChange}
         onExpandAll={handleExpandOneLevel}
         onCollapseAll={handleCollapseOneLevel}
+        roadmapConfig={roadmapConfig}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
@@ -1654,6 +1661,7 @@ export default function RoadmapPage() {
           saveTick={saveTick}
           currentUser={authUser}
           documentPermission={documentPermission}
+          roadmapConfig={roadmapConfig}
           onManagerFieldChanges={handleManagerFieldChanges}
           showWorkType={showWorkType} setShowWorkType={setShowWorkType}
           showPriority={showPriority} setShowPriority={setShowPriority}

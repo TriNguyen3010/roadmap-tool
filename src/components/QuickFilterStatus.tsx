@@ -1,39 +1,28 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Check } from 'lucide-react';
-import { STATUS_OPTIONS } from '@/types/roadmap';
+import { DEFAULT_ROADMAP_CONFIG, getAllStatusesFromConfig, type RoadmapConfig } from '@/types/roadmap';
 import type { QuickFilterStatusState } from '@/types/quickFilter';
 import QuickFilterButton from './QuickFilterButton';
 import QuickFilterDropdown from './QuickFilterDropdown';
 
 const ACCENT = '#F0B90B';
 
-const PRESET_DOING = {
-    label: 'In Progress',
-    values: ['Task In progress'],
-};
-const PRESET_TODO = {
-    label: 'To do',
-    values: ['Task To do'],
-};
-const PRESET_DONE = {
-    label: 'Done',
-    values: ['Task Done'],
-};
-const STATUS_PRESETS = [PRESET_DOING, PRESET_TODO, PRESET_DONE];
-const TASK_STATUSES = ['Task To do', 'Task In progress', 'Task Pending', 'Task Done'];
-const TASK_SET = new Set(TASK_STATUSES);
-const OTHER_STATUSES = STATUS_OPTIONS.filter(s => s !== 'None' && !TASK_SET.has(s));
-const VISIBLE_STATUSES = [...TASK_STATUSES, ...OTHER_STATUSES];
+const STATUS_PRESETS = [
+    { label: 'In Progress', values: ['Task In progress'] },
+    { label: 'To do', values: ['Task To do'] },
+    { label: 'Done', values: ['Task Done'] },
+];
 
 interface Props {
     state: QuickFilterStatusState;
     onChange: (next: QuickFilterStatusState) => void;
     isDisabled: boolean;
+    roadmapConfig?: RoadmapConfig;
 }
 
-export default function QuickFilterStatus({ state, onChange, isDisabled }: Props) {
+export default function QuickFilterStatus({ state, onChange, isDisabled, roadmapConfig = DEFAULT_ROADMAP_CONFIG }: Props) {
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
     const isOpen = anchorRect !== null;
 
@@ -42,6 +31,15 @@ export default function QuickFilterStatus({ state, onChange, isDisabled }: Props
     }, []);
 
     const close = useCallback(() => setAnchorRect(null), []);
+
+    // Build visible statuses from config: task statuses first, then team statuses
+    const visibleStatuses = useMemo(() => {
+        const taskSet = new Set(roadmapConfig.taskStatuses);
+        const allStatuses = getAllStatusesFromConfig(roadmapConfig);
+        const taskFirst = roadmapConfig.taskStatuses.filter(s => s !== 'None');
+        const rest = allStatuses.filter(s => s !== 'None' && !taskSet.has(s));
+        return [...taskFirst, ...rest];
+    }, [roadmapConfig]);
 
     const selectedSet = new Set(state.statuses);
     const count = state.statuses.length;
@@ -118,7 +116,7 @@ export default function QuickFilterStatus({ state, onChange, isDisabled }: Props
 
                     {/* All statuses */}
                     <div className="max-h-56 overflow-y-auto px-1.5 py-1.5">
-                        {VISIBLE_STATUSES.map(option => {
+                        {visibleStatuses.map(option => {
                             const checked = selectedSet.has(option);
                             return (
                                 <label key={option} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50"

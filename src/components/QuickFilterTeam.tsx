@@ -1,27 +1,13 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { Check } from 'lucide-react';
-import { TEAM_ROLES } from '@/types/roadmap';
+import { DEFAULT_ROADMAP_CONFIG, type RoadmapConfig } from '@/types/roadmap';
 import type { QuickFilterTeamState } from '@/types/quickFilter';
 import QuickFilterButton from './QuickFilterButton';
 import QuickFilterDropdown from './QuickFilterDropdown';
 
 const ACCENT = '#F0B90B';
-
-// Statuses that belong to a specific team (prefix-based)
-const TEAM_STATUSES: Record<string, string[]> = {
-    BA: ['BA Handle', 'BA in progress', 'BA Done'],
-    PD: ['PD Handle', 'PD in progress UI/UX', 'PD in progress Visual', 'PD Done UI/UX', 'PD Done Visual'],
-    FE: ['FE Handle', 'FE in progress', 'FE Done'],
-    BE: ['BE Handle', 'BE in progress', 'BE Done'],
-    QC: ['QC Handle', 'QC in progress', 'QC Done - Staging', 'QC Done - Pro'],
-    DevOps: ['DevOps Handle', 'DevOps in progress', 'DevOps Done'],
-    Growth: ['Growth Handle', 'Growth in progress', 'Growth Done'],
-};
-
-// All statuses of all teams
-const ALL_TEAM_STATUSES = Object.values(TEAM_STATUSES).flat();
 
 // Preset: defines a matcher to narrow statuses
 type PresetKey = 'doing' | 'todo' | 'done';
@@ -43,10 +29,10 @@ const PRESETS: { key: PresetKey; label: string; match: (s: string) => boolean }[
     },
 ];
 
-// Get all statuses for given teams
-function getStatusesForTeams(teams: string[]): string[] {
+// Get all statuses for given teams from config
+function getStatusesForTeams(teams: string[], config: RoadmapConfig): string[] {
     if (teams.length === 0) return [];
-    return teams.flatMap(t => TEAM_STATUSES[t] || []);
+    return teams.flatMap(t => config.teamStatuses[t] || []);
 }
 
 // Apply preset filter to a list of statuses
@@ -61,9 +47,10 @@ interface Props {
     state: QuickFilterTeamState;
     onChange: (next: QuickFilterTeamState) => void;
     isDisabled: boolean;
+    roadmapConfig?: RoadmapConfig;
 }
 
-export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) {
+export default function QuickFilterTeam({ state, onChange, isDisabled, roadmapConfig = DEFAULT_ROADMAP_CONFIG }: Props) {
     const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
     const [activePreset, setActivePreset] = useState<PresetKey | null>(null);
     const isOpen = anchorRect !== null;
@@ -77,11 +64,11 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
     const selectedTeams = new Set(state.teams);
     const count = state.teams.length;
 
-    // Compute statuses from teams + presets and push to parent
+    // Compute statuses from teams + presets using config
     const recomputeStatuses = useCallback((teams: string[], preset: PresetKey | null) => {
-        const allTeamStatuses = getStatusesForTeams(teams);
+        const allTeamStatuses = getStatusesForTeams(teams, roadmapConfig);
         return applyPresetFilter(allTeamStatuses, preset);
-    }, []);
+    }, [roadmapConfig]);
 
     // ── Team handlers ──
     const toggleTeam = (role: string) => {
@@ -94,7 +81,7 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
     };
 
     const selectAllTeams = () => {
-        const teamsArr = [...TEAM_ROLES];
+        const teamsArr = [...roadmapConfig.teamRoles];
         const statuses = recomputeStatuses(teamsArr, activePreset);
         onChange({ teams: teamsArr, statuses });
     };
@@ -106,18 +93,15 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
 
     // ── Preset handlers ──
     const togglePreset = (key: PresetKey) => {
-        const next = activePreset === key ? null : key; // toggle: same = off, different = switch
+        const next = activePreset === key ? null : key;
         setActivePreset(next);
 
-        // Only compute statuses if teams are selected
         if (state.teams.length > 0) {
             const statuses = recomputeStatuses(state.teams, next);
             onChange({ ...state, statuses });
         }
-        // No teams selected → preset saved locally, will apply when user picks a team
     };
 
-    // Detect which presets match current statuses (for visual highlight)
     const getPresetVisual = (key: PresetKey): 'active' | 'none' => {
         return activePreset === key ? 'active' : 'none';
     };
@@ -183,7 +167,7 @@ export default function QuickFilterTeam({ state, onChange, isDisabled }: Props) 
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-0.5">
-                            {TEAM_ROLES.map(role => {
+                            {roadmapConfig.teamRoles.map(role => {
                                 const checked = selectedTeams.has(role);
                                 return (
                                     <label key={role} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50"

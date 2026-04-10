@@ -6,7 +6,7 @@ import {
     Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft,
     ChevronsUp, ChevronsDown
 } from 'lucide-react';
-import { normalizeWeekColor, PhaseOption } from '@/types/roadmap';
+import { normalizeWeekColor, PhaseOption, DEFAULT_ROADMAP_CONFIG, type RoadmapConfig } from '@/types/roadmap';
 import type { QuickFilterState, QuickFilterStatusState, QuickFilterTeamState, QuickFilterPriorityState } from '@/types/quickFilter';
 import QuickFilterStatus from './QuickFilterStatus';
 import QuickFilterTeam from './QuickFilterTeam';
@@ -76,6 +76,7 @@ interface ToolbarProps {
     onQuickFilterPriorityChange: (next: QuickFilterPriorityState) => void;
     onExpandAll: () => void;
     onCollapseAll: () => void;
+    roadmapConfig?: RoadmapConfig;
 }
 
 export default function Toolbar({
@@ -88,7 +89,7 @@ export default function Toolbar({
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
     isReportedMode, isTimelineOnly, onToggleTimelineOnly, onBackToHome,
     isJsonMode, quickFilter, onQuickFilterStatusChange, onQuickFilterTeamChange, onQuickFilterPriorityChange,
-    onExpandAll, onCollapseAll
+    onExpandAll, onCollapseAll, roadmapConfig = DEFAULT_ROADMAP_CONFIG
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -276,16 +277,19 @@ export default function Toolbar({
                                 state={quickFilter.status}
                                 onChange={onQuickFilterStatusChange}
                                 isDisabled={quickFilter.activeMode !== null && quickFilter.activeMode !== 'status'}
+                                roadmapConfig={roadmapConfig}
                             />
                             <QuickFilterTeam
                                 state={quickFilter.team}
                                 onChange={onQuickFilterTeamChange}
                                 isDisabled={quickFilter.activeMode !== null && quickFilter.activeMode !== 'team'}
+                                roadmapConfig={roadmapConfig}
                             />
                             <QuickFilterPriority
                                 state={quickFilter.priority}
                                 onChange={onQuickFilterPriorityChange}
                                 isDisabled={quickFilter.activeMode !== null && quickFilter.activeMode !== 'priority'}
+                                roadmapConfig={roadmapConfig}
                             />
                         </div>
                     )}

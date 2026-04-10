@@ -14,8 +14,9 @@ import {
     StatusMode,
     SubcategoryType,
     TeamRole,
-    TEAM_ROLES,
-    STATUS_OPTIONS,
+    DEFAULT_ROADMAP_CONFIG,
+    getAllStatusesFromConfig,
+    type RoadmapConfig,
     normalizeItemImages,
     normalizeItemPriority,
     normalizeWeekColor,
@@ -35,6 +36,7 @@ interface EditPopupProps {
     allVersions: string[];
     onSave: (updated: RoadmapItem) => void;
     onClose: () => void;
+    roadmapConfig?: RoadmapConfig;
 }
 
 const SUBCATEGORY_TYPES: SubcategoryType[] = ['Feature', 'Bug', 'Growth Camp'];
@@ -66,7 +68,7 @@ const normalizeLocalImages = (images: ItemImage[]): ItemImage[] => {
     }, []);
 };
 
-export default function EditPopup({ item, phases, allVersions, onSave, onClose }: EditPopupProps) {
+export default function EditPopup({ item, phases, allVersions, onSave, onClose, roadmapConfig = DEFAULT_ROADMAP_CONFIG }: EditPopupProps) {
     const hasChildren = !!(item.children && item.children.length > 0);
     const initialStatusMode: StatusMode = hasChildren ? (item.statusMode ?? 'auto') : 'manual';
     const initialImages = useMemo(() => normalizeItemImages(item), [item]);
@@ -106,7 +108,7 @@ export default function EditPopup({ item, phases, allVersions, onSave, onClose }
     const isDateLocked = hasNonTeamChildren && !isManualWithChildren;
 
     // Initialize selectedTeams based on existing children that are of type 'team'
-    const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(() => {
+    const [selectedTeams, setSelectedTeams] = useState<Set<string>>(() => {
         const set = new Set<TeamRole>();
         if ((item.type === 'item' || item.type === 'group') && item.children) {
             item.children.forEach(child => {
@@ -133,7 +135,7 @@ export default function EditPopup({ item, phases, allVersions, onSave, onClose }
         if (s === 'Not Started' || s === 'None' || s === 'Task To do') setProgress(0);
     };
 
-    const toggleTeam = (role: TeamRole) => {
+    const toggleTeam = (role: string) => {
         const next = new Set(selectedTeams);
         if (next.has(role)) next.delete(role);
         else next.add(role);
@@ -336,14 +338,14 @@ export default function EditPopup({ item, phases, allVersions, onSave, onClose }
                 : [];
 
             selectedTeams.forEach(role => {
-                if (currentTeamsMap.has(role)) {
-                    newChildren.push(currentTeamsMap.get(role)!);
+                if (currentTeamsMap.has(role as TeamRole)) {
+                    newChildren.push(currentTeamsMap.get(role as TeamRole)!);
                 } else {
                     newChildren.push(createItemWithTimestamps({
                         id: uuidv4().slice(0, 8),
                         name: role,
                         type: 'team',
-                        teamRole: role,
+                        teamRole: role as TeamRole,
                         status: 'None',
                         statusMode: 'manual',
                         manualStatus: 'None',
@@ -697,7 +699,7 @@ export default function EditPopup({ item, phases, allVersions, onSave, onClose }
                     <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-semibold text-gray-600">Teams (Optional)</label>
                         <div className="flex flex-wrap gap-2">
-                            {TEAM_ROLES.map(role => {
+                            {roadmapConfig.teamRoles.map(role => {
                                 const isSelected = selectedTeams.has(role);
                                 return (
                                     <label key={role} className="flex items-center gap-1.5 cursor-pointer text-sm">
@@ -878,7 +880,7 @@ export default function EditPopup({ item, phases, allVersions, onSave, onClose }
                         onChange={(e) => handleStatusChange(e.target.value as ItemStatus)}
                         disabled={statusMode === 'auto'}
                     >
-                        {STATUS_OPTIONS.map(option => (
+                        {getAllStatusesFromConfig(roadmapConfig).map(option => (
                             <option key={option} value={option}>{option}</option>
                         ))}
                     </select>

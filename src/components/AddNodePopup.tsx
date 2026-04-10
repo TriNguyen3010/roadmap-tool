@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { RoadmapItem, ItemType, TeamRole, TEAM_ROLES } from '@/types/roadmap';
+import { RoadmapItem, ItemType, TeamRole, DEFAULT_ROADMAP_CONFIG, type RoadmapConfig } from '@/types/roadmap';
 import { createItemWithTimestamps } from '@/utils/roadmapHelpers';
 import { v4 as uuidv4 } from 'uuid';
 import SidePanelShell from './SidePanelShell';
@@ -12,11 +12,12 @@ interface AddNodePopupProps {
     childType: ItemType;
     onAdd: (parentId: string, newItem: RoadmapItem) => void;
     onClose: () => void;
+    roadmapConfig?: RoadmapConfig;
 }
 
-export default function AddNodePopup({ parentId, parentName, childType, onAdd, onClose }: AddNodePopupProps) {
+export default function AddNodePopup({ parentId, parentName, childType, onAdd, onClose, roadmapConfig = DEFAULT_ROADMAP_CONFIG }: AddNodePopupProps) {
     const [name, setName] = useState('');
-    const [selectedTeams, setSelectedTeams] = useState<Set<TeamRole>>(new Set());
+    const [selectedTeams, setSelectedTeams] = useState<Set<string>>(new Set());
     const DEFAULT_SUBCATEGORIES = ['App', 'Web', 'Extension', 'Core'] as const;
     const [selectedSubcategories, setSelectedSubcategories] = useState<Set<string>>(new Set(DEFAULT_SUBCATEGORIES));
 
@@ -27,7 +28,7 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
         setSelectedSubcategories(next);
     };
 
-    const toggleTeam = (role: TeamRole) => {
+    const toggleTeam = (role: string) => {
         const next = new Set(selectedTeams);
         if (next.has(role)) next.delete(role);
         else next.add(role);
@@ -53,7 +54,7 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                 id: uuidv4().slice(0, 8),
                 name: role,
                 type: 'team' as const,
-                teamRole: role,
+                teamRole: role as TeamRole,
             }));
         } else if (childType !== 'item' && childType !== 'team') {
             children = [];
@@ -123,7 +124,7 @@ export default function AddNodePopup({ parentId, parentName, childType, onAdd, o
                     <div className="flex flex-col gap-1.5 mt-2">
                         <label className="text-xs font-semibold text-gray-600">Teams (Optional)</label>
                         <div className="flex flex-wrap gap-2">
-                            {TEAM_ROLES.map(role => {
+                            {roadmapConfig.teamRoles.map(role => {
                                 const isSelected = selectedTeams.has(role);
                                 return (
                                     <label key={role} className="flex items-center gap-1.5 cursor-pointer text-sm">

@@ -9,7 +9,8 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import type { RoadmapDocument, ItemStatus } from '@/types/roadmap';
+import type { RoadmapDocument, ItemStatus, RoadmapConfig } from '@/types/roadmap';
+import { DEFAULT_ROADMAP_CONFIG } from '@/types/roadmap';
 import type {
     RoadmapRowRecord,
     RoadmapItemRowRecord,
@@ -119,6 +120,18 @@ function mapDbRowToImage(row: Record<string, unknown>): RoadmapItemImageRowRecor
     };
 }
 
+function parseRoadmapConfig(raw: unknown): RoadmapConfig {
+    if (!raw || typeof raw !== 'object') return DEFAULT_ROADMAP_CONFIG;
+    const obj = raw as Record<string, unknown>;
+    const hasRoles = Array.isArray(obj.teamRoles) && obj.teamRoles.length > 0;
+    if (!hasRoles) return DEFAULT_ROADMAP_CONFIG;
+    return {
+        teamRoles: obj.teamRoles as string[],
+        teamStatuses: (obj.teamStatuses as Record<string, string[]>) || DEFAULT_ROADMAP_CONFIG.teamStatuses,
+        taskStatuses: Array.isArray(obj.taskStatuses) ? obj.taskStatuses as string[] : DEFAULT_ROADMAP_CONFIG.taskStatuses,
+    };
+}
+
 function mapDbRowToRoadmap(row: Record<string, unknown>): RoadmapRowRecord {
     return {
         id: row.id as string,
@@ -126,6 +139,7 @@ function mapDbRowToRoadmap(row: Record<string, unknown>): RoadmapRowRecord {
         startDate: row.start_date as string,
         endDate: row.end_date as string,
         sourceVersion: (row.source_version as string) ?? undefined,
+        config: parseRoadmapConfig(row.config),
     };
 }
 
@@ -153,6 +167,15 @@ export async function loadRoadmapReadModel(roadmapId: string): Promise<Normalize
         milestones: (milestonesRes.data || []).map(mapDbRowToMilestone),
         itemImages: (imagesRes.data || []).map(mapDbRowToImage),
     };
+}
+
+export async function loadRoadmapConfig(roadmapId: string): Promise<RoadmapConfig> {
+    const { data } = await supabase
+        .from('roadmaps')
+        .select('config')
+        .eq('id', roadmapId)
+        .maybeSingle();
+    return parseRoadmapConfig(data?.config);
 }
 
 export async function loadRoadmapVersion(roadmapId: string): Promise<string | null> {

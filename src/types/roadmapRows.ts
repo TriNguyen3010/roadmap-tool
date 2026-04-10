@@ -17,6 +17,7 @@ export interface RoadmapRowRecord {
     startDate: string;
     endDate: string;
     sourceVersion?: string | null;
+    config?: import('@/types/roadmap').RoadmapConfig;
 }
 
 export interface RoadmapItemRowRecord {

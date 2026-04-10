@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateTeamRequest, type AuthenticatedTeamRequest } from '@/lib/serverTeamAuth';
 import { isAdminLevel, type AuthManagerTeam } from '@/types/auth';
-import { TEAM_ROLES, type RoadmapDocument, type RoadmapItem, type ItemStatus } from '@/types/roadmap';
+import { DEFAULT_ROADMAP_CONFIG, type RoadmapDocument, type RoadmapItem, type ItemStatus } from '@/types/roadmap';
 import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
 import { applyChangesToTree, validateManagerChanges } from '@/utils/permissionCheck';
 import { normalizeRoadmapItemTimestamps, recalculateRoadmap } from '@/utils/roadmapHelpers';
@@ -11,6 +11,7 @@ import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
 import {
     getStorageMode,
     loadItemWithAncestors,
+    loadRoadmapConfig,
     loadRoadmapDocumentFromRows,
     updateItemFields,
     regenerateJsonBlob,
@@ -44,12 +45,18 @@ export async function POST(
         }
 
         const managerTeam = auth.member.team;
-        if (!managerTeam || auth.member.role !== 'manager' || !TEAM_ROLES.includes(managerTeam as AuthManagerTeam)) {
+        if (!managerTeam || auth.member.role !== 'manager') {
             return NextResponse.json({ error: 'Not a manager account' }, { status: 403 });
         }
 
         const body = await request.json().catch(() => ({}));
         const { id: roadmapId } = await params;
+
+        // Validate team against roadmap config
+        const config = await loadRoadmapConfig(roadmapId);
+        if (!config.teamRoles.includes(managerTeam)) {
+            return NextResponse.json({ error: 'Team not configured for this roadmap' }, { status: 403 });
+        }
         const mode = await getStorageMode(roadmapId);
 
         if (mode === 'json') {

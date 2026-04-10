@@ -2,7 +2,7 @@
 
 import { Save } from 'lucide-react';
 import SidePanelShell from './SidePanelShell';
-import { GROUP_ITEM_TYPE_OPTIONS, normalizeWeekColor, PHASE_FILTER_NONE, PRIORITY_FILTER_NONE, PRIORITY_LEVELS, PhaseOption, STATUS_OPTIONS } from '@/types/roadmap';
+import { GROUP_ITEM_TYPE_OPTIONS, normalizeWeekColor, PHASE_FILTER_NONE, PRIORITY_FILTER_NONE, PRIORITY_LEVELS, PhaseOption, DEFAULT_ROADMAP_CONFIG, getAllStatusesFromConfig, type RoadmapConfig } from '@/types/roadmap';
 
 interface FilterPopupProps {
     isOpen: boolean;
@@ -21,6 +21,7 @@ interface FilterPopupProps {
     filterGroupItemType: string[];
     onFilterChange: (type: 'category' | 'status' | 'team' | 'priority' | 'phase' | 'subcategory' | 'groupItemType', values: string[]) => void;
     onSaveView: () => void;
+    roadmapConfig?: RoadmapConfig;
 }
 
 export default function FilterPopup({
@@ -40,6 +41,7 @@ export default function FilterPopup({
     filterGroupItemType,
     onFilterChange,
     onSaveView,
+    roadmapConfig = DEFAULT_ROADMAP_CONFIG,
 }: FilterPopupProps) {
     const priorityFilterOptions = [...PRIORITY_LEVELS, PRIORITY_FILTER_NONE];
     const activeFilterCount = (
@@ -213,7 +215,7 @@ export default function FilterPopup({
                     <div className="rounded-lg border border-gray-200 bg-white px-3 py-3">
                         <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">Status</p>
                         <div className="space-y-2">
-                            {STATUS_OPTIONS.map(st => (
+                            {getAllStatusesFromConfig(roadmapConfig).map(st => (
                                 <label key={st} className="group flex cursor-pointer items-center gap-2">
                                     <input
                                         type="checkbox"
