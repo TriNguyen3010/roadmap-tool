@@ -378,6 +378,7 @@ export interface RoadmapItem {
   endDate?: string;
   priority?: ItemPriority;
   version?: string;
+  extra?: Record<string, string>;
   phaseIds?: string[];
   quickNote?: string;
   images?: ItemImage[];
@@ -427,11 +428,22 @@ export interface RoadmapViewSettings {
   hiddenRowIds?: string[];
 }
 
+/** Custom column definition for per-roadmap config. */
+export interface CustomColumnDef {
+  key: string;
+  label: string;
+  width?: number;
+  type?: 'text' | 'dropdown';
+  options?: string[];
+  position?: 'after-status' | 'after-end-date';
+}
+
 /** Per-roadmap configuration for team roles and statuses. */
 export interface RoadmapConfig {
   teamRoles: string[];
   teamStatuses: Record<string, string[]>;
   taskStatuses: string[];
+  columns?: CustomColumnDef[];
 }
 
 /** Default config — matches the hardcoded values used before per-roadmap config. */

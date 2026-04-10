@@ -61,6 +61,7 @@ function mapItemRowToDb(row: RoadmapItemRowRecord): Record<string, unknown> {
         end_date: row.endDate ?? null,
         priority: row.priority ?? null,
         version: row.version ?? null,
+        extra: row.extra ?? {},
         phase_ids: row.phaseIds ?? [],
         quick_note: row.quickNote ?? null,
         created_at: row.createdAt ?? null,
@@ -88,6 +89,7 @@ function mapDbRowToItem(row: Record<string, unknown>): RoadmapItemRowRecord {
         endDate: (row.end_date as string) ?? undefined,
         priority: (row.priority as RoadmapItemRowRecord['priority']) ?? undefined,
         version: (row.version as string) ?? undefined,
+        extra: (row.extra as Record<string, string>) ?? undefined,
         phaseIds: (row.phase_ids as string[]) ?? [],
         quickNote: (row.quick_note as string) ?? undefined,
         createdAt: (row.created_at as string) ?? undefined,
@@ -125,11 +127,22 @@ function parseRoadmapConfig(raw: unknown): RoadmapConfig {
     const obj = raw as Record<string, unknown>;
     const hasRoles = Array.isArray(obj.teamRoles) && obj.teamRoles.length > 0;
     if (!hasRoles) return DEFAULT_ROADMAP_CONFIG;
-    return {
+    const config: RoadmapConfig = {
         teamRoles: obj.teamRoles as string[],
         teamStatuses: (obj.teamStatuses as Record<string, string[]>) || DEFAULT_ROADMAP_CONFIG.teamStatuses,
         taskStatuses: Array.isArray(obj.taskStatuses) ? obj.taskStatuses as string[] : DEFAULT_ROADMAP_CONFIG.taskStatuses,
     };
+    if (Array.isArray(obj.columns) && obj.columns.length > 0) {
+        config.columns = (obj.columns as Record<string, unknown>[]).map(col => ({
+            key: String(col.key ?? ''),
+            label: String(col.label ?? ''),
+            ...(col.width ? { width: Number(col.width) } : {}),
+            ...(col.type === 'text' || col.type === 'dropdown' ? { type: col.type as 'text' | 'dropdown' } : {}),
+            ...(Array.isArray(col.options) ? { options: col.options as string[] } : {}),
+            ...(col.position === 'after-status' || col.position === 'after-end-date' ? { position: col.position as 'after-status' | 'after-end-date' } : {}),
+        })).filter(col => col.key && col.label);
+    }
+    return config;
 }
 
 function mapDbRowToRoadmap(row: Record<string, unknown>): RoadmapRowRecord {

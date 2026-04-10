@@ -414,6 +414,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     const [openVersionId, setOpenVersionId] = useState<string | null>(null);
     const [openStatusId, setOpenStatusId] = useState<string | null>(null);
     const [openPhaseId, setOpenPhaseId] = useState<string | null>(null);
+    const [editingExtraCell, setEditingExtraCell] = useState<{ rowId: string; colKey: string; value: string } | null>(null);
+    const [extraCellAnchorRect, setExtraCellAnchorRect] = useState<DOMRect | null>(null);
     const [dropdownAnchorRect, setDropdownAnchorRect] = useState<DOMRect | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
     const [dateMiniPopup, setDateMiniPopup] = useState<{
@@ -480,6 +482,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         if (openVersionId) setOpenVersionId(null);
         if (openStatusId) setOpenStatusId(null);
         if (openPhaseId) setOpenPhaseId(null);
+        if (editingExtraCell) { setEditingExtraCell(null); setExtraCellAnchorRect(null); }
     };
     const handleScrollRight = (e: React.UIEvent<HTMLDivElement>) => {
         if (leftPaneRef.current) leftPaneRef.current.scrollTop = e.currentTarget.scrollTop;
@@ -490,6 +493,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         if (openVersionId) setOpenVersionId(null);
         if (openStatusId) setOpenStatusId(null);
         if (openPhaseId) setOpenPhaseId(null);
+        if (editingExtraCell) { setEditingExtraCell(null); setExtraCellAnchorRect(null); }
     };
 
     const handleNameMouseEnter = (e: React.MouseEvent<HTMLSpanElement>, fullName: string) => {
@@ -1040,6 +1044,26 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
             window.removeEventListener('keydown', handleEscape);
         };
     }, [openStatusId]);
+
+    useEffect(() => {
+        if (!editingExtraCell) return;
+        const handlePointerDown = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (target.closest('[data-extra-dropdown="true"]')) return;
+            if (target.closest('[data-extra-input="true"]')) return;
+            setEditingExtraCell(null);
+            setExtraCellAnchorRect(null);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') { setEditingExtraCell(null); setExtraCellAnchorRect(null); }
+        };
+        window.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('keydown', handleEscape);
+        return () => {
+            window.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('keydown', handleEscape);
+        };
+    }, [editingExtraCell]);
 
     useEffect(() => {
         if (!dateMiniPopup) return;
@@ -1601,11 +1625,17 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         document.addEventListener('mouseup', onUp);
     }, []);
 
+    // ── Custom columns from config ──
+    const customColumns = roadmapConfig.columns ?? [];
+    const DEFAULT_CUSTOM_COL_W = 100;
+
     // ── Computed total left pane width ──
+    const customColTotalW = customColumns.reduce((sum, col) => sum + (col.width ?? DEFAULT_CUSTOM_COL_W), 0);
     const totalLeftW = nameW
         + (showWorkType ? COL_WORK_TYPE_W : 0)
         + (showPriority ? COL_PRIORITY_W : 0)
         + statusW
+        + customColTotalW
         + (showPhase ? phaseW : 0)
         + (showStartDate ? startDateW : 0)
         + (showEndDate ? endDateW : 0)
@@ -1614,10 +1644,12 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     const TOTAL_HEADER_H = MILESTONE_HEADER_H + ROW_HEIGHT + ROW_HEIGHT;
 
     // Grid template for left pane rows/header
+    const customColTemplate = customColumns.map(col => ` ${col.width ?? DEFAULT_CUSTOM_COL_W}px`).join('');
     const gridTemplate = `${nameW}px`
         + (showWorkType ? ` ${COL_WORK_TYPE_W}px` : '')
         + (showPriority ? ` ${COL_PRIORITY_W}px` : '')
         + ` ${statusW}px`
+        + customColTemplate
         + (showPhase ? ` ${phaseW}px` : '')
         + (showStartDate ? ` ${startDateW}px` : '')
         + (showEndDate ? ` ${endDateW}px` : '')
@@ -1961,6 +1993,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             title="Kéo để thay đổi cột"
                         />
                     </div>
+
+                    {/* Custom columns headers */}
+                    {customColumns.map(col => (
+                        <div key={col.key}
+                            className="flex items-center justify-center border-r border-gray-400 select-none"
+                            style={{ minWidth: col.width ?? DEFAULT_CUSTOM_COL_W, width: col.width ?? DEFAULT_CUSTOM_COL_W }}
+                        >
+                            <span className="text-[10px] font-semibold text-gray-600 uppercase truncate px-1">{col.label}</span>
+                        </div>
+                    ))}
 
                     {/* WEEK header – click to hide */}
                     {showPhase && (
@@ -2374,6 +2416,29 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                         </div>
                                     );
                                 })()}
+
+                                {/* Custom columns cells */}
+                                {customColumns.map(col => {
+                                    const cellValue = row.extra?.[col.key] || '';
+                                    const colW = col.width ?? DEFAULT_CUSTOM_COL_W;
+                                    return (
+                                        <div key={col.key}
+                                            className="flex items-center border-r border-gray-300 px-1 cursor-pointer hover:bg-black/5 transition-colors"
+                                            style={{ minWidth: colW, width: colW }}
+                                            title={cellValue || `Click để nhập ${col.label}`}
+                                            onClick={e => {
+                                                if (!canEditStructure) return;
+                                                e.stopPropagation();
+                                                setExtraCellAnchorRect((e.currentTarget as HTMLElement).getBoundingClientRect());
+                                                setEditingExtraCell({ rowId: row.id, colKey: col.key, value: cellValue });
+                                            }}
+                                        >
+                                            <span className="text-[10px] text-gray-700 truncate w-full text-center">
+                                                {cellValue || ''}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
 
                                 {/* Week tags — show for group only */}
                                 {showPhase && (
@@ -3810,6 +3875,73 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 return null;
             })()}
 
+
+            {/* ── Extra cell inline editor portal ── */}
+            {editingExtraCell && extraCellAnchorRect && (() => {
+                const colDef = customColumns.find(c => c.key === editingExtraCell.colKey);
+                if (!colDef) return null;
+                const dir = extraCellAnchorRect.top < 220 ? 'down' : 'up';
+                const portalStyle: React.CSSProperties = {
+                    position: 'fixed',
+                    left: extraCellAnchorRect.left,
+                    zIndex: 9999,
+                    ...(dir === 'up'
+                        ? { bottom: window.innerHeight - extraCellAnchorRect.top + 2 }
+                        : { top: extraCellAnchorRect.bottom + 2 }),
+                };
+                const commitValue = (val: string) => {
+                    const trimmed = val.trim();
+                    updateFromSource(editingExtraCell.rowId, source => {
+                        const nextExtra = { ...(source.extra ?? {}) };
+                        if (trimmed) {
+                            nextExtra[editingExtraCell.colKey] = trimmed;
+                        } else {
+                            delete nextExtra[editingExtraCell.colKey];
+                        }
+                        return { ...source, extra: Object.keys(nextExtra).length > 0 ? nextExtra : undefined };
+                    }, true);
+                    setEditingExtraCell(null);
+                    setExtraCellAnchorRect(null);
+                };
+                const dismiss = () => { setEditingExtraCell(null); setExtraCellAnchorRect(null); };
+
+                if (colDef.type === 'dropdown' && colDef.options?.length) {
+                    return createPortal(
+                        <div data-extra-dropdown="true" className="rounded border border-gray-200 bg-white shadow-lg flex flex-col min-w-[120px]" style={portalStyle}>
+                            <div className="max-h-48 overflow-auto py-0.5">
+                                {colDef.options.map(opt => (
+                                    <button key={opt}
+                                        className={`flex w-full text-left text-[11px] px-3 py-1.5 font-medium hover:bg-gray-50 transition-colors ${editingExtraCell.value === opt ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700'}`}
+                                        onMouseDown={e => { e.preventDefault(); commitValue(opt); }}
+                                    >{opt}</button>
+                                ))}
+                            </div>
+                            <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                                onMouseDown={e => { e.preventDefault(); commitValue(''); }}
+                            >Clear</button>
+                        </div>,
+                        document.body
+                    );
+                }
+
+                // Text input (default)
+                return createPortal(
+                    <div data-extra-input="true" className="rounded border border-gray-200 bg-white shadow-lg p-1.5 min-w-[140px]" style={portalStyle}>
+                        <input
+                            autoFocus
+                            className="w-full text-[11px] border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            placeholder={`Nhập ${colDef.label}...`}
+                            defaultValue={editingExtraCell.value}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') commitValue((e.target as HTMLInputElement).value);
+                                if (e.key === 'Escape') dismiss();
+                            }}
+                            onBlur={e => commitValue(e.target.value)}
+                        />
+                    </div>,
+                    document.body
+                );
+            })()}
 
             {/* Team Restriction Feedback Tooltip */}
             {teamRestrictionFeedback && createPortal(

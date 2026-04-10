@@ -39,6 +39,7 @@ export interface RoadmapItemRowRecord {
     endDate?: string;
     priority?: ItemPriority;
     version?: string;
+    extra?: Record<string, string>;
     phaseIds: string[];
     quickNote?: string;
     createdAt?: string;
