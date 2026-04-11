@@ -418,6 +418,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     const [extraCellAnchorRect, setExtraCellAnchorRect] = useState<DOMRect | null>(null);
     const [dropdownAnchorRect, setDropdownAnchorRect] = useState<DOMRect | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
+    const [expandedBarIds, setExpandedBarIds] = useState<Set<string>>(new Set());
     const [dateMiniPopup, setDateMiniPopup] = useState<{
         itemId: string;
         field: 'startDate' | 'endDate';
@@ -2793,10 +2794,22 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             const layeredChildSegments = hasChildSegments ? sortArcsByWidth(childSegments) : [];
 
                             const hasActiveInfo = activeBarInfoId === row.id;
+                            // Hide team (depth>=3) bars unless parent group/subcategory is expanded
+                            // Team bars hidden by default — click any team row background to toggle ALL sibling team bars
+                            const parentGroupId = row.type === 'team' ? row.parentIds[row.parentIds.length - 1] : null;
+                            const isTeamBarHidden = row.type === 'team' && (!parentGroupId || !expandedBarIds.has(parentGroupId));
 
                             return (
-                                <div key={row.id} className="flex relative border-b border-gray-200"
-                                    style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}>
+                                <div key={row.id} className={`flex relative border-b border-gray-200 ${row.type === 'team' ? 'cursor-pointer' : ''}`}
+                                    style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}
+                                    onClick={row.type === 'team' && parentGroupId ? () => {
+                                        setExpandedBarIds(prev => {
+                                            const n = new Set(prev);
+                                            if (n.has(parentGroupId)) n.delete(parentGroupId);
+                                            else n.add(parentGroupId);
+                                            return n;
+                                        });
+                                    } : undefined}>
                                     {timelineOnly && (
                                         <div
                                             className={`sticky left-0 z-[12] flex h-full shrink-0 items-center border-r border-slate-200 px-2 ${hasChildren || canEditStructure ? 'cursor-pointer hover:brightness-95' : ''}`}
@@ -2824,7 +2837,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                             </div>
                                         </div>
                                     )}
-                                    {hasChildSegments ? (
+                                    {isTeamBarHidden ? null : hasChildSegments ? (
                                         /* ── Multi-arc parent row ── */
                                         <div
                                             className="absolute inset-y-0 cursor-pointer hover:z-20 group-hover/gantt:z-10"
@@ -3152,7 +3165,19 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 style={{ left: barLeft, width: barWidth, zIndex: hasActiveInfo ? 40 : 5 }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
+                                                    if (row.type === 'group' || row.type === 'subcategory') {
+                                                        const isBarExpanded = expandedBarIds.has(row.id);
+                                                        if (!isBarExpanded) {
+                                                            setExpandedBarIds(prev => { const n = new Set(prev); n.add(row.id); return n; });
+                                                        } else if (activeBarInfoId !== row.id) {
+                                                            setActiveBarInfoId(row.id);
+                                                        } else {
+                                                            setActiveBarInfoId(null);
+                                                            setExpandedBarIds(prev => { const n = new Set(prev); n.delete(row.id); return n; });
+                                                        }
+                                                    } else {
+                                                        setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
+                                                    }
                                                 }}
                                             >
                                                 <svg
@@ -3188,6 +3213,13 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     />
                                                 </svg>
                                                 {isGrowthCamp && <span className="absolute left-1 bottom-[1px] text-[10px] pointer-events-none">🚀</span>}
+                                                {(row.type === 'group' || row.type === 'subcategory') && (
+                                                    <div className="absolute right-0 top-0 h-full flex items-center pr-1 pointer-events-none">
+                                                        <span className={`text-[9px] transition-transform ${expandedBarIds.has(row.id) ? 'rotate-90' : ''}`} style={{ color: '#64748b' }}>
+                                                            ▶
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 {hasActiveInfo && (
                                                     <div className="absolute z-20 top-full mt-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
                                                         <div>{row.name}</div>
