@@ -456,6 +456,11 @@ export default function RoadmapPage() {
   const today = useMemo(() => startOfDay(new Date()), []);
 
   const viewStart = useMemo(() => {
+    if (beforeMonths < 1) {
+      // Fractional months → use weeks (0.5 = 2 weeks)
+      const s = subWeeks(today, Math.round(beforeMonths * 4));
+      return format(s, 'yyyy-MM-dd');
+    }
     const s = startOfMonth(subMonths(today, beforeMonths));
     return format(s, 'yyyy-MM-dd');
   }, [today, beforeMonths]);

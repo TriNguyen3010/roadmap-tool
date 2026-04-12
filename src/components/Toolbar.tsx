@@ -16,9 +16,10 @@ export type QuickViewMode = 'web' | 'app' | 'reported';
 
 // ── Before options: weeks (negative offset from today)
 export const BEFORE_OPTIONS: { label: string; months: number }[] = [
+    { label: '2W', months: 0.5 },
     { label: '1M', months: 1 },
+    { label: '2M', months: 2 },
     { label: '3M', months: 3 },
-    { label: '6M', months: 6 },
 ];
 
 // ── After options: months
