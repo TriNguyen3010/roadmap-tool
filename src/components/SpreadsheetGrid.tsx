@@ -419,6 +419,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     const [dropdownAnchorRect, setDropdownAnchorRect] = useState<DOMRect | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
     const [expandedBarIds, setExpandedBarIds] = useState<Set<string>>(new Set());
+    const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
     const [dateMiniPopup, setDateMiniPopup] = useState<{
         itemId: string;
         field: 'startDate' | 'endDate';
@@ -2182,6 +2183,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                 className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOverReorder ? 'border-t-4 border-t-blue-500' : ''} ${isDragOverParent ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
                                 style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: getRowBg(style.bg, rowPhaseIds, phaseColorById) }}
                                 draggable={canDragRow}
+                                onMouseEnter={() => setHoveredRowId(row.id)}
+                                onMouseLeave={() => setHoveredRowId(prev => prev === row.id ? null : prev)}
                                 onDragStart={canDragRow ? (e) => handleDragStart(e, row.id) : undefined}
                                 onDragOver={canDragRow ? (e) => handleDragOver(e, row.id) : undefined}
                                 onDragLeave={canDragRow ? handleDragLeave : undefined}
@@ -2802,6 +2805,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             return (
                                 <div key={row.id} className={`flex relative border-b border-gray-200 ${row.type === 'team' ? 'cursor-pointer' : ''}`}
                                     style={{ height: ROW_HEIGHT, backgroundColor: depthStyle.bg }}
+                                    onMouseEnter={() => setHoveredRowId(row.id)}
+                                    onMouseLeave={() => setHoveredRowId(prev => prev === row.id ? null : prev)}
                                     onClick={row.type === 'team' && parentGroupId ? () => {
                                         setExpandedBarIds(prev => {
                                             const n = new Set(prev);
@@ -2810,6 +2815,10 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                             return n;
                                         });
                                     } : undefined}>
+                                    {/* Row hover highlight overlay */}
+                                    {hoveredRowId === row.id && (
+                                        <div className="absolute inset-0 bg-black/5 pointer-events-none z-[1]" />
+                                    )}
                                     {timelineOnly && (
                                         <div
                                             className={`sticky left-0 z-[12] flex h-full shrink-0 items-center border-r border-slate-200 px-2 ${hasChildren || canEditStructure ? 'cursor-pointer hover:brightness-95' : ''}`}
@@ -3213,13 +3222,6 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     />
                                                 </svg>
                                                 {isGrowthCamp && <span className="absolute left-1 bottom-[1px] text-[10px] pointer-events-none">🚀</span>}
-                                                {(row.type === 'group' || row.type === 'subcategory') && (
-                                                    <div className="absolute right-0 top-0 h-full flex items-center pr-1 pointer-events-none">
-                                                        <span className={`text-[9px] transition-transform ${expandedBarIds.has(row.id) ? 'rotate-90' : ''}`} style={{ color: '#64748b' }}>
-                                                            ▶
-                                                        </span>
-                                                    </div>
-                                                )}
                                                 {hasActiveInfo && (
                                                     <div className="absolute z-20 top-full mt-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
                                                         <div>{row.name}</div>
