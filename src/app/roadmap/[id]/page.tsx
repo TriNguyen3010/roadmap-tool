@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { startOfDay, subWeeks, addMonths, endOfMonth, format } from 'date-fns';
+import { startOfDay, subWeeks, subMonths, addMonths, endOfMonth, startOfMonth, format } from 'date-fns';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import Toolbar, { type QuickViewMode } from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
@@ -167,7 +167,7 @@ function buildPhaseApplySummaryMessage(result: ApplyPhaseDatesResult): string {
 
 function getDefaultViewSettings(): RoadmapViewSettings {
   return {
-    beforeWeeks: 2,
+    beforeMonths: 3,
     afterMonths: 2,
     filterCategory: [],
     filterStatus: [],
@@ -223,7 +223,7 @@ export default function RoadmapPage() {
   // Per-roadmap config (team roles, statuses) — fallback to defaults for JSON-mode or unconfigured roadmaps
   const roadmapConfig: RoadmapConfig = useMemo(() => data?.config ?? DEFAULT_ROADMAP_CONFIG, [data?.config]);
 
-  const [beforeWeeks, setBeforeWeeks] = useState(2);
+  const [beforeMonths, setBeforeMonths] = useState(3);
   const [afterMonths, setAfterMonths] = useState(2);
 
   const [filterCategory, setFilterCategory] = useState<string[]>([]);
@@ -299,7 +299,7 @@ export default function RoadmapPage() {
   }, [viewSettingsStorageKey]);
 
   const buildCurrentViewSettings = useCallback((): RoadmapViewSettings => ({
-    beforeWeeks,
+    beforeMonths,
     afterMonths,
     filterCategory,
     filterStatus: normalizeStatusFilter(filterStatus),
@@ -323,7 +323,7 @@ export default function RoadmapPage() {
     expandedIds: Array.from(expandedIds),
     hiddenRowIds: Array.from(hiddenRowIds),
   }), [
-    beforeWeeks, afterMonths, filterCategory, filterStatus, filterTeam,
+    beforeMonths, afterMonths, filterCategory, filterStatus, filterTeam,
     filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
     isReportedMode, showWorkType, showPriority, showVersion, showPhase, showStartDate,
     showEndDate, featuresColWidth, featuresColWidthMode, timelineMode, timelineOnly,
@@ -345,7 +345,7 @@ export default function RoadmapPage() {
     const normalizedPriority = normalizePriorityFilterValues(next.filterPriority);
     const shouldResetReportedMode = next.reportedMode === true;
 
-    setBeforeWeeks(typeof next.beforeWeeks === 'number' ? next.beforeWeeks : defaults.beforeWeeks);
+    setBeforeMonths(typeof next.beforeMonths === 'number' ? next.beforeMonths : defaults.beforeMonths);
     setAfterMonths(typeof next.afterMonths === 'number' ? next.afterMonths : defaults.afterMonths);
     setFilterCategory(Array.isArray(next.filterCategory) ? next.filterCategory : defaults.filterCategory || []);
     setFilterStatus(normalizeStatusFilter(next.filterStatus));
@@ -456,9 +456,9 @@ export default function RoadmapPage() {
   const today = useMemo(() => startOfDay(new Date()), []);
 
   const viewStart = useMemo(() => {
-    const s = subWeeks(today, beforeWeeks);
+    const s = startOfMonth(subMonths(today, beforeMonths));
     return format(s, 'yyyy-MM-dd');
-  }, [today, beforeWeeks]);
+  }, [today, beforeMonths]);
 
   const viewEnd = useMemo(() => {
     const e = endOfMonth(addMonths(today, afterMonths));
@@ -1594,9 +1594,9 @@ export default function RoadmapPage() {
         onOpenMilestonesPopup={openMilestonesPopup}
         isFilterPopupOpen={showFilterPopup}
         isMilestonesPopupOpen={showMilestones}
-        beforeWeeks={beforeWeeks}
+        beforeMonths={beforeMonths}
         afterMonths={afterMonths}
-        onBeforeWeeksChange={setBeforeWeeks}
+        onBeforeMonthsChange={setBeforeMonths}
         onAfterMonthsChange={setAfterMonths}
         onLoadJson={handleLoadJson}
         canEdit={canManageRoadmap}

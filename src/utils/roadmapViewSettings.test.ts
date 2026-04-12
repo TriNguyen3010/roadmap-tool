@@ -14,7 +14,7 @@ describe('roadmapViewSettings', () => {
             endDate: '',
             milestones: [],
             settings: {
-                beforeWeeks: 2,
+                beforeMonths: 2,
                 afterMonths: 2,
                 timelineOnly: true,
             },
@@ -34,9 +34,9 @@ describe('roadmapViewSettings', () => {
         expect(parseStoredViewSettings(null)).toBeNull();
         expect(parseStoredViewSettings('not-json')).toBeNull();
         expect(parseStoredViewSettings('[]')).toBeNull();
-        expect(parseStoredViewSettings('{"timelineOnly":true,"beforeWeeks":3}')).toEqual({
+        expect(parseStoredViewSettings('{"timelineOnly":true,"beforeMonths":3}')).toEqual({
             timelineOnly: true,
-            beforeWeeks: 3,
+            beforeMonths: 3,
         });
     });
 

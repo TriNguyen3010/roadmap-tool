@@ -15,10 +15,10 @@ import QuickFilterPriority from './QuickFilterPriority';
 export type QuickViewMode = 'web' | 'app' | 'reported';
 
 // ── Before options: weeks (negative offset from today)
-export const BEFORE_OPTIONS: { label: string; weeks: number }[] = [
-    { label: '2W', weeks: 2 },
-    { label: '1M', weeks: 4 },
-    { label: '2M', weeks: 8 },
+export const BEFORE_OPTIONS: { label: string; months: number }[] = [
+    { label: '1M', months: 1 },
+    { label: '3M', months: 3 },
+    { label: '6M', months: 6 },
 ];
 
 // ── After options: months
@@ -41,9 +41,9 @@ interface ToolbarProps {
     onOpenFilterPopup: () => void;
     isFilterPopupOpen?: boolean;
     isMilestonesPopupOpen?: boolean;
-    beforeWeeks: number;
+    beforeMonths: number;
     afterMonths: number;
-    onBeforeWeeksChange: (w: number) => void;
+    onBeforeMonthsChange: (m: number) => void;
     onAfterMonthsChange: (m: number) => void;
     onLoadJson?: (jsonData: unknown) => void;
     onDownloadJson?: () => void;
@@ -81,8 +81,8 @@ interface ToolbarProps {
 
 export default function Toolbar({
     documentName, onNameChange, onExportExcelCurrentView, onExportExcelFullData,
-    onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeWeeks, afterMonths,
-    onBeforeWeeksChange, onAfterMonthsChange, onLoadJson, onDownloadJson,
+    onOpenMilestonesPopup, onOpenFilterPopup, isFilterPopupOpen, isMilestonesPopupOpen, beforeMonths, afterMonths,
+    onBeforeMonthsChange, onAfterMonthsChange, onLoadJson, onDownloadJson,
     canEdit,
     isGoogleAuthenticated, googleAuthLoading, authLabel, authTeamLabel, onGoogleLogin, onGoogleLogout,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType,
@@ -528,9 +528,9 @@ export default function Toolbar({
                                     <div className="flex gap-1">
                                         {BEFORE_OPTIONS.map(opt => (
                                             <button
-                                                key={opt.weeks}
-                                                onClick={() => onBeforeWeeksChange(opt.weeks)}
-                                                className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors border ${beforeWeeks === opt.weeks
+                                                key={opt.months}
+                                                onClick={() => onBeforeMonthsChange(opt.months)}
+                                                className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors border ${beforeMonths === opt.months
                                                     ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                                                     : 'text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
                                                     }`}

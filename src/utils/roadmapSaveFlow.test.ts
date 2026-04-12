@@ -115,7 +115,7 @@ describe('roadmapSaveFlow', () => {
             startDate: '',
             endDate: '',
             settings: {
-                beforeWeeks: 4,
+                beforeMonths: 4,
                 afterMonths: 3,
                 timelineOnly: true,
             },

@@ -402,7 +402,7 @@ export interface Milestone {
 }
 
 export interface RoadmapViewSettings {
-  beforeWeeks: number;
+  beforeMonths: number;
   afterMonths: number;
   filterCategory?: string[];
   filterStatus?: string[];
