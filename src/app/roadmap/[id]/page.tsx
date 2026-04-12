@@ -167,7 +167,7 @@ function buildPhaseApplySummaryMessage(result: ApplyPhaseDatesResult): string {
 
 function getDefaultViewSettings(): RoadmapViewSettings {
   return {
-    beforeMonths: 3,
+    beforeMonths: 2,
     afterMonths: 2,
     filterCategory: [],
     filterStatus: [],
@@ -223,7 +223,7 @@ export default function RoadmapPage() {
   // Per-roadmap config (team roles, statuses) — fallback to defaults for JSON-mode or unconfigured roadmaps
   const roadmapConfig: RoadmapConfig = useMemo(() => data?.config ?? DEFAULT_ROADMAP_CONFIG, [data?.config]);
 
-  const [beforeMonths, setBeforeMonths] = useState(3);
+  const [beforeMonths, setBeforeMonths] = useState(2);
   const [afterMonths, setAfterMonths] = useState(2);
 
   const [filterCategory, setFilterCategory] = useState<string[]>([]);
