@@ -2932,6 +2932,38 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     : null;
                                                 const isDoneStatus = (s: string) => !s || s === 'None' || s === 'Not Started' || s.includes('Done');
 
+                                                // ── Compute elapsed/status label based on dates + children status ──
+                                                const allChildrenDone = row.children?.every(child => isDoneStatus(child.status || '')) ?? true;
+                                                const hasAnyActiveChild = row.children?.some(child => !isDoneStatus(child.status || '')) ?? false;
+                                                const todayNow = new Date();
+                                                const todayYMD = new Date(todayNow.getFullYear(), todayNow.getMonth(), todayNow.getDate());
+                                                let elapsedStr = 'Chưa diễn ra';
+                                                let elapsedColor = 'text-slate-400';
+                                                if (hasValidStart && hasValidEnd) {
+                                                    const sdYMD = new Date(summaryStartRaw.getFullYear(), summaryStartRaw.getMonth(), summaryStartRaw.getDate());
+                                                    const edYMD = new Date(summaryEndRaw.getFullYear(), summaryEndRaw.getMonth(), summaryEndRaw.getDate());
+                                                    if (todayYMD > edYMD) {
+                                                        if (allChildrenDone) {
+                                                            elapsedStr = 'Đã hoàn tất';
+                                                            elapsedColor = 'text-emerald-400';
+                                                        } else {
+                                                            elapsedStr = 'Quá hạn — còn task chưa xong';
+                                                            elapsedColor = 'text-red-400';
+                                                        }
+                                                    } else if (todayYMD >= sdYMD) {
+                                                        const runDur = formatWorkdayDuration(countWorkdays(sdYMD, todayYMD));
+                                                        elapsedStr = `Đã chạy ${runDur} (tính tới hn)`;
+                                                        elapsedColor = 'text-emerald-400';
+                                                    }
+                                                } else {
+                                                    if (hasAnyActiveChild) {
+                                                        elapsedStr = 'Đang thực hiện — chưa có timeline';
+                                                        elapsedColor = 'text-amber-400';
+                                                    } else {
+                                                        elapsedStr = 'Chưa có timeline';
+                                                        elapsedColor = 'text-slate-400';
+                                                    }
+                                                }
 
                                                 // Build team date map from segments
                                                 const teamDateMap = new Map<string, { start: Date; end: Date; seg: typeof childSegments[0] }>();
@@ -3010,6 +3042,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 const noDateChildren = row.children
                                                     ? [...row.children]
                                                         .filter(child => !(child.startDate && child.endDate))
+                                                        .filter(child => !isDoneStatus(child.status || ''))
                                                         .sort((a, b) => {
                                                             const aIdx = workflowOrder.indexOf(a.teamRole || a.name);
                                                             const bIdx = workflowOrder.indexOf(b.teamRole || b.name);
@@ -3135,6 +3168,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                     {groupStatus}
                                                                 </span>
                                                             )}
+                                                            <div className={`mt-1 text-[10px] font-semibold ${elapsedColor}`}>{elapsedStr}</div>
                                                             {hasDeadline ? (
                                                                 <div className="mt-1 text-[9.5px] text-slate-300 tabular-nums">
                                                                     {deadlineStart && deadlineEnd
