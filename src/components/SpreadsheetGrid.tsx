@@ -2544,7 +2544,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
                                 {/* Start Date — show for subcategory + team only */}
                                 {showStartDate && (
-                                    (row.type === 'subcategory' || row.type === 'team') ? (
+                                    (row.type === 'subcategory' || row.type === 'team' || row.type === 'group') ? (
                                         <div
                                             data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
                                             className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : ((isOtherTeamRow || isNonEditableParentRow) ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
@@ -2571,7 +2571,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
                                 {/* End Date — show for subcategory + team only */}
                                 {showEndDate && (
-                                    (row.type === 'subcategory' || row.type === 'team') ? (
+                                    (row.type === 'subcategory' || row.type === 'team' || row.type === 'group') ? (
                                         <div
                                             data-date-cell-trigger={isDateCellEditable ? 'true' : undefined}
                                             className={`flex items-center justify-center border-r border-gray-300 px-1 text-[10px] font-mono ${isDateCellEditable ? 'cursor-pointer text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors' : ((isOtherTeamRow || isNonEditableParentRow) ? 'cursor-pointer text-gray-500 hover:bg-black/5' : 'text-gray-500')}`}
