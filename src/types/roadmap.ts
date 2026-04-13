@@ -202,13 +202,11 @@ export function normalizeItemStatus(status: string | undefined | null): ItemStat
   if (Object.prototype.hasOwnProperty.call(LEGACY_STATUS_MAP, status)) {
     return LEGACY_STATUS_MAP[status];
   }
-  // Accept any current valid status (including new generic ones like 'Done', 'In progress')
-  if (ITEM_STATUS_SET.has(status as ItemStatus)) {
-    return status as ItemStatus;
-  }
   // Handle very old single-word values that are NOT valid current statuses
   if (status === 'In Progress') return 'FE in progress';
-  return 'Not Started';
+  // Accept any non-empty string (includes current valid statuses and custom
+  // statuses defined in a roadmap's RoadmapConfig.taskStatuses/teamStatuses).
+  return status as ItemStatus;
 }
 
 export function normalizeStatusFilter(statuses: string[] | undefined | null): ItemStatus[] {

@@ -39,9 +39,11 @@ export function getItemTeamFromTree(
 export function validateManagerChanges(
     managerTeam: AuthManagerTeam,
     changes: ManagerFieldChange[],
-    items: RoadmapItem[]
+    items: RoadmapItem[],
+    validStatuses?: Set<string>,
 ): { valid: boolean; violations: string[] } {
     const violations: string[] = [];
+    const statusSet: Set<string> = validStatuses ?? (STATUS_SET as unknown as Set<string>);
 
     for (const change of changes) {
         if (!MANAGER_ALLOWED_FIELDS.has(change.field)) {
@@ -49,7 +51,7 @@ export function validateManagerChanges(
             continue;
         }
 
-        if (change.field === 'status' && !STATUS_SET.has(change.value)) {
+        if (change.field === 'status' && !statusSet.has(change.value)) {
             violations.push(`Status "${change.value}" không hợp lệ`);
             continue;
         }

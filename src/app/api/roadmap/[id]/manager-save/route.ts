@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateTeamRequest, type AuthenticatedTeamRequest } from '@/lib/serverTeamAuth';
 import { isAdminLevel, type AuthManagerTeam } from '@/types/auth';
-import { DEFAULT_ROADMAP_CONFIG, type RoadmapDocument, type RoadmapItem, type ItemStatus } from '@/types/roadmap';
+import { DEFAULT_ROADMAP_CONFIG, getAllStatusesFromConfig, type RoadmapConfig, type RoadmapDocument, type RoadmapItem, type ItemStatus } from '@/types/roadmap';
 import { buildVersionConflictPayload, normalizeVersion } from '@/utils/roadmapConcurrency';
 import { applyChangesToTree, validateManagerChanges } from '@/utils/permissionCheck';
 import { normalizeRoadmapItemTimestamps, recalculateRoadmap } from '@/utils/roadmapHelpers';
@@ -60,13 +60,14 @@ export async function POST(
         const mode = await getStorageMode(roadmapId);
 
         if (mode === 'json') {
-            return managerSaveLegacyJson(roadmapId, managerTeam as AuthManagerTeam, body, auth);
+            return managerSaveLegacyJson(roadmapId, managerTeam as AuthManagerTeam, body, auth, config);
         }
 
         const changes: Array<{ itemId: string; team?: string; field: string; value: unknown }> = Array.isArray(body?.changes) ? body.changes : [];
         if (changes.length === 0) {
             return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
         }
+        const validStatuses = new Set<string>(getAllStatusesFromConfig(config));
         const violations: string[] = [];
 
         // Validate and apply each change as a row-level update
@@ -74,6 +75,12 @@ export async function POST(
             // Validate field is allowed
             if (!MANAGER_ALLOWED_FIELDS.has(change.field)) {
                 violations.push(`Field "${change.field}" is not editable by managers`);
+                continue;
+            }
+
+            // Validate status value against per-roadmap config
+            if (change.field === 'status' && !validStatuses.has(String(change.value))) {
+                violations.push(`Status "${String(change.value)}" không hợp lệ cho roadmap này`);
                 continue;
             }
 
@@ -218,8 +225,10 @@ async function managerSaveLegacyJson(
     roadmapId: string,
     managerTeam: AuthManagerTeam,
     body: Record<string, unknown>,
-    auth: AuthenticatedTeamRequest
+    auth: AuthenticatedTeamRequest,
+    config: RoadmapConfig,
 ) {
+    const validStatuses = new Set<string>(getAllStatusesFromConfig(config));
     const { changes, baseVersion } = resolveManagerSaveRequest(body);
     if (changes.length === 0) {
         return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
@@ -244,7 +253,7 @@ async function managerSaveLegacyJson(
         const currentDoc = row.content as RoadmapDocument;
         const currentItems = normalizeRoadmapItemTimestamps(Array.isArray(currentDoc.items) ? currentDoc.items : []);
 
-        const validation = validateManagerChanges(managerTeam, changes, currentItems);
+        const validation = validateManagerChanges(managerTeam, changes, currentItems, validStatuses);
         if (!validation.valid) {
             return NextResponse.json({ error: 'Permission denied', violations: validation.violations }, { status: 403 });
         }

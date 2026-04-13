@@ -38,9 +38,11 @@ describe('normalizeItemStatus', () => {
     expect(normalizeItemStatus('Done')).toBe('Task Done');
   });
 
-  it('returns Not Started for unrecognized values', () => {
-    expect(normalizeItemStatus('garbage')).toBe('Not Started');
-    expect(normalizeItemStatus('Unknown Status')).toBe('Not Started');
+  it('passes through non-empty custom values (for RoadmapConfig custom statuses)', () => {
+    expect(normalizeItemStatus('Discussing')).toBe('Discussing');
+    expect(normalizeItemStatus('Pending => Data comeback')).toBe('Pending => Data comeback');
+    expect(normalizeItemStatus('garbage')).toBe('garbage');
+    expect(normalizeItemStatus('Unknown Status')).toBe('Unknown Status');
   });
 
   it('returns None for empty/null/undefined', () => {
