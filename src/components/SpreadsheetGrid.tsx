@@ -2902,8 +2902,20 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 })}
                                             </svg>
                                             {hasActiveInfo && (() => {
+                                                // ── Parent subcategory deadline (highest priority for date reference) ──
+                                                const parentSubForDates = flattened.find(r => r.type === 'subcategory' && row.parentIds.includes(r.id));
+                                                const subStartRaw = parentSubForDates?.startDate ? parseISO(parentSubForDates.startDate) : null;
+                                                const subEndRaw = parentSubForDates?.endDate ? parseISO(parentSubForDates.endDate) : null;
+                                                const subStartValid = subStartRaw && !Number.isNaN(subStartRaw.getTime()) ? subStartRaw : null;
+                                                const subEndValid = subEndRaw && !Number.isNaN(subEndRaw.getTime()) ? subEndRaw : null;
+
+                                                // ── Row's own dates (fallback #1) ──
                                                 const sdRaw = row.startDate ? parseISO(row.startDate) : null;
                                                 const edRaw = row.endDate ? parseISO(row.endDate) : null;
+                                                const rowStartValid = sdRaw && !Number.isNaN(sdRaw.getTime()) ? sdRaw : null;
+                                                const rowEndValid = edRaw && !Number.isNaN(edRaw.getTime()) ? edRaw : null;
+
+                                                // ── Child team bounds (fallback #2: earliest start / latest end) ──
                                                 const childDateBounds = childSegments.reduce<{
                                                     minStart: Date | null;
                                                     maxEnd: Date | null;
@@ -2918,52 +2930,40 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     }
                                                     return acc;
                                                 }, { minStart: null, maxEnd: null });
-                                                const summaryStartRaw = sdRaw && !Number.isNaN(sdRaw.getTime()) ? sdRaw : childDateBounds.minStart;
-                                                const summaryEndRaw = edRaw && !Number.isNaN(edRaw.getTime()) ? edRaw : childDateBounds.maxEnd;
-                                                const hasValidStart = !!summaryStartRaw;
-                                                const hasValidEnd = !!summaryEndRaw;
-                                                const overallStartLabel = hasValidStart ? format(summaryStartRaw, 'dd/MM/yyyy') : null;
-                                                const overallEndLabel = hasValidEnd ? format(summaryEndRaw, 'dd/MM/yyyy') : null;
-                                                const overallDurationLabel = hasValidStart && hasValidEnd
-                                                    ? formatWorkdayDuration(countWorkdays(
-                                                        new Date(summaryStartRaw.getFullYear(), summaryStartRaw.getMonth(), summaryStartRaw.getDate()),
-                                                        new Date(summaryEndRaw.getFullYear(), summaryEndRaw.getMonth(), summaryEndRaw.getDate())
-                                                    ))
-                                                    : null;
+
                                                 const isDoneStatus = (s: string) => !s || s === 'None' || s === 'Not Started' || s.includes('Done');
 
-                                                // ── Compute elapsed/status label based on dates + children status ──
-                                                const allChildrenDone = row.children?.every(child => isDoneStatus(child.status || '')) ?? true;
-                                                const hasAnyActiveChild = row.children?.some(child => !isDoneStatus(child.status || '')) ?? false;
-                                                const todayNow = new Date();
-                                                const todayYMD = new Date(todayNow.getFullYear(), todayNow.getMonth(), todayNow.getDate());
-                                                let elapsedStr = 'Chưa diễn ra';
-                                                let elapsedColor = 'text-slate-400';
-                                                if (hasValidStart && hasValidEnd) {
-                                                    const sdYMD = new Date(summaryStartRaw.getFullYear(), summaryStartRaw.getMonth(), summaryStartRaw.getDate());
-                                                    const edYMD = new Date(summaryEndRaw.getFullYear(), summaryEndRaw.getMonth(), summaryEndRaw.getDate());
-                                                    if (todayYMD > edYMD) {
-                                                        if (allChildrenDone) {
-                                                            elapsedStr = 'Đã hoàn tất';
-                                                            elapsedColor = 'text-emerald-400';
-                                                        } else {
-                                                            elapsedStr = 'Quá hạn — còn task chưa xong';
-                                                            elapsedColor = 'text-red-400';
-                                                        }
-                                                    } else if (todayYMD >= sdYMD) {
-                                                        const runDur = formatWorkdayDuration(countWorkdays(sdYMD, todayYMD));
-                                                        elapsedStr = `Đã chạy ${runDur} (tính tới hn)`;
-                                                        elapsedColor = 'text-emerald-400';
-                                                    }
-                                                } else {
-                                                    if (hasAnyActiveChild) {
-                                                        elapsedStr = 'Đang thực hiện — chưa có timeline';
-                                                        elapsedColor = 'text-amber-400';
-                                                    } else {
-                                                        elapsedStr = 'Chưa có timeline';
-                                                        elapsedColor = 'text-slate-400';
-                                                    }
-                                                }
+                                                // ── Line 1: Hard deadline của subcategory ──
+                                                const hardDeadlineStart = subStartValid ?? rowStartValid;
+                                                const hardDeadlineEnd = subEndValid ?? rowEndValid;
+                                                const hardDeadlineLabel = (() => {
+                                                    if (!hardDeadlineStart && !hardDeadlineEnd) return null;
+                                                    const s = hardDeadlineStart ? format(hardDeadlineStart, 'dd/MM/yyyy') : '—';
+                                                    const e = hardDeadlineEnd ? format(hardDeadlineEnd, 'dd/MM/yyyy') : '—';
+                                                    const dur = hardDeadlineStart && hardDeadlineEnd
+                                                        ? formatWorkdayDuration(countWorkdays(
+                                                            new Date(hardDeadlineStart.getFullYear(), hardDeadlineStart.getMonth(), hardDeadlineStart.getDate()),
+                                                            new Date(hardDeadlineEnd.getFullYear(), hardDeadlineEnd.getMonth(), hardDeadlineEnd.getDate())
+                                                        ))
+                                                        : null;
+                                                    return { s, e, dur };
+                                                })();
+
+                                                // ── Line 2: Tổng hợp thời gian từ team (min start → max end) ──
+                                                const teamAggLabel = (() => {
+                                                    const s = childDateBounds.minStart;
+                                                    const e = childDateBounds.maxEnd;
+                                                    if (!s && !e) return null;
+                                                    const sStr = s ? format(s, 'dd/MM/yyyy') : '—';
+                                                    const eStr = e ? format(e, 'dd/MM/yyyy') : '—';
+                                                    const dur = s && e
+                                                        ? formatWorkdayDuration(countWorkdays(
+                                                            new Date(s.getFullYear(), s.getMonth(), s.getDate()),
+                                                            new Date(e.getFullYear(), e.getMonth(), e.getDate())
+                                                        ))
+                                                        : null;
+                                                    return { s: sStr, e: eStr, dur };
+                                                })();
 
                                                 // Build team date map from segments
                                                 const teamDateMap = new Map<string, { start: Date; end: Date; seg: typeof childSegments[0] }>();
@@ -3138,20 +3138,6 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                     );
                                                 });
 
-                                                // Find parent subcategory for deadline dates
-                                                const parentSub = flattened.find(r => r.type === 'subcategory' && row.parentIds.includes(r.id));
-                                                const deadlineStart = parentSub?.startDate ? format(parseISO(parentSub.startDate), 'dd/MM/yyyy') : null;
-                                                const deadlineEnd = parentSub?.endDate ? format(parseISO(parentSub.endDate), 'dd/MM/yyyy') : null;
-                                                const hasDeadline = deadlineStart || deadlineEnd;
-                                                const dlStartDate = parentSub?.startDate ? parseISO(parentSub.startDate) : null;
-                                                const dlEndDate = parentSub?.endDate ? parseISO(parentSub.endDate) : null;
-                                                const deadlineDurationLabel = dlStartDate && dlEndDate && !Number.isNaN(dlStartDate.getTime()) && !Number.isNaN(dlEndDate.getTime())
-                                                    ? formatWorkdayDuration(countWorkdays(
-                                                        new Date(dlStartDate.getFullYear(), dlStartDate.getMonth(), dlStartDate.getDate()),
-                                                        new Date(dlEndDate.getFullYear(), dlEndDate.getMonth(), dlEndDate.getDate())
-                                                    ))
-                                                    : null;
-
                                                 // Group's own status for display
                                                 const groupStatus = row.status && row.status !== 'None' ? row.status : null;
                                                 const groupStatusBg = groupStatus ? (STATUS_TAG_BG[groupStatus] || '#f3f4f6') : undefined;
@@ -3168,21 +3154,19 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                     {groupStatus}
                                                                 </span>
                                                             )}
-                                                            <div className={`mt-1 text-[10px] font-semibold ${elapsedColor}`}>{elapsedStr}</div>
-                                                            {hasDeadline ? (
+                                                            {hardDeadlineLabel ? (
                                                                 <div className="mt-1 text-[9.5px] text-slate-300 tabular-nums">
-                                                                    {deadlineStart && deadlineEnd
-                                                                        ? `${deadlineStart.slice(0, 5)} → ${deadlineEnd}`
-                                                                        : deadlineEnd ? `End ${deadlineEnd}` : `Start ${deadlineStart}`
-                                                                    }
-                                                                    {deadlineDurationLabel && ` (${deadlineDurationLabel})`}
-                                                                </div>
-                                                            ) : overallStartLabel && overallEndLabel ? (
-                                                                <div className="mt-1 text-[9.5px] text-slate-400 tabular-nums">
-                                                                    {overallStartLabel.slice(0, 5)} → {overallEndLabel} ({overallDurationLabel})
+                                                                    <span className="text-slate-500">Hard deadline:</span> {hardDeadlineLabel.s.slice(0, 5)} → {hardDeadlineLabel.e}{hardDeadlineLabel.dur && ` (${hardDeadlineLabel.dur})`}
                                                                 </div>
                                                             ) : (
                                                                 <div className="mt-1 text-[9.5px] text-slate-500 italic">Chưa có hard deadline</div>
+                                                            )}
+                                                            {teamAggLabel ? (
+                                                                <div className="mt-0.5 text-[9.5px] text-slate-400 tabular-nums">
+                                                                    <span className="text-slate-500">Team:</span> {teamAggLabel.s.slice(0, 5)} → {teamAggLabel.e}{teamAggLabel.dur && ` (${teamAggLabel.dur})`}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="mt-0.5 text-[9.5px] text-slate-500 italic">Team chưa nhập ngày</div>
                                                             )}
                                                         </div>
                                                         <div className="flex flex-col">
