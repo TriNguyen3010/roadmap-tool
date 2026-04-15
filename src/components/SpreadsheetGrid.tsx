@@ -2962,6 +2962,25 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 })}
                                             </svg>
                                             {hasActiveInfo && (() => {
+                                                // ── Build ALL child segments from row.children (independent of visible timeline range) ──
+                                                const allChildSegs: { color: string; status: string; childName: string; teamRole?: string; startDate: string; endDate: string }[] = [];
+                                                if (row.children) {
+                                                    for (const child of row.children) {
+                                                        if (!child.startDate || !child.endDate) continue;
+                                                        const cs = parseISO(child.startDate);
+                                                        const ce = parseISO(child.endDate);
+                                                        if (Number.isNaN(cs.getTime())) continue;
+                                                        allChildSegs.push({
+                                                            color: STATUS_BAR_COLOR[child.status] || '#9ca3af',
+                                                            status: child.status,
+                                                            childName: child.name,
+                                                            teamRole: child.teamRole,
+                                                            startDate: child.startDate,
+                                                            endDate: child.endDate,
+                                                        });
+                                                    }
+                                                }
+
                                                 // ── Parent subcategory deadline (highest priority for date reference) ──
                                                 const parentSubForDates = flattened.find(r => r.type === 'subcategory' && row.parentIds.includes(r.id));
                                                 const subStartRaw = parentSubForDates?.startDate ? parseISO(parentSubForDates.startDate) : null;
@@ -2976,7 +2995,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 const rowEndValid = edRaw && !Number.isNaN(edRaw.getTime()) ? edRaw : null;
 
                                                 // ── Child team bounds (fallback #2: earliest start / latest end) ──
-                                                const childDateBounds = childSegments.reduce<{
+                                                const childDateBounds = allChildSegs.reduce<{
                                                     minStart: Date | null;
                                                     maxEnd: Date | null;
                                                 }>((acc, seg) => {
@@ -3026,8 +3045,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 })();
 
                                                 // Build team date map from segments
-                                                const teamDateMap = new Map<string, { start: Date; end: Date; seg: typeof childSegments[0] }>();
-                                                childSegments.forEach(seg => {
+                                                const teamDateMap = new Map<string, { start: Date; end: Date; seg: typeof allChildSegs[0] }>();
+                                                allChildSegs.forEach(seg => {
                                                     const s = parseISO(seg.startDate);
                                                     const e = parseISO(seg.endDate);
                                                     if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime())) {
@@ -3092,7 +3111,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
                                                 // Render team list sorted by workflow order with inline GAP warnings
                                                 const workflowOrder: string[] = ['BA', 'PD', 'Growth', 'BE', 'FE', 'DevOps', 'QC'];
-                                                const sortedSegs = [...childSegments].sort((a, b) => {
+                                                const sortedSegs = [...allChildSegs].sort((a, b) => {
                                                     const aIdx = workflowOrder.indexOf(a.teamRole || a.childName);
                                                     const bIdx = workflowOrder.indexOf(b.teamRole || b.childName);
                                                     return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
