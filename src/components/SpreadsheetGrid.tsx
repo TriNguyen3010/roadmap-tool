@@ -475,6 +475,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     const [extraCellAnchorRect, setExtraCellAnchorRect] = useState<DOMRect | null>(null);
     const [dropdownAnchorRect, setDropdownAnchorRect] = useState<DOMRect | null>(null);
     const [activeBarInfoId, setActiveBarInfoId] = useState<string | null>(null);
+    const [activeBarClickX, setActiveBarClickX] = useState<number>(0); // click X relative to bar container
     const [expandedBarIds, setExpandedBarIds] = useState<Set<string>>(new Set());
     const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
     const [dateMiniPopup, setDateMiniPopup] = useState<{
@@ -2910,6 +2911,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                             style={{ left: segMinLeft, width: segTotalWidth, zIndex: hasActiveInfo ? 40 : 5 }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                setActiveBarClickX(e.clientX - rect.left);
                                                 setActiveBarInfoId(prev => (prev === row.id ? null : row.id));
                                             }}
                                         >
@@ -3201,8 +3204,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 const groupStatusText = groupStatus ? (STATUS_TAG_TEXT[groupStatus] || '#374151') : undefined;
 
                                                 return (
-                                                    <div className="absolute z-20 top-full mt-1 left-0 bg-slate-900 border border-slate-700 text-white text-[10.5px] font-medium px-2.5 py-2 rounded-lg select-none pointer-events-none shadow-xl flex flex-col gap-1.5"
-                                                        style={{ minWidth: 200, maxWidth: 280 }}>
+                                                    <div className="absolute z-20 top-full mt-1 bg-slate-900 border border-slate-700 text-white text-[10.5px] font-medium px-2.5 py-2 rounded-lg select-none pointer-events-none shadow-xl flex flex-col gap-1.5"
+                                                        style={{ minWidth: 200, maxWidth: 380, left: activeBarClickX }}>
                                                         <div className="border-b border-slate-700 pb-1.5">
                                                             <div className="font-bold text-slate-100 text-[11px] mb-0.5 truncate">{row.name}</div>
                                                             {groupStatus && (
@@ -3249,6 +3252,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 style={{ left: barLeft, width: barWidth, zIndex: hasActiveInfo ? 40 : 5 }}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    setActiveBarClickX(e.clientX - rect.left);
                                                     if (row.type === 'group' || row.type === 'subcategory') {
                                                         const isBarExpanded = expandedBarIds.has(row.id);
                                                         if (!isBarExpanded) {
@@ -3298,7 +3303,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 </svg>
                                                 {isGrowthCamp && <span className="absolute left-1 bottom-[1px] text-[10px] pointer-events-none">🚀</span>}
                                                 {hasActiveInfo && (
-                                                    <div className="absolute z-20 top-full mt-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md">
+                                                    <div className="absolute z-20 top-full mt-1 bg-gray-900/90 text-white text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap select-none pointer-events-none shadow-md"
+                                                        style={{ left: activeBarClickX }}>
                                                         <div>{row.name}</div>
                                                         {row.startDate && <div>Start {row.startDate}</div>}
                                                         {row.endDate && <div>End {row.endDate} {workdays > 0 ? `(${formatWorkdayDuration(workdays)})` : ''}</div>}
