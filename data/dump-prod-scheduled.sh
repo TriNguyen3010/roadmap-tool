@@ -102,3 +102,17 @@ fi
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
 log "========== DONE (${ELAPSED}s) =========="
+
+# ---------- WRITE METADATA ----------
+LAST_DUMP_FILE="$SCRIPT_DIR/last-dump.json"
+cat > "$LAST_DUMP_FILE" << ENDJSON
+{
+  "timestamp": "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
+  "timestampLocal": "$(date '+%Y-%m-%d %H:%M:%S')",
+  "roadmapId": "$ROADMAP_ID",
+  "status": "success",
+  "fileSize": "$FILE_SIZE",
+  "elapsed": "${ELAPSED}s"
+}
+ENDJSON
+log "Metadata written: last-dump.json"

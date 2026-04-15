@@ -41,9 +41,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# daily dump archives & logs
+# daily dump archives, logs & metadata
 /data/dumps/
 /data/logs/
+/data/last-dump.json
 
 # local exports/backups
 /storage/json-backups/*
