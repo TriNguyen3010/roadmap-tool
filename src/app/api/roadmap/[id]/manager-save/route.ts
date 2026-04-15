@@ -15,6 +15,7 @@ import {
     loadRoadmapDocumentFromRows,
     updateItemFields,
     regenerateJsonBlob,
+    bumpRoadmapTimestamp,
     insertItemChange,
     insertItemChanges,
     type ItemFieldPatch,
@@ -170,9 +171,13 @@ export async function POST(
         // Regenerate JSON blob backup
         await regenerateJsonBlob(roadmapId);
 
+        // Bump roadmaps.updated_at — the /version endpoint reads that column
+        // for table mode, so without this bump the client would see stale
+        // version tokens after successful manager saves.
+        const updatedAt = await bumpRoadmapTimestamp(roadmapId);
+
         // Reload full document to return to client
         const document = await loadRoadmapDocumentFromRows(roadmapId);
-        const updatedAt = new Date().toISOString();
 
         logRoadmapSaveTelemetry({
             route: 'manager-save',

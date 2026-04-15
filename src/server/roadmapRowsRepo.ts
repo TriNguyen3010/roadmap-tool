@@ -9,8 +9,8 @@
  */
 
 import { supabase } from '@/lib/supabase';
-import type { RoadmapDocument, ItemStatus, RoadmapConfig } from '@/types/roadmap';
-import { DEFAULT_ROADMAP_CONFIG } from '@/types/roadmap';
+import type { RoadmapDocument, ItemStatus, RoadmapConfig, RoadmapItem } from '@/types/roadmap';
+import { DEFAULT_ROADMAP_CONFIG, normalizeItemImages, normalizePhaseIds } from '@/types/roadmap';
 import type {
     RoadmapRowRecord,
     RoadmapItemRowRecord,
@@ -201,6 +201,25 @@ export async function loadRoadmapVersion(roadmapId: string): Promise<string | nu
     return data.updated_at as string;
 }
 
+/**
+ * Bump roadmaps.updated_at to now(). Call this after any row-level mutation
+ * (updateItemFields / insertItemSubtree / deleteItemSubtree / moveItem) so
+ * that the /version endpoint and future baseVersion checks reflect the latest
+ * edit. Without this, roadmaps.updated_at stays stale relative to actual row
+ * changes and baseVersion CAS becomes inconsistent with /version.
+ */
+export async function bumpRoadmapTimestamp(roadmapId: string): Promise<string> {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+        .from('roadmaps')
+        .update({ updated_at: now })
+        .eq('id', roadmapId);
+    if (error) {
+        console.error('[bumpRoadmapTimestamp] failed:', error.message);
+    }
+    return now;
+}
+
 export async function loadItemRows(
     roadmapId: string,
     itemIds: string[]
@@ -256,6 +275,7 @@ export async function loadDirectChildren(
 // ─── WRITE operations ────────────────────────────────────────────────────────
 
 export interface ItemFieldPatch {
+    // Manager-editable fields
     status?: ItemStatus;
     startDate?: string | null;
     endDate?: string | null;
@@ -263,6 +283,13 @@ export interface ItemFieldPatch {
     statusMode?: string;
     manualStatus?: ItemStatus | null;
     progress?: number;
+    // Admin-only fields
+    name?: string;
+    priority?: string | null;
+    version?: string | null;
+    groupItemType?: string | null;
+    phaseIds?: string[];
+    extra?: Record<string, string>;
 }
 
 export async function updateItemFields(
@@ -278,6 +305,12 @@ export async function updateItemFields(
     if (fields.statusMode !== undefined) dbFields.status_mode = fields.statusMode;
     if (fields.manualStatus !== undefined) dbFields.manual_status = fields.manualStatus;
     if (fields.progress !== undefined) dbFields.progress = fields.progress;
+    if (fields.name !== undefined) dbFields.name = fields.name;
+    if (fields.priority !== undefined) dbFields.priority = fields.priority;
+    if (fields.version !== undefined) dbFields.version = fields.version;
+    if (fields.groupItemType !== undefined) dbFields.group_item_type = fields.groupItemType;
+    if (fields.phaseIds !== undefined) dbFields.phase_ids = fields.phaseIds;
+    if (fields.extra !== undefined) dbFields.extra = fields.extra;
     dbFields.updated_at = new Date().toISOString();
 
     const { error } = await supabase
@@ -287,6 +320,419 @@ export async function updateItemFields(
         .eq('item_id', itemId);
 
     if (error) return { success: false, error: error.message };
+    return { success: true };
+}
+
+// ─── Structure ops (row-level add / delete / move) ─────────────────────────
+
+/**
+ * Flatten a RoadmapItem subtree into row records.
+ * The root item receives (parentItemId, sortOrder, depth) from the caller; each
+ * descendant's depth/sortOrder is derived from its position within its parent.
+ */
+function flattenItemSubtreeToRows(
+    roadmapId: string,
+    item: RoadmapItem,
+    parentItemId: string | null,
+    rootSortOrder: number,
+    rootDepth: number,
+    now: string,
+): { items: RoadmapItemRowRecord[]; images: RoadmapItemImageRowRecord[] } {
+    const items: RoadmapItemRowRecord[] = [];
+    const images: RoadmapItemImageRowRecord[] = [];
+
+    const walk = (
+        node: RoadmapItem,
+        nodeParentId: string | null,
+        nodeSortOrder: number,
+        nodeDepth: number,
+    ) => {
+        items.push({
+            roadmapId,
+            itemId: node.id,
+            parentItemId: nodeParentId ?? undefined,
+            sortOrder: nodeSortOrder,
+            depth: nodeDepth,
+            itemType: node.type,
+            name: node.name,
+            subcategoryType: node.subcategoryType,
+            groupItemType: node.groupItemType,
+            teamRole: node.teamRole,
+            status: node.status,
+            statusMode: node.statusMode,
+            manualStatus: node.manualStatus,
+            progress: Number(node.progress) || 0,
+            startDate: node.startDate,
+            endDate: node.endDate,
+            priority: node.priority,
+            version: node.version,
+            extra: node.extra,
+            phaseIds: normalizePhaseIds(node.phaseIds),
+            quickNote: node.quickNote,
+            createdAt: node.created_at ?? now,
+            updatedAt: node.updated_at ?? now,
+        });
+
+        const nodeImages = normalizeItemImages(node);
+        nodeImages.forEach((image, imageIndex) => {
+            images.push({
+                roadmapId,
+                itemId: node.id,
+                imageId: image.id,
+                sortOrder: imageIndex,
+                url: image.url,
+                name: image.name,
+                provider: image.provider,
+                updatedAt: image.updatedAt ?? now,
+            });
+        });
+
+        (node.children ?? []).forEach((child, childIndex) => {
+            walk(child, node.id, childIndex, nodeDepth + 1);
+        });
+    };
+
+    walk(item, parentItemId, rootSortOrder, rootDepth);
+    return { items, images };
+}
+
+async function shiftSiblingsUp(
+    roadmapId: string,
+    parentItemId: string | null,
+    fromIndex: number,
+): Promise<{ success: boolean; error?: string }> {
+    // Bump sort_order by 1 for siblings with sort_order >= fromIndex.
+    // Load affected rows, then update each (Supabase doesn't support SQL-arith in .update()).
+    let query = supabase
+        .from('roadmap_items')
+        .select('item_id, sort_order')
+        .eq('roadmap_id', roadmapId)
+        .gte('sort_order', fromIndex);
+    query = parentItemId === null
+        ? query.is('parent_item_id', null)
+        : query.eq('parent_item_id', parentItemId);
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    // Update from highest to lowest to avoid transient unique-constraint issues
+    // (if a unique index on (parent_item_id, sort_order) ever exists).
+    const rows = (data ?? [])
+        .map(r => ({ itemId: r.item_id as string, sortOrder: r.sort_order as number }))
+        .sort((a, b) => b.sortOrder - a.sortOrder);
+
+    for (const row of rows) {
+        const { error: updError } = await supabase
+            .from('roadmap_items')
+            .update({ sort_order: row.sortOrder + 1 })
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', row.itemId);
+        if (updError) return { success: false, error: updError.message };
+    }
+    return { success: true };
+}
+
+async function shiftSiblingsDown(
+    roadmapId: string,
+    parentItemId: string | null,
+    fromIndex: number,
+): Promise<{ success: boolean; error?: string }> {
+    // Decrement sort_order by 1 for siblings with sort_order > fromIndex.
+    let query = supabase
+        .from('roadmap_items')
+        .select('item_id, sort_order')
+        .eq('roadmap_id', roadmapId)
+        .gt('sort_order', fromIndex);
+    query = parentItemId === null
+        ? query.is('parent_item_id', null)
+        : query.eq('parent_item_id', parentItemId);
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    const rows = (data ?? [])
+        .map(r => ({ itemId: r.item_id as string, sortOrder: r.sort_order as number }))
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    for (const row of rows) {
+        const { error: updError } = await supabase
+            .from('roadmap_items')
+            .update({ sort_order: row.sortOrder - 1 })
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', row.itemId);
+        if (updError) return { success: false, error: updError.message };
+    }
+    return { success: true };
+}
+
+/**
+ * Insert a new item subtree at (parentItemId, insertIndex).
+ * Shifts existing siblings at positions >= insertIndex down by 1.
+ */
+export async function insertItemSubtree(
+    roadmapId: string,
+    parentItemId: string | null,
+    insertIndex: number,
+    item: RoadmapItem,
+): Promise<{ success: boolean; error?: string }> {
+    // Determine depth from parent
+    let rootDepth = 0;
+    if (parentItemId) {
+        const { data: parentRow, error: parentErr } = await supabase
+            .from('roadmap_items')
+            .select('depth')
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', parentItemId)
+            .maybeSingle();
+        if (parentErr) return { success: false, error: parentErr.message };
+        if (!parentRow) return { success: false, error: `Parent item "${parentItemId}" not found` };
+        rootDepth = (parentRow.depth as number) + 1;
+    }
+
+    // Shift siblings to open up slot at insertIndex
+    const shift = await shiftSiblingsUp(roadmapId, parentItemId, insertIndex);
+    if (!shift.success) return shift;
+
+    // Flatten subtree and insert rows parents-first
+    const now = new Date().toISOString();
+    const { items, images } = flattenItemSubtreeToRows(
+        roadmapId,
+        item,
+        parentItemId,
+        insertIndex,
+        rootDepth,
+        now,
+    );
+
+    const sortedItems = [...items].sort((a, b) => a.depth - b.depth);
+    for (const row of sortedItems) {
+        const dbRow = mapItemRowToDb(row);
+        dbRow.updated_at = now;
+        const { error } = await supabase.from('roadmap_items').insert(dbRow);
+        if (error) return { success: false, error: `Insert ${row.itemId}: ${error.message}` };
+    }
+
+    if (images.length > 0) {
+        const { error: imgErr } = await supabase
+            .from('roadmap_item_images')
+            .insert(images.map(img => ({
+                roadmap_id: img.roadmapId,
+                item_id: img.itemId,
+                image_id: img.imageId,
+                sort_order: img.sortOrder,
+                image_url: img.url,
+                image_name: img.name ?? null,
+                provider: img.provider ?? null,
+                updated_at: img.updatedAt ?? null,
+            })));
+        if (imgErr) return { success: false, error: `Insert images: ${imgErr.message}` };
+    }
+
+    return { success: true };
+}
+
+/**
+ * Recursively collect all descendant item_ids of a given root.
+ * Returns an array including the root itself, ordered deepest-first.
+ */
+async function collectSubtreeIds(
+    roadmapId: string,
+    rootItemId: string,
+): Promise<{ itemIds: string[]; error?: string }> {
+    const result: { itemId: string; depth: number }[] = [];
+    let frontier: string[] = [rootItemId];
+
+    // BFS level by level
+    while (frontier.length > 0) {
+        const { data, error } = await supabase
+            .from('roadmap_items')
+            .select('item_id, depth, parent_item_id')
+            .eq('roadmap_id', roadmapId)
+            .in('item_id', frontier);
+        if (error) return { itemIds: [], error: error.message };
+
+        for (const row of data ?? []) {
+            result.push({ itemId: row.item_id as string, depth: row.depth as number });
+        }
+
+        // Find children of this frontier
+        const { data: children, error: childErr } = await supabase
+            .from('roadmap_items')
+            .select('item_id')
+            .eq('roadmap_id', roadmapId)
+            .in('parent_item_id', frontier);
+        if (childErr) return { itemIds: [], error: childErr.message };
+
+        frontier = (children ?? []).map(c => c.item_id as string);
+    }
+
+    // Sort deepest-first for FK-safe deletion
+    result.sort((a, b) => b.depth - a.depth);
+    return { itemIds: result.map(r => r.itemId) };
+}
+
+/**
+ * Delete an item and its entire subtree.
+ * Also collapses sort_order of remaining siblings so positions stay consecutive.
+ */
+export async function deleteItemSubtree(
+    roadmapId: string,
+    itemId: string,
+): Promise<{ success: boolean; error?: string }> {
+    // Load target to know its parent + sort_order (for sibling shift)
+    const { data: targetRow, error: targetErr } = await supabase
+        .from('roadmap_items')
+        .select('parent_item_id, sort_order')
+        .eq('roadmap_id', roadmapId)
+        .eq('item_id', itemId)
+        .maybeSingle();
+    if (targetErr) return { success: false, error: targetErr.message };
+    if (!targetRow) return { success: false, error: `Item "${itemId}" not found` };
+
+    const parentItemId = (targetRow.parent_item_id as string | null) ?? null;
+    const oldSortOrder = targetRow.sort_order as number;
+
+    // Collect descendant ids (deepest first)
+    const { itemIds, error: collectErr } = await collectSubtreeIds(roadmapId, itemId);
+    if (collectErr) return { success: false, error: collectErr };
+
+    // Delete images for the subtree (FK-safe: roadmap_item_images → roadmap_items)
+    if (itemIds.length > 0) {
+        const { error: imgErr } = await supabase
+            .from('roadmap_item_images')
+            .delete()
+            .eq('roadmap_id', roadmapId)
+            .in('item_id', itemIds);
+        if (imgErr) return { success: false, error: `Delete images: ${imgErr.message}` };
+    }
+
+    // Delete items deepest-first (itemIds is already sorted by depth desc)
+    for (const id of itemIds) {
+        const { error: delErr } = await supabase
+            .from('roadmap_items')
+            .delete()
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', id);
+        if (delErr) return { success: false, error: `Delete ${id}: ${delErr.message}` };
+    }
+
+    // Collapse sibling gap
+    const shift = await shiftSiblingsDown(roadmapId, parentItemId, oldSortOrder);
+    if (!shift.success) return shift;
+
+    return { success: true };
+}
+
+/**
+ * Move an item (with its subtree) to a new parent and/or position.
+ * Updates depth for all descendants when depth changes.
+ * Rejects moves that would place an item inside its own subtree.
+ */
+export async function moveItem(
+    roadmapId: string,
+    itemId: string,
+    newParentItemId: string | null,
+    newIndex: number,
+): Promise<{ success: boolean; error?: string }> {
+    // Load moving item
+    const { data: movingRow, error: movingErr } = await supabase
+        .from('roadmap_items')
+        .select('parent_item_id, sort_order, depth')
+        .eq('roadmap_id', roadmapId)
+        .eq('item_id', itemId)
+        .maybeSingle();
+    if (movingErr) return { success: false, error: movingErr.message };
+    if (!movingRow) return { success: false, error: `Item "${itemId}" not found` };
+
+    const oldParentId = (movingRow.parent_item_id as string | null) ?? null;
+    const oldSortOrder = movingRow.sort_order as number;
+    const oldDepth = movingRow.depth as number;
+
+    // Determine new depth (reject self-cycle)
+    let newDepth = 0;
+    if (newParentItemId) {
+        if (newParentItemId === itemId) {
+            return { success: false, error: 'Cannot move item into itself' };
+        }
+        const { itemIds: subtreeIds, error: subtreeErr } = await collectSubtreeIds(roadmapId, itemId);
+        if (subtreeErr) return { success: false, error: subtreeErr };
+        if (subtreeIds.includes(newParentItemId)) {
+            return { success: false, error: 'Cannot move item into its own descendant' };
+        }
+
+        const { data: parentRow, error: parentErr } = await supabase
+            .from('roadmap_items')
+            .select('depth')
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', newParentItemId)
+            .maybeSingle();
+        if (parentErr) return { success: false, error: parentErr.message };
+        if (!parentRow) return { success: false, error: `New parent "${newParentItemId}" not found` };
+        newDepth = (parentRow.depth as number) + 1;
+    }
+
+    const depthDelta = newDepth - oldDepth;
+
+    // Step 1: temporarily park moving item at sort_order = -1 so it doesn't
+    // interfere with sibling shifts. (Using negative keeps it out of range.)
+    {
+        const { error } = await supabase
+            .from('roadmap_items')
+            .update({ sort_order: -1 })
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', itemId);
+        if (error) return { success: false, error: `Park moving item: ${error.message}` };
+    }
+
+    // Step 2: collapse old parent gap (shifts siblings with sort > oldSort down
+    // by 1). Caller passes newIndex already adjusted to the post-removal array
+    // (it's derived via findItemLocation on the reordered tree), so no further
+    // correction is needed — newIndex IS the final slot.
+    const downShift = await shiftSiblingsDown(roadmapId, oldParentId, oldSortOrder);
+    if (!downShift.success) return downShift;
+
+    // Step 3: open slot at new position
+    const upShift = await shiftSiblingsUp(roadmapId, newParentItemId, newIndex);
+    if (!upShift.success) return upShift;
+
+    // Step 4: place moving item at target position + update depth
+    {
+        const { error } = await supabase
+            .from('roadmap_items')
+            .update({
+                parent_item_id: newParentItemId,
+                sort_order: newIndex,
+                depth: newDepth,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', itemId);
+        if (error) return { success: false, error: `Update moving item: ${error.message}` };
+    }
+
+    // Step 5: update depth of all descendants if depth changed
+    if (depthDelta !== 0) {
+        const { itemIds: subtreeIds, error: subtreeErr } = await collectSubtreeIds(roadmapId, itemId);
+        if (subtreeErr) return { success: false, error: subtreeErr };
+        // Exclude the moving item itself (already updated above)
+        const descendantIds = subtreeIds.filter(id => id !== itemId);
+        for (const descId of descendantIds) {
+            const { data: row, error: readErr } = await supabase
+                .from('roadmap_items')
+                .select('depth')
+                .eq('roadmap_id', roadmapId)
+                .eq('item_id', descId)
+                .maybeSingle();
+            if (readErr || !row) continue;
+            const { error: updErr } = await supabase
+                .from('roadmap_items')
+                .update({ depth: (row.depth as number) + depthDelta })
+                .eq('roadmap_id', roadmapId)
+                .eq('item_id', descId);
+            if (updErr) return { success: false, error: `Update descendant depth: ${updErr.message}` };
+        }
+    }
+
     return { success: true };
 }
 

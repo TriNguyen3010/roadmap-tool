@@ -40,7 +40,13 @@ import {
   normalizeStatusFilter,
   toLegacyImageFields
 } from '@/types/roadmap';
-import type { RoadmapAdminPatchRequest, RoadmapManagerSaveRequest, RoadmapSaveRequest } from '@/types/roadmapSave';
+import type {
+  AdminItemFieldChange,
+  RoadmapAdminItemPatchRequest,
+  RoadmapAdminPatchRequest,
+  RoadmapManagerSaveRequest,
+  RoadmapSaveRequest,
+} from '@/types/roadmapSave';
 import { buildRoadmapExcelFile, downloadExcelFile, type ExcelExportColumn } from '@/utils/exportToExcel';
 import {
   buildRoadmapChannelName,
@@ -913,6 +919,28 @@ export default function RoadmapPage() {
         setSaveTick(prev => prev + 1);
         return;
       }
+      // 409 = optimistic locking conflict (someone else edited between our load
+      // and our save). Discard local edits and force-reload to latest server state.
+      if (res.status === 409) {
+        const serverVersion = typeof payload?.serverVersion === 'string' ? payload.serverVersion : null;
+        if (serverVersion) {
+          currentVersionRef.current = serverVersion;
+          broadcastVersionUpdate(serverVersion);
+        }
+        addToast(
+          typeof payload?.message === 'string'
+            ? payload.message
+            : 'Roadmap đã được cập nhật bởi người khác. Đang tải lại bản mới nhất.',
+          'error',
+          5000,
+        );
+        setHasUnsavedSharedChanges(false);
+        setHasPendingReleaseMetaPatch(false);
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        await loadRoadmap();
+        return;
+      }
       if (!res.ok) throw new Error();
       const latestVersion = typeof payload?.updatedAt === 'string'
         ? payload.updatedAt
@@ -1023,6 +1051,277 @@ export default function RoadmapPage() {
     resolveBaseVersion,
     roadmapId,
   ]);
+
+  /**
+   * Admin row-level field patch. Sends one or more {itemId, field, value}
+   * changes to POST /admin-patch instead of shipping the whole document.
+   *
+   * Rollback on error: we apply the optimistic update via setData() before
+   * the fetch. On any failure (network, 5xx, permission, version conflict)
+   * we fall back to loadRoadmap() to replace local state with the server's
+   * authoritative copy — otherwise the UI would show a value that never
+   * persisted ("silent data loss").
+   */
+  const handleAdminFieldChanges = useCallback(async (
+    changes: AdminItemFieldChange[],
+    optimisticData: RoadmapDocument,
+  ) => {
+    if (!authUser || !accessToken) {
+      addToast('Bạn cần đăng nhập lại để lưu thay đổi.', 'error');
+      return;
+    }
+    if (changes.length === 0) return;
+
+    const baseVersion = await resolveBaseVersion();
+    if (!baseVersion) {
+      addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+      return;
+    }
+
+    const normalizedOptimistic = normalizeDocument(optimisticData);
+    setData(stripViewSettingsFromDocument(normalizedOptimistic));
+    setHasUnsavedSharedChanges(true);
+    setSaving(true);
+    saveInFlightRef.current = true;
+    setSaveState('idle');
+
+    try {
+      const res = await fetch(`/api/roadmap/${roadmapId}/admin-patch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          kind: 'fields',
+          changes,
+          baseVersion,
+        } satisfies RoadmapAdminItemPatchRequest),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (res.status === 401) {
+        addToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        await loadRoadmap();
+        return;
+      }
+
+      // 409 = baseVersion stale. Reload authoritative state and surface a message.
+      if (res.status === 409) {
+        const serverVersion = typeof payload?.serverVersion === 'string' ? payload.serverVersion : null;
+        if (serverVersion) {
+          currentVersionRef.current = serverVersion;
+          broadcastVersionUpdate(serverVersion);
+        }
+        addToast(
+          typeof payload?.message === 'string'
+            ? payload.message
+            : 'Roadmap đã được cập nhật bởi người khác. Đang tải lại bản mới nhất.',
+          'error',
+          5000,
+        );
+        setHasUnsavedSharedChanges(false);
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        await loadRoadmap();
+        return;
+      }
+
+      if (!res.ok) {
+        const violations = Array.isArray(payload?.violations) ? payload.violations.join('\n') : '';
+        throw new Error(violations || payload?.error || 'Không thể lưu thay đổi');
+      }
+
+      if (typeof payload?.updatedAt === 'string') {
+        currentVersionRef.current = payload.updatedAt;
+        broadcastVersionUpdate(payload.updatedAt);
+      }
+
+      setHasUnsavedSharedChanges(false);
+      addToast('Đã lưu thành công.', 'success');
+      setSaveState('success');
+      setSaveTick(prev => prev + 1);
+
+      if (Array.isArray(payload?.warnings) && payload.warnings.length > 0) {
+        // Some changes applied, others rejected — reload so UI matches server.
+        await loadRoadmap();
+      }
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Lỗi khi lưu thay đổi.', 'error');
+      setSaveState('error');
+      setSaveTick(prev => prev + 1);
+      // Rollback: replace optimistic state with the server's current state.
+      await loadRoadmap();
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
+  }, [
+    accessToken,
+    addToast,
+    authUser,
+    broadcastVersionUpdate,
+    loadRoadmap,
+    normalizeDocument,
+    resolveBaseVersion,
+    roadmapId,
+  ]);
+
+  /**
+   * Shared helper: runs a row-level admin structure patch (add/delete/move).
+   * Handles optimistic UI, CAS via baseVersion, 401/409 handling, and rollback
+   * on any failure. Keeps the three structure handlers tiny.
+   */
+  const runAdminStructurePatch = useCallback(async (
+    payload: RoadmapAdminItemPatchRequest,
+    optimisticData: RoadmapDocument,
+  ): Promise<boolean> => {
+    if (!authUser || !accessToken) {
+      addToast('Bạn cần đăng nhập lại để lưu thay đổi.', 'error');
+      return false;
+    }
+
+    const normalizedOptimistic = normalizeDocument(optimisticData);
+    setData(stripViewSettingsFromDocument(normalizedOptimistic));
+    setHasUnsavedSharedChanges(true);
+    setSaving(true);
+    saveInFlightRef.current = true;
+    setSaveState('idle');
+
+    try {
+      const res = await fetch(`/api/roadmap/${roadmapId}/admin-patch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const body = await res.json().catch(() => ({}));
+
+      if (res.status === 401) {
+        addToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        await loadRoadmap();
+        return false;
+      }
+
+      if (res.status === 409) {
+        const serverVersion = typeof body?.serverVersion === 'string' ? body.serverVersion : null;
+        if (serverVersion) {
+          currentVersionRef.current = serverVersion;
+          broadcastVersionUpdate(serverVersion);
+        }
+        addToast(
+          typeof body?.message === 'string'
+            ? body.message
+            : 'Roadmap đã được cập nhật bởi người khác. Đang tải lại bản mới nhất.',
+          'error',
+          5000,
+        );
+        setHasUnsavedSharedChanges(false);
+        setSaveState('error');
+        setSaveTick(prev => prev + 1);
+        await loadRoadmap();
+        return false;
+      }
+
+      if (!res.ok) {
+        throw new Error(body?.message || body?.error || 'Không thể lưu thay đổi');
+      }
+
+      if (typeof body?.updatedAt === 'string') {
+        currentVersionRef.current = body.updatedAt;
+        broadcastVersionUpdate(body.updatedAt);
+      }
+
+      setHasUnsavedSharedChanges(false);
+      addToast('Đã lưu thành công.', 'success');
+      setSaveState('success');
+      setSaveTick(prev => prev + 1);
+      // Reload to reconcile depth/sort_order with server truth.
+      await loadRoadmap();
+      return true;
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : 'Lỗi khi lưu thay đổi.', 'error');
+      setSaveState('error');
+      setSaveTick(prev => prev + 1);
+      await loadRoadmap();
+      return false;
+    } finally {
+      saveInFlightRef.current = false;
+      setSaving(false);
+    }
+  }, [
+    accessToken,
+    addToast,
+    authUser,
+    broadcastVersionUpdate,
+    loadRoadmap,
+    normalizeDocument,
+    roadmapId,
+  ]);
+
+  const handleAdminAddItem = useCallback(async (
+    parentItemId: string | null,
+    insertIndex: number,
+    item: RoadmapItem,
+    optimisticData: RoadmapDocument,
+  ) => {
+    const baseVersion = await resolveBaseVersion();
+    if (!baseVersion) {
+      addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+      return;
+    }
+    await runAdminStructurePatch({
+      kind: 'add-item',
+      parentItemId,
+      insertIndex,
+      item,
+      baseVersion,
+    }, optimisticData);
+  }, [addToast, resolveBaseVersion, runAdminStructurePatch]);
+
+  const handleAdminDeleteItem = useCallback(async (
+    itemId: string,
+    optimisticData: RoadmapDocument,
+  ) => {
+    const baseVersion = await resolveBaseVersion();
+    if (!baseVersion) {
+      addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+      return;
+    }
+    await runAdminStructurePatch({
+      kind: 'delete-item',
+      itemId,
+      baseVersion,
+    }, optimisticData);
+  }, [addToast, resolveBaseVersion, runAdminStructurePatch]);
+
+  const handleAdminMoveItem = useCallback(async (
+    itemId: string,
+    newParentItemId: string | null,
+    newIndex: number,
+    optimisticData: RoadmapDocument,
+  ) => {
+    const baseVersion = await resolveBaseVersion();
+    if (!baseVersion) {
+      addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+      return;
+    }
+    await runAdminStructurePatch({
+      kind: 'move-item',
+      itemId,
+      newParentItemId,
+      newIndex,
+      baseVersion,
+    }, optimisticData);
+  }, [addToast, resolveBaseVersion, runAdminStructurePatch]);
 
   const handleExportExcelCurrentView = () => {
     if (!data) return;
@@ -1404,7 +1703,18 @@ export default function RoadmapPage() {
   const handleRootAdd = (newItem: RoadmapItem) => {
     if (!ensureCanManageRoadmap()) return;
     if (!data) return;
+    const insertIndex = data.items.length;
     const normalized = normalizeDocument({ ...data, items: [...data.items, newItem] });
+    // Prefer row-level admin insert (no full-doc clobber); fall back to full save
+    // when admin handler isn't available (e.g., legacy JSON-mode roadmaps).
+    if (storageMode === 'table') {
+      // runAdminStructurePatch handles setData + unsaved flag + saving UI.
+      // Reset release-meta-patch flag so subsequent saves don't try to use a
+      // stale patch payload tied to a prior document version.
+      setHasPendingReleaseMetaPatch(false);
+      void handleAdminAddItem(null, insertIndex, newItem, normalized);
+      return;
+    }
     setData(stripViewSettingsFromDocument(normalized));
     setHasUnsavedSharedChanges(true);
     setHasPendingReleaseMetaPatch(false);
@@ -1668,6 +1978,12 @@ export default function RoadmapPage() {
           documentPermission={documentPermission}
           roadmapConfig={roadmapConfig}
           onManagerFieldChanges={handleManagerFieldChanges}
+          onAdminFieldChanges={handleAdminFieldChanges}
+          {...(storageMode === 'table' ? {
+            onAdminAddItem: handleAdminAddItem,
+            onAdminDeleteItem: handleAdminDeleteItem,
+            onAdminMoveItem: handleAdminMoveItem,
+          } : {})}
           showWorkType={showWorkType} setShowWorkType={setShowWorkType}
           showPriority={showPriority} setShowPriority={setShowPriority}
           showVersion={showVersion} setShowVersion={setShowVersion}

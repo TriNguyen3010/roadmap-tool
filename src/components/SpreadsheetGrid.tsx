@@ -27,6 +27,7 @@ import {
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp, moveNodeToParent
 } from '@/utils/roadmapHelpers';
 import type { EditPermission, ManagerFieldChange, SessionUser } from '@/types/auth';
+import type { AdminItemFieldChange } from '@/types/roadmapSave';
 import { isAdminLevel } from '@/types/auth';
 import { getEditPermission } from '@/utils/permissions';
 import type { ItemStatus, TeamRole } from '@/types/roadmap';
@@ -72,6 +73,22 @@ interface GridProps {
     documentPermission: EditPermission;
     roadmapConfig?: import('@/types/roadmap').RoadmapConfig;
     onManagerFieldChanges: (changes: ManagerFieldChange[], optimisticData: RoadmapDocument) => Promise<void> | void;
+    /**
+     * Row-level admin patch. Called when an admin edits a single item field
+     * via the grid. Admin-only fields (name, priority, version, groupItemType,
+     * phaseIds, extra) and manager-shared fields (status, startDate, endDate,
+     * quickNote) both route through this. Parent page.tsx handles optimistic
+     * UI + rollback on failure.
+     */
+    onAdminFieldChanges: (changes: AdminItemFieldChange[], optimisticData: RoadmapDocument) => Promise<void> | void;
+    /**
+     * Row-level admin structure ops. When supplied, the grid routes add/delete/
+     * move to these handlers instead of emitting a full-document save through
+     * onDataChange. Keeps admin edits non-clobbering even for structural work.
+     */
+    onAdminAddItem?: (parentItemId: string | null, insertIndex: number, item: RoadmapItem, optimisticData: RoadmapDocument) => Promise<void> | void;
+    onAdminDeleteItem?: (itemId: string, optimisticData: RoadmapDocument) => Promise<void> | void;
+    onAdminMoveItem?: (itemId: string, newParentItemId: string | null, newIndex: number, optimisticData: RoadmapDocument) => Promise<void> | void;
     // Column visibility (lifted to parent for persistence)
     showWorkType: boolean;
     setShowWorkType: (v: boolean) => void;
@@ -439,6 +456,27 @@ function estimatePhaseCellWidth(labels: string[]): number {
     }, 0) + Math.max(0, labels.length - 1) * 4 + 12;
 }
 
+/**
+ * Find an item's location in a roadmap tree: its parent id (null for root) and
+ * its sibling index. Returns null when the id isn't present. Used to derive
+ * (parentItemId, newIndex) arguments for row-level move-item patches.
+ */
+function findItemLocation(
+    items: RoadmapItem[],
+    targetId: string,
+    parentId: string | null = null,
+): { parentId: string | null; index: number } | null {
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].id === targetId) return { parentId, index: i };
+        const children = items[i].children;
+        if (children && children.length > 0) {
+            const found = findItemLocation(children, targetId, items[i].id);
+            if (found) return found;
+        }
+    }
+    return null;
+}
+
 function getRowDisplayDepth(row: Pick<FlattenedItem, 'depth' | 'type'>): number {
     let displayDepth = row.depth;
     if (row.type === 'item') displayDepth = row.depth + 1;
@@ -449,7 +487,8 @@ function getRowDisplayDepth(row: Pick<FlattenedItem, 'depth' | 'type'>): number 
 export default function SpreadsheetGrid({ data, reportedData, reportedBridgeReadOnly = false, reportedBridgeLoading = false, reportedBridgeError = null, reportedBridgeLabel = null, onDataChange, onRootAdd, showConfirm, viewStart, viewEnd, today,
     timelineMode, timelineOnly, timelineTaskW, setTimelineTaskW,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
-    isSaving, saveState, saveTick, currentUser, documentPermission, roadmapConfig: roadmapConfigProp, onManagerFieldChanges,
+    isSaving, saveState, saveTick, currentUser, documentPermission, roadmapConfig: roadmapConfigProp, onManagerFieldChanges, onAdminFieldChanges,
+    onAdminAddItem, onAdminDeleteItem, onAdminMoveItem,
     showWorkType, setShowWorkType,
     showPriority, setShowPriority, showVersion, setShowVersion, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
@@ -1297,17 +1336,86 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     }, [data.milestones, timelineUnits, timelineUnitWidth]);
 
     // ── CRUD handlers ──
+    /**
+     * EditPopup save — compare `updated` against current `source` and emit
+     * row-level admin patches for changed scalar fields. If any structural
+     * change is detected (children count changed, images changed,
+     * subcategoryType changed), fall back to the full-document save because
+     * admin-patch kind:'fields' doesn't handle structure or images.
+     */
     const handleEditSave = (updated: RoadmapItem) => {
         if (!canEditStructure) return;
-        onDataChange({ ...data, items: updateNodeById(data.items, updated.id, touchItemTimestamp(updated)) }, true);
+        const source = findNodeById(data.items, updated.id);
+        const nextItems = updateNodeById(data.items, updated.id, touchItemTimestamp(updated));
+        const nextData = { ...data, items: nextItems };
+
         if (updated.children && updated.children.length > 0) {
             setExpandedIds(prev => new Set([...prev, updated.id]));
         }
+
+        if (!source) {
+            onDataChange(nextData, true);
+            return;
+        }
+
+        // Detect structural / non-patchable changes — fall back to full save.
+        const prevChildrenCount = source.children?.length ?? 0;
+        const nextChildrenCount = updated.children?.length ?? 0;
+        const childrenChanged = prevChildrenCount !== nextChildrenCount
+            || (source.children ?? []).some((c, i) => c.id !== updated.children?.[i]?.id);
+        const imagesChanged = JSON.stringify(source.images ?? []) !== JSON.stringify(updated.images ?? [])
+            || (source.imageUrl ?? null) !== (updated.imageUrl ?? null);
+        const subcategoryChanged = source.subcategoryType !== updated.subcategoryType;
+
+        if (childrenChanged || imagesChanged || subcategoryChanged) {
+            onDataChange(nextData, true);
+            return;
+        }
+
+        // Scalar-only diff: build an admin-patch payload.
+        const changes: AdminItemFieldChange[] = [];
+        const pushIfChanged = <T,>(field: AdminItemFieldChange['field'], oldV: T, newV: T, value: unknown) => {
+            if (oldV !== newV) changes.push({ itemId: updated.id, field, value });
+        };
+        pushIfChanged('name', source.name, updated.name, updated.name);
+        pushIfChanged('status', source.status, updated.status, updated.status);
+        pushIfChanged('startDate', source.startDate ?? null, updated.startDate ?? null, updated.startDate ?? null);
+        pushIfChanged('endDate', source.endDate ?? null, updated.endDate ?? null, updated.endDate ?? null);
+        pushIfChanged('quickNote', source.quickNote ?? null, updated.quickNote ?? null, updated.quickNote ?? null);
+        pushIfChanged('priority', source.priority ?? null, updated.priority ?? null, updated.priority ?? null);
+        pushIfChanged('version', source.version ?? null, updated.version ?? null, updated.version ?? null);
+        pushIfChanged('groupItemType', source.groupItemType ?? null, updated.groupItemType ?? null, updated.groupItemType ?? null);
+
+        const prevPhaseIds = JSON.stringify(source.phaseIds ?? []);
+        const nextPhaseIds = JSON.stringify(updated.phaseIds ?? []);
+        if (prevPhaseIds !== nextPhaseIds) {
+            changes.push({ itemId: updated.id, field: 'phaseIds', value: updated.phaseIds ?? [] });
+        }
+
+        const prevExtra = JSON.stringify(source.extra ?? {});
+        const nextExtra = JSON.stringify(updated.extra ?? {});
+        if (prevExtra !== nextExtra) {
+            changes.push({ itemId: updated.id, field: 'extra', value: updated.extra ?? {} });
+        }
+
+        if (changes.length === 0) {
+            // Nothing saveable changed (maybe only progress/statusMode) — still
+            // push optimistic UI update but don't hit the server.
+            onDataChange(nextData, false);
+            return;
+        }
+
+        onAdminFieldChanges(changes, nextData);
     };
     const handleDelete = async (id: string) => {
         if (!canEditStructure) return;
         if (!(await showConfirm('Bạn có chắc muốn xoá mục này và toàn bộ nội dung con của nó không?'))) return;
-        onDataChange({ ...data, items: deleteNodeById(data.items, id) }, true);
+        const nextData = { ...data, items: deleteNodeById(data.items, id) };
+        if (onAdminDeleteItem) {
+            onAdminDeleteItem(id, nextData);
+            return;
+        }
+        onDataChange(nextData, true);
     };
     const handleAddChild = (parentId: string, newItem: RoadmapItem) => {
         if (!canEditStructure) return;
@@ -1320,7 +1428,15 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         }
 
         setExpandedIds(nextExp);
-        onDataChange({ ...data, items: newItems }, true);
+        const nextData = { ...data, items: newItems };
+        if (onAdminAddItem) {
+            // Determine insertIndex = current length of parent's children pre-insert.
+            const parent = findNodeById(data.items, parentId);
+            const insertIndex = parent?.children?.length ?? 0;
+            onAdminAddItem(parentId, insertIndex, newItem, nextData);
+            return;
+        }
+        onDataChange(nextData, true);
     };
 
     const isValidSameLayerDrop = useCallback((sourceId: string, targetId: string): boolean => {
@@ -1395,7 +1511,18 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                     const newItems = movedItem
                         ? updateNodeById(reorderedItems, draggedId, touchItemTimestamp(movedItem))
                         : reorderedItems;
-                    onDataChange({ ...data, items: newItems }, true);
+                    const nextData = { ...data, items: newItems };
+                    if (onAdminMoveItem) {
+                        // Find new parent + new index for the moved item in the reordered tree.
+                        const location = findItemLocation(newItems, draggedId);
+                        if (location) {
+                            onAdminMoveItem(draggedId, location.parentId, location.index, nextData);
+                        } else {
+                            onDataChange(nextData, true);
+                        }
+                    } else {
+                        onDataChange(nextData, true);
+                    }
                 }
             } else if (mode === 'parent') {
                 const movedItems = moveNodeToParent(data.items, draggedId, targetId);
@@ -1405,7 +1532,17 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                         ? updateNodeById(movedItems, draggedId, touchItemTimestamp(movedItem))
                         : movedItems;
                     setExpandedIds(prev => new Set([...prev, targetId]));
-                    onDataChange({ ...data, items: newItems }, true);
+                    const nextData = { ...data, items: newItems };
+                    if (onAdminMoveItem) {
+                        const location = findItemLocation(newItems, draggedId);
+                        if (location) {
+                            onAdminMoveItem(draggedId, location.parentId, location.index, nextData);
+                        } else {
+                            onDataChange(nextData, true);
+                        }
+                    } else {
+                        onDataChange(nextData, true);
+                    }
                 }
             }
         }
@@ -1524,16 +1661,39 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         setIsQuickNoteEditing(true);
     };
 
+    /**
+     * Admin-only: update a single item via a mapper function AND ship a
+     * row-level patch describing the changed fields. When `changes` is
+     * non-empty, admin edits route to onAdminFieldChanges (row-level save)
+     * instead of the full-document save (shouldSave=true on onDataChange).
+     *
+     * Callers that still pass no `changes` fall back to the old full-save
+     * behaviour for backward compat during the migration.
+     */
     const updateFromSource = (
         id: string,
         mapper: (source: RoadmapItem) => RoadmapItem,
-        shouldSave = false
+        shouldSave = false,
+        changes?: AdminItemFieldChange[]
     ) => {
         if (!canEditStructure) return;
         const source = findNodeById(data.items, id);
         if (!source) return;
-        onDataChange({ ...data, items: updateNodeById(data.items, id, touchItemTimestamp(mapper(source))) }, shouldSave);
+        const nextData = { ...data, items: updateNodeById(data.items, id, touchItemTimestamp(mapper(source))) };
+
+        if (changes && changes.length > 0 && shouldSave) {
+            // Row-level admin patch — no full document upload.
+            onAdminFieldChanges(changes, nextData);
+            return;
+        }
+        onDataChange(nextData, shouldSave);
     };
+
+    // Manager-allowed fields are a subset of admin-allowed fields. Values also
+    // align (status/startDate/endDate/quickNote accept the same shapes) so a
+    // direct reshape is safe.
+    const toAdminChanges = (changes: ManagerFieldChange[]): AdminItemFieldChange[] =>
+        changes.map(c => ({ itemId: c.itemId, field: c.field, value: c.value }));
 
     const applyEditableFieldChanges = useCallback((
         id: string,
@@ -1547,12 +1707,12 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         const nextData = { ...data, items: updateNodeById(data.items, id, nextItem) };
 
         if (canEditStructure) {
-            onDataChange(nextData, true);
+            onAdminFieldChanges(toAdminChanges(changes), nextData);
             return;
         }
 
         onManagerFieldChanges(changes, nextData);
-    }, [canEditStructure, data, onDataChange, onManagerFieldChanges]);
+    }, [canEditStructure, data, onAdminFieldChanges, onManagerFieldChanges]);
 
     const handleQuickNoteSave = async () => {
         if (!activeNoteItem || !activeNotePermission?.canEditNotes || quickNoteSaving || !isQuickNoteDirty) return;
@@ -1630,7 +1790,10 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
     const updateActivePreviewItemWithSaveFeedback = (
         mapper: (source: RoadmapItem) => RoadmapItem,
-        changes?: ManagerFieldChange[]
+        // Accepts both manager-shape (subset) and admin-shape changes. Admin-only
+        // fields (priority, version, groupItemType, phaseIds, extra, name) must
+        // be passed here; manager users can only edit status/start/end/quickNote.
+        changes?: AdminItemFieldChange[]
     ) => {
         if (!activeImagePreviewItem) return;
         setViewerInlineSaveFeedback({
@@ -1638,11 +1801,29 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
             message: 'Đang lưu thay đổi...',
             startedAtSaveTick: saveTick,
         });
-        if (changes && changes.length > 0) {
-            applyEditableFieldChanges(activeImagePreviewItem.id, changes, mapper);
+        if (!changes || changes.length === 0) {
+            // No explicit changes provided (e.g. image-only edits that write
+            // to a separate table) — fall back to full document save.
+            updateFromSource(activeImagePreviewItem.id, mapper, true);
             return;
         }
-        updateFromSource(activeImagePreviewItem.id, mapper, true);
+        if (canEditStructure) {
+            // Admin: route through row-level admin-patch directly so we can
+            // ship admin-only fields like phaseIds.
+            const source = findNodeById(data.items, activeImagePreviewItem.id);
+            if (!source) return;
+            const nextItem = touchItemTimestamp(mapper(source));
+            const nextData = { ...data, items: updateNodeById(data.items, activeImagePreviewItem.id, nextItem) };
+            onAdminFieldChanges(changes, nextData);
+            return;
+        }
+        // Manager: only status/start/end/quickNote are allowed here.
+        const managerChanges = changes
+            .filter(c => c.field === 'status' || c.field === 'startDate' || c.field === 'endDate' || c.field === 'quickNote')
+            .map(c => ({ itemId: c.itemId, field: c.field, value: c.value })) as ManagerFieldChange[];
+        if (managerChanges.length > 0) {
+            applyEditableFieldChanges(activeImagePreviewItem.id, managerChanges, mapper);
+        }
     };
 
     const toggleReviewedGroup = (groupId: string) => {
@@ -3674,17 +3855,19 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                         onMouseDown={e => {
                                                                             e.preventDefault();
                                                                             e.stopPropagation();
+                                                                            // Pre-compute phaseIds so we can pass them to row-level admin patch.
+                                                                            const currentSet = new Set(normalizePhaseIds(activeImagePreviewItem.phaseIds));
+                                                                            if (currentSet.has(phase.id)) currentSet.delete(phase.id);
+                                                                            else currentSet.add(phase.id);
+                                                                            const nextPhaseIds = Array.from(currentSet);
                                                                             updateActivePreviewItemWithSaveFeedback(
                                                                                 source => {
-                                                                                    const current = new Set(normalizePhaseIds(source.phaseIds));
-                                                                                    if (current.has(phase.id)) current.delete(phase.id);
-                                                                                    else current.add(phase.id);
                                                                                     const next = { ...source };
-                                                                                    const nextPhaseIds = Array.from(current);
                                                                                     if (nextPhaseIds.length > 0) next.phaseIds = nextPhaseIds;
                                                                                     else delete next.phaseIds;
                                                                                     return next;
-                                                                                }
+                                                                                },
+                                                                                [{ itemId: activeImagePreviewItem.id, field: 'phaseIds', value: nextPhaseIds }],
                                                                             );
                                                                         }}
                                                                     >
@@ -3705,7 +3888,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                                         const next = { ...source };
                                                                         delete next.phaseIds;
                                                                         return next;
-                                                                    });
+                                                                    }, [{ itemId: activeImagePreviewItem.id, field: 'phaseIds', value: [] }]);
                                                                     setOpenPhaseId(null);
                                                                 }}
                                                             >
@@ -3822,7 +4005,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                         className={`flex w-full items-center px-3 py-1.5 text-left text-[11px] transition-colors ${activeRow.groupItemType === typeOption ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
                                         onMouseDown={e => {
                                             e.preventDefault();
-                                            updateFromSource(activeRow.id, source => ({ ...source, groupItemType: typeOption }));
+                                            updateFromSource(activeRow.id, source => ({ ...source, groupItemType: typeOption }), true, [{ itemId: activeRow.id, field: 'groupItemType', value: typeOption }]);
                                             setOpenWorkTypeId(null);
                                         }}
                                     >{typeOption}</button>
@@ -3833,7 +4016,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
                                     onMouseDown={e => {
                                         e.preventDefault();
-                                        updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.groupItemType; return next; });
+                                        updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.groupItemType; return next; }, true, [{ itemId: activeRow.id, field: 'groupItemType', value: null }]);
                                         setOpenWorkTypeId(null);
                                     }}
                                 >Clear</button>
@@ -3853,7 +4036,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     style={{ color: PRIORITY_COLORS[p] }}
                                     onMouseDown={e => {
                                         e.preventDefault();
-                                        updateFromSource(activeRow.id, source => ({ ...source, priority: p }), true);
+                                        updateFromSource(activeRow.id, source => ({ ...source, priority: p }), true, [{ itemId: activeRow.id, field: 'priority', value: p }]);
                                         setOpenPriorityId(null);
                                     }}
                                 >{p}</button>
@@ -3861,7 +4044,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
                                 onMouseDown={e => {
                                     e.preventDefault();
-                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.priority; return next; }, true);
+                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.priority; return next; }, true, [{ itemId: activeRow.id, field: 'priority', value: null }]);
                                     setOpenPriorityId(null);
                                 }}
                             >Clear</button>
@@ -3884,9 +4067,9 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                         if (e.key === 'Enter') {
                                             const val = (e.target as HTMLInputElement).value.trim();
                                             if (val) {
-                                                updateFromSource(activeRow.id, source => ({ ...source, version: val }), true);
+                                                updateFromSource(activeRow.id, source => ({ ...source, version: val }), true, [{ itemId: activeRow.id, field: 'version', value: val }]);
                                             } else {
-                                                updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.version; return next; }, true);
+                                                updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.version; return next; }, true, [{ itemId: activeRow.id, field: 'version', value: null }]);
                                             }
                                             setOpenVersionId(null);
                                         }
@@ -3900,7 +4083,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                         <button key={v} className={`flex w-full text-left text-[11px] px-3 py-1.5 font-medium hover:bg-gray-50 transition-colors ${activeRow.version === v ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-gray-700'}`}
                                             onMouseDown={e => {
                                                 e.preventDefault();
-                                                updateFromSource(activeRow.id, source => ({ ...source, version: v }), true);
+                                                updateFromSource(activeRow.id, source => ({ ...source, version: v }), true, [{ itemId: activeRow.id, field: 'version', value: v }]);
                                                 setOpenVersionId(null);
                                             }}
                                         >{v}</button>
@@ -3910,7 +4093,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                             <button className="text-left text-[11px] px-3 py-1.5 text-gray-400 hover:bg-gray-50 transition-colors border-t border-gray-100"
                                 onMouseDown={e => {
                                     e.preventDefault();
-                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.version; return next; }, true);
+                                    updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.version; return next; }, true, [{ itemId: activeRow.id, field: 'version', value: null }]);
                                     setOpenVersionId(null);
                                 }}
                             >Clear</button>
@@ -3972,16 +4155,23 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                             style={isSelected ? { backgroundColor: hexToRgba(weekColor, 0.14), color: weekColor } : undefined}
                                             onMouseDown={e => {
                                                 e.preventDefault();
-                                                updateFromSource(activeRow.id, source => {
-                                                    const current = new Set(normalizePhaseIds(source.phaseIds));
-                                                    if (current.has(phase.id)) current.delete(phase.id);
-                                                    else current.add(phase.id);
-                                                    const next = { ...source };
-                                                    const nextPhaseIds = Array.from(current);
-                                                    if (nextPhaseIds.length > 0) next.phaseIds = nextPhaseIds;
-                                                    else delete next.phaseIds;
-                                                    return next;
-                                                });
+                                                // Compute next phaseIds up-front so we can pass them both to the
+                                                // mapper (for optimistic UI) and to the row-level changes payload.
+                                                const currentSet = new Set(normalizePhaseIds(activeRow.phaseIds));
+                                                if (currentSet.has(phase.id)) currentSet.delete(phase.id);
+                                                else currentSet.add(phase.id);
+                                                const nextPhaseIds = Array.from(currentSet);
+                                                updateFromSource(
+                                                    activeRow.id,
+                                                    source => {
+                                                        const next = { ...source };
+                                                        if (nextPhaseIds.length > 0) next.phaseIds = nextPhaseIds;
+                                                        else delete next.phaseIds;
+                                                        return next;
+                                                    },
+                                                    true,
+                                                    [{ itemId: activeRow.id, field: 'phaseIds', value: nextPhaseIds }],
+                                                );
                                             }}
                                         >
                                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: weekColor }} />
@@ -3996,7 +4186,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     className="w-full px-3 py-1.5 text-left text-[11px] text-gray-500 transition-colors hover:bg-gray-50"
                                     onMouseDown={e => {
                                         e.preventDefault();
-                                        updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.phaseIds; return next; });
+                                        updateFromSource(activeRow.id, source => { const next = { ...source }; delete next.phaseIds; return next; }, true, [{ itemId: activeRow.id, field: 'phaseIds', value: [] }]);
                                         setOpenPhaseId(null);
                                     }}
                                 >Clear</button>
@@ -4025,15 +4215,21 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 };
                 const commitValue = (val: string) => {
                     const trimmed = val.trim();
-                    updateFromSource(editingExtraCell.rowId, source => {
-                        const nextExtra = { ...(source.extra ?? {}) };
-                        if (trimmed) {
-                            nextExtra[editingExtraCell.colKey] = trimmed;
-                        } else {
-                            delete nextExtra[editingExtraCell.colKey];
-                        }
-                        return { ...source, extra: Object.keys(nextExtra).length > 0 ? nextExtra : undefined };
-                    }, true);
+                    // Compute next extra map up-front so we can ship it via the
+                    // row-level admin patch alongside the optimistic UI update.
+                    const sourceRow = findNodeById(data.items, editingExtraCell.rowId);
+                    const nextExtra: Record<string, string> = { ...(sourceRow?.extra ?? {}) };
+                    if (trimmed) {
+                        nextExtra[editingExtraCell.colKey] = trimmed;
+                    } else {
+                        delete nextExtra[editingExtraCell.colKey];
+                    }
+                    updateFromSource(
+                        editingExtraCell.rowId,
+                        source => ({ ...source, extra: Object.keys(nextExtra).length > 0 ? nextExtra : undefined }),
+                        true,
+                        [{ itemId: editingExtraCell.rowId, field: 'extra', value: nextExtra }],
+                    );
                     setEditingExtraCell(null);
                     setExtraCellAnchorRect(null);
                 };

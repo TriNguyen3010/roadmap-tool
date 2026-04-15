@@ -140,12 +140,44 @@ function resolveTeamFromItem(item: RoadmapItem): string | null {
     return (item as unknown as Record<string, unknown>).teamRole as string | null ?? null;
 }
 
-// ── Table-based save (last-write-wins) ───────────────────────────────────────
-
+// ── Table-based save (optimistic locking via roadmap_data.updated_at) ────────
+//
+// Concurrency model:
+//   - Both admin (this endpoint) and manager (/manager-save) writers bump
+//     `roadmap_data.updated_at` via `regenerateJsonBlob()` after each save.
+//   - We use that timestamp as the version token (same as legacy JSON mode).
+//   - Admin reads the current updated_at, compares against client-provided
+//     baseVersion, returns 409 if they diverge. Prevents admin from overwriting
+//     manager edits that landed between admin's last load and admin's save.
+//   - Note: this is "check then write" (not atomic CAS like JSON mode), so a
+//     ~10ms TOCTOU window remains. Acceptable trade-off for Approach A —
+//     dramatically reduces the bug from "always" to "rare race condition".
 async function saveTableBased(id: string, requestBody: unknown, auth: AuthenticatedTeamRequest) {
-    const incoming = (requestBody as Record<string, unknown>)?.document;
+    const { document: incoming, baseVersion } = resolveDocumentSaveRequest(requestBody);
     if (!incoming || typeof incoming !== 'object') {
         return NextResponse.json({ error: 'Missing document in request body' }, { status: 400 });
+    }
+
+    // Optimistic locking: read current version and validate before applying
+    const { data: currentRow, error: readError } = await supabase
+        .from('roadmap_data').select('updated_at').eq('id', id).maybeSingle();
+    if (readError) {
+        return NextResponse.json({ error: 'Failed to read roadmap version', message: readError.message }, { status: 500 });
+    }
+    const currentVersion = typeof currentRow?.updated_at === 'string' ? currentRow.updated_at : null;
+    const versionCheck = validateBaseVersion(baseVersion, currentVersion);
+    if (!versionCheck.ok) {
+        logRoadmapSaveTelemetry({
+            route: 'admin-save',
+            roadmapId: id,
+            outcome: 'rejected',
+            status: versionCheck.status,
+            reason: 'version-mismatch',
+            baseVersion,
+            serverVersion: currentVersion,
+            actor: auth.sessionUser,
+        });
+        return NextResponse.json(versionCheck.payload, { status: versionCheck.status });
     }
 
     const normalizedDoc = normalizeSharedRoadmapDocument(incoming as RoadmapDocument);
@@ -156,6 +188,21 @@ async function saveTableBased(id: string, requestBody: unknown, auth: Authentica
         return NextResponse.json({ error: 'Failed to save roadmap', message: result.error }, { status: 500 });
     }
 
-    logRoadmapSaveTelemetry({ route: 'admin-save', roadmapId: id, outcome: 'success', status: 200, serverVersion: result.updatedAt, actor: auth.sessionUser });
-    return NextResponse.json({ success: true, updatedAt: result.updatedAt });
+    // Re-read persisted updated_at — regenerateJsonBlob sets it via SQL now()
+    // which may differ from result.updatedAt (JS timestamp passed into the sync).
+    const { data: finalRow } = await supabase
+        .from('roadmap_data').select('updated_at').eq('id', id).maybeSingle();
+    const persistedVersion =
+        normalizeVersion(typeof finalRow?.updated_at === 'string' ? finalRow.updated_at : null) ?? result.updatedAt;
+
+    logRoadmapSaveTelemetry({
+        route: 'admin-save',
+        roadmapId: id,
+        outcome: 'success',
+        status: 200,
+        baseVersion,
+        serverVersion: persistedVersion,
+        actor: auth.sessionUser,
+    });
+    return NextResponse.json({ success: true, updatedAt: persistedVersion });
 }
