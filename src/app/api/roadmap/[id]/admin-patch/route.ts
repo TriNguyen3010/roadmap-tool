@@ -22,6 +22,7 @@ import {
     insertItemSubtree,
     deleteItemSubtree,
     moveItem,
+    convertItemType,
     type ItemFieldPatch,
     type InsertItemChangeInput,
 } from '@/server/roadmapRowsRepo';
@@ -123,6 +124,9 @@ export async function POST(
         }
         if (patch.kind === 'move-item') {
             return handleMoveItemPatch(roadmapId, patch, auth);
+        }
+        if (patch.kind === 'convert-item-type') {
+            return handleConvertTypePatch(roadmapId, patch, auth);
         }
 
         return NextResponse.json(
@@ -407,6 +411,86 @@ async function handleMoveItemPatch(
     return NextResponse.json({ success: true, updatedAt: persistedVersion });
 }
 
+async function handleConvertTypePatch(
+    roadmapId: string,
+    patch: Extract<RoadmapAdminItemPatchRequest, { kind: 'convert-item-type' }>,
+    auth: AuthenticatedTeamRequest,
+) {
+    // Early shape check — the type gate in resolveAdminItemPatchRequest already
+    // enforces this, but keeping the runtime guard protects against hand-crafted
+    // payloads that bypass the resolver (e.g. future code paths).
+    if (patch.newType !== 'subcategory' && patch.newType !== 'group') {
+        return NextResponse.json({ error: `Invalid newType "${patch.newType}"` }, { status: 400 });
+    }
+
+    // Capture the item's current ancestor chain BEFORE the convert so the
+    // changelog `__converted__` record can attribute the old team/role state.
+    const chain = await loadItemWithAncestors(roadmapId, patch.itemId);
+    if (chain.length === 0) {
+        return NextResponse.json({ error: `Item "${patch.itemId}" not found` }, { status: 404 });
+    }
+    const oldType = chain[0].itemType;
+
+    const result = await convertItemType(
+        roadmapId,
+        patch.itemId,
+        patch.newType,
+        patch.newParentItemId,
+        Math.max(0, Math.floor(patch.newIndex)),
+    );
+    if (!result.success) {
+        const status = result.userError ? 400 : 500;
+        logRoadmapSaveTelemetry({
+            route: 'admin-patch',
+            roadmapId,
+            outcome: result.userError ? 'rejected' : 'error',
+            status,
+            reason: `convert-item-type: ${result.error ?? 'unknown'}`,
+            actor: auth.sessionUser,
+        });
+        return NextResponse.json({ error: 'Failed to convert item', message: result.error }, { status });
+    }
+
+    await insertItemChange(roadmapId, {
+        itemId: patch.itemId,
+        team: resolveItemTeam(chain),
+        field: '__converted__',
+        oldValue: oldType ?? null,
+        newValue: patch.newType,
+        changedBy: auth.sessionUser.email,
+        changedByLabel: auth.sessionUser.label,
+    });
+
+    if (result.wrapperId) {
+        await insertItemChange(roadmapId, {
+            itemId: result.wrapperId,
+            team: resolveItemTeam(chain),
+            field: '__wrapped__',
+            oldValue: null,
+            newValue: patch.itemId, // ties wrapper to the converted source
+            changedBy: auth.sessionUser.email,
+            changedByLabel: auth.sessionUser.label,
+        });
+    }
+
+    await regenerateJsonBlob(roadmapId);
+    const persistedVersion = await bumpAndRead(roadmapId);
+
+    logRoadmapSaveTelemetry({
+        route: 'admin-patch',
+        roadmapId,
+        outcome: 'success',
+        status: 200,
+        baseVersion: patch.baseVersion,
+        serverVersion: persistedVersion,
+        changeCount: 1,
+        actor: auth.sessionUser,
+        reason: result.wrapperId ? 'convert-with-wrap' : undefined,
+    });
+
+    return NextResponse.json({ success: true, updatedAt: persistedVersion });
+}
+
 /**
  * Bumps roadmaps.updated_at (source of truth for baseVersion + /version
  * endpoint) and returns the fresh timestamp. All successful admin-patch
@@ -468,6 +552,21 @@ function resolveAdminItemPatchRequest(body: unknown): RoadmapAdminItemPatchReque
         return {
             kind: 'move-item',
             itemId: payload.itemId,
+            newParentItemId: (payload.newParentItemId as string | null | undefined) ?? null,
+            newIndex: Number(payload.newIndex ?? 0),
+            baseVersion,
+        };
+    }
+
+    if (
+        payload.kind === 'convert-item-type'
+        && typeof payload.itemId === 'string'
+        && (payload.newType === 'subcategory' || payload.newType === 'group')
+    ) {
+        return {
+            kind: 'convert-item-type',
+            itemId: payload.itemId,
+            newType: payload.newType,
             newParentItemId: (payload.newParentItemId as string | null | undefined) ?? null,
             newIndex: Number(payload.newIndex ?? 0),
             baseVersion,
