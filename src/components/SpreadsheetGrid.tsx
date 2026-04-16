@@ -2586,7 +2586,6 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                             <button
                                                 type="button"
                                                 className="shrink-0 flex items-center justify-center w-[14px] h-[14px] rounded hover:bg-gray-200 transition-colors"
-                                                title={isExpanded ? 'Thu gọn' : 'Mở rộng'}
                                                 onClick={(e) => { e.stopPropagation(); toggleExpand(row.id); }}
                                             >
                                                 {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -3193,7 +3192,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 openEditor(row.id);
                                             } : undefined}
                                             title={hasChildren
-                                                ? (isExpanded ? 'Thu gọn children' : 'Mở rộng children')
+                                                ? undefined
                                                 : canEditStructure ? `Mở editor: ${row.name}` : row.name
                                             }
                                         >
