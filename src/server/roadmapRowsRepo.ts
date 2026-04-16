@@ -8,6 +8,7 @@
  * Use getStorageMode(roadmapId) to determine which mode a roadmap uses.
  */
 
+import { randomUUID } from 'crypto';
 import { supabase } from '@/lib/supabase';
 import type { RoadmapDocument, ItemStatus, RoadmapConfig, RoadmapItem } from '@/types/roadmap';
 import { DEFAULT_ROADMAP_CONFIG, normalizeItemImages, normalizePhaseIds } from '@/types/roadmap';
@@ -733,6 +734,205 @@ export async function moveItem(
         }
     }
 
+    return { success: true };
+}
+
+/**
+ * Convert an item between `group` and `subcategory` type while simultaneously
+ * re-parenting it. MVP constraint: the source item MUST be empty (no children)
+ * because the target type's hierarchy would otherwise be violated (subcategory
+ * can only hold groups, group can only hold items/teams).
+ *
+ * Validates:
+ *  - source exists and item_type matches the expected "before" type
+ *    (newType='subcategory' → before='group', and vice versa)
+ *  - source has zero children
+ *  - new parent exists and has the correct type for the target
+ *    (subcategory → parent must be 'category'; group → parent must be 'subcategory')
+ *  - self-cycle (newParent === item) rejected for parity with moveItem
+ *
+ * Applies (same park/shift/place dance as moveItem so CAS-free row updates are
+ * safe):
+ *  - Park moving item at sort_order = -1
+ *  - shiftSiblingsDown on old parent to collapse the gap
+ *  - shiftSiblingsUp on new parent to open the slot
+ *  - Final update: parent_item_id, sort_order, depth, item_type,
+ *    subcategory_type, group_item_type (discriminator swap), updated_at
+ *
+ * Discriminator mapping:
+ *  - group → subcategory:  groupItemType='Improvement' collapses to 'Feature'
+ *                          (SubcategoryType has no 'Improvement')
+ *  - subcategory → group:  subcategoryType passes through 1:1 (all values
+ *                          are valid GroupItemType values)
+ */
+export async function convertItemType(
+    roadmapId: string,
+    itemId: string,
+    newType: 'subcategory' | 'group',
+    newParentItemId: string | null,
+    newIndex: number,
+): Promise<{ success: boolean; error?: string; userError?: boolean; wrapperId?: string }> {
+    // Self-cycle guard parity with moveItem.
+    if (newParentItemId === itemId) {
+        return { success: false, error: 'Cannot move item into itself', userError: true };
+    }
+
+    // 1. Load source — must exist, must have expected old type.
+    const { data: sourceRow, error: srcErr } = await supabase
+        .from('roadmap_items')
+        .select('parent_item_id, sort_order, depth, item_type, subcategory_type, group_item_type')
+        .eq('roadmap_id', roadmapId)
+        .eq('item_id', itemId)
+        .maybeSingle();
+    if (srcErr) return { success: false, error: srcErr.message };
+    if (!sourceRow) return { success: false, error: `Item "${itemId}" not found`, userError: true };
+
+    const expectedOldType = newType === 'subcategory' ? 'group' : 'subcategory';
+    const oldType = sourceRow.item_type as string;
+    if (oldType !== expectedOldType) {
+        return {
+            success: false,
+            error: `Item type mismatch: expected "${expectedOldType}", found "${oldType}"`,
+            userError: true,
+        };
+    }
+
+    // 2. Emptiness check — the MVP used to reject ANY non-empty source, but
+    //    group → subcategory now has an auto-wrap path (see §4.5 of the
+    //    spec). Subcategory → group still requires an empty source because
+    //    cascading groups-of-groups is not a valid hierarchy.
+    const { count: childCount, error: cntErr } = await supabase
+        .from('roadmap_items')
+        .select('item_id', { count: 'exact', head: true })
+        .eq('roadmap_id', roadmapId)
+        .eq('parent_item_id', itemId);
+    if (cntErr) return { success: false, error: cntErr.message };
+    const sourceHasChildren = (childCount ?? 0) > 0;
+    if (sourceHasChildren && newType === 'group') {
+        return {
+            success: false,
+            error: `Cannot demote: item has ${childCount} children. Remove them first.`,
+            userError: true,
+        };
+    }
+
+    // 2a. Wrap path: source is a non-empty group being promoted to
+    //     subcategory. Delegate to the atomic RPC; it handles the sibling
+    //     shifts, wrapper insertion, child re-parenting, and final retype
+    //     in one transaction.
+    if (sourceHasChildren && newType === 'subcategory') {
+        if (!newParentItemId) {
+            return {
+                success: false,
+                error: `convert-item-type requires a newParentItemId`,
+                userError: true,
+            };
+        }
+        const wrapperId = randomUUID();
+        const { data, error } = await supabase.rpc(
+            'admin_convert_group_with_wrap',
+            {
+                p_roadmap_id: roadmapId,
+                p_item_id: itemId,
+                p_new_parent_id: newParentItemId,
+                p_new_index: newIndex,
+                p_wrapper_id: wrapperId,
+            },
+        );
+        if (error) return { success: false, error: `RPC: ${error.message}` };
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row?.success) {
+            return {
+                success: false,
+                error: row?.error ?? 'RPC returned no result',
+                userError: true,
+            };
+        }
+        return { success: true, wrapperId };
+    }
+
+    // 3. New parent validation + depth resolution.
+    const expectedParentType = newType === 'subcategory' ? 'category' : 'subcategory';
+    let newDepth = 0;
+    if (newParentItemId) {
+        const { data: parentRow, error: parentErr } = await supabase
+            .from('roadmap_items')
+            .select('depth, item_type')
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', newParentItemId)
+            .maybeSingle();
+        if (parentErr) return { success: false, error: parentErr.message };
+        if (!parentRow) {
+            return { success: false, error: `New parent "${newParentItemId}" not found`, userError: true };
+        }
+        const parentType = parentRow.item_type as string;
+        if (parentType !== expectedParentType) {
+            return {
+                success: false,
+                error: `New parent type "${parentType}" is invalid for ${newType} (expected "${expectedParentType}")`,
+                userError: true,
+            };
+        }
+        newDepth = (parentRow.depth as number) + 1;
+    } else {
+        // Root-level (parent null) is allowed only for `category` children in
+        // this app. But `subcategory` and `group` both require a concrete
+        // parent, so reject.
+        return { success: false, error: `convert-item-type requires a newParentItemId`, userError: true };
+    }
+
+    // 4. Compute discriminator values for the target type.
+    const incomingGroupType = (sourceRow.group_item_type as string | null) ?? null;
+    const incomingSubType = (sourceRow.subcategory_type as string | null) ?? null;
+    let nextSubcategoryType: string | null = null;
+    let nextGroupItemType: string | null = null;
+    if (newType === 'subcategory') {
+        // Map 'Improvement' → 'Feature'; others pass through.
+        nextSubcategoryType = incomingGroupType === 'Improvement' ? 'Feature' : incomingGroupType;
+        nextGroupItemType = null;
+    } else {
+        nextGroupItemType = incomingSubType;
+        nextSubcategoryType = null;
+    }
+
+    const oldParentId = (sourceRow.parent_item_id as string | null) ?? null;
+    const oldSortOrder = sourceRow.sort_order as number;
+
+    // 5. Park at sort_order = -1 so sibling shifts don't collide with us.
+    {
+        const { error } = await supabase
+            .from('roadmap_items')
+            .update({ sort_order: -1 })
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', itemId);
+        if (error) return { success: false, error: `Park moving item: ${error.message}` };
+    }
+
+    // 6. Collapse old parent, open new parent.
+    const downShift = await shiftSiblingsDown(roadmapId, oldParentId, oldSortOrder);
+    if (!downShift.success) return downShift;
+    const upShift = await shiftSiblingsUp(roadmapId, newParentItemId, newIndex);
+    if (!upShift.success) return upShift;
+
+    // 7. Final update: re-parent + retype + swap discriminators + set depth.
+    {
+        const { error } = await supabase
+            .from('roadmap_items')
+            .update({
+                parent_item_id: newParentItemId,
+                sort_order: newIndex,
+                depth: newDepth,
+                item_type: newType,
+                subcategory_type: nextSubcategoryType,
+                group_item_type: nextGroupItemType,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('roadmap_id', roadmapId)
+            .eq('item_id', itemId);
+        if (error) return { success: false, error: `Final update: ${error.message}` };
+    }
+
+    // No descendant depth pass — the MVP guarantees no children.
     return { success: true };
 }
 
