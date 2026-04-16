@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PATCH as patchRoadmapPost } from '@/app/api/roadmap/[id]/route';
 import { POST as saveRoadmapPost } from '@/app/api/roadmap/[id]/save/route';
 import { POST as managerSavePost } from '@/app/api/roadmap/[id]/manager-save/route';
+import { DEFAULT_ROADMAP_CONFIG } from '@/types/roadmap';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -12,8 +13,12 @@ const {
     getStorageModeMock,
     fullDocumentSyncMock,
     loadItemWithAncestorsMock,
+    loadRoadmapConfigMock,
     updateItemFieldsMock,
     regenerateJsonBlobMock,
+    bumpRoadmapTimestampMock,
+    insertItemChangeMock,
+    insertItemChangesMock,
     loadRoadmapDocumentFromRowsMock,
 } = vi.hoisted(() => ({
     supabaseMock: { from: vi.fn(), rpc: vi.fn() },
@@ -22,8 +27,12 @@ const {
     getStorageModeMock: vi.fn(),
     fullDocumentSyncMock: vi.fn(),
     loadItemWithAncestorsMock: vi.fn(),
+    loadRoadmapConfigMock: vi.fn(),
     updateItemFieldsMock: vi.fn(),
     regenerateJsonBlobMock: vi.fn(),
+    bumpRoadmapTimestampMock: vi.fn(),
+    insertItemChangeMock: vi.fn(),
+    insertItemChangesMock: vi.fn(),
     loadRoadmapDocumentFromRowsMock: vi.fn(),
 }));
 
@@ -38,8 +47,12 @@ vi.mock('@/server/roadmapRowsRepo', () => ({
     getStorageMode: getStorageModeMock,
     fullDocumentSync: fullDocumentSyncMock,
     loadItemWithAncestors: loadItemWithAncestorsMock,
+    loadRoadmapConfig: loadRoadmapConfigMock,
     updateItemFields: updateItemFieldsMock,
     regenerateJsonBlob: regenerateJsonBlobMock,
+    bumpRoadmapTimestamp: bumpRoadmapTimestampMock,
+    insertItemChange: insertItemChangeMock,
+    insertItemChanges: insertItemChangesMock,
     loadRoadmapDocumentFromRows: loadRoadmapDocumentFromRowsMock,
 }));
 
@@ -69,6 +82,10 @@ const BE_MANAGER_AUTH = {
 
 const ROADMAP_PARAMS = { params: Promise.resolve({ id: 'roadmap-1' }) };
 
+// Shared optimistic-lock token. Kept equal to the current mocked system time so
+// the `validateBaseVersion` check in /save passes without a 409.
+const BASE_VERSION = '2026-04-02T20:00:00.000Z';
+
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('roadmap save routes (table-based)', () => {
@@ -82,6 +99,18 @@ describe('roadmap save routes (table-based)', () => {
         vi.clearAllMocks();
         // Default: all tests use table-based storage mode
         getStorageModeMock.mockResolvedValue('table');
+        // Manager-save loads config early to validate team + status values.
+        loadRoadmapConfigMock.mockResolvedValue(DEFAULT_ROADMAP_CONFIG);
+        // Default supabase.from chain: admin /save reads roadmap_data.updated_at
+        // twice (pre-save optimistic lock + post-save persistedVersion). Both
+        // return BASE_VERSION so tests that pass that baseVersion succeed.
+        supabaseMock.from.mockImplementation(() => ({
+            select: () => ({
+                eq: () => ({
+                    maybeSingle: () => Promise.resolve({ data: { updated_at: BASE_VERSION }, error: null }),
+                }),
+            }),
+        }));
     });
 
     afterEach(() => {
@@ -99,6 +128,7 @@ describe('roadmap save routes (table-based)', () => {
 
         const response = await saveRoadmapPost(createRequest({
             document: { releaseName: 'Demo', items: [], milestones: [] },
+            baseVersion: BASE_VERSION,
         }) as never, ROADMAP_PARAMS);
 
         expect(response.status).toBe(200);
@@ -129,6 +159,7 @@ describe('roadmap save routes (table-based)', () => {
 
         const response = await saveRoadmapPost(createRequest({
             document: { releaseName: 'Demo', items: [], milestones: [] },
+            baseVersion: BASE_VERSION,
         }) as never, ROADMAP_PARAMS);
 
         expect(response.status).toBe(500);
@@ -145,7 +176,9 @@ describe('roadmap save routes (table-based)', () => {
             { itemId: 'group-1', itemType: 'group', name: 'Group' },
         ]);
         updateItemFieldsMock.mockResolvedValue({ success: true });
+        insertItemChangeMock.mockResolvedValue(undefined);
         regenerateJsonBlobMock.mockResolvedValue(undefined);
+        bumpRoadmapTimestampMock.mockResolvedValue(BASE_VERSION);
         loadRoadmapDocumentFromRowsMock.mockResolvedValue({
             releaseName: 'Demo', items: [], milestones: [],
         });
