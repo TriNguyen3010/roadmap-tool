@@ -25,7 +25,7 @@ import {
 import {
     FlattenedItem, findNodeById, filterRoadmapTree, flattenRoadmap, getExpandedFlattenedRows,
     generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp, moveNodeToParent,
-    convertGroupToSubcategory, convertSubcategoryToGroup, hasNoChildren
+    convertSubcategoryToGroup, convertGroupToSubcategoryWithWrap, hasNoChildren
 } from '@/utils/roadmapHelpers';
 import type { EditPermission, ManagerFieldChange, SessionUser } from '@/types/auth';
 import type { AdminItemFieldChange } from '@/types/roadmapSave';
@@ -1635,9 +1635,16 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                 );
                 if (!confirmed) return;
 
-                const converted = result.newType === 'subcategory'
-                    ? convertGroupToSubcategory(source)
-                    : convertSubcategoryToGroup(source);
+                let converted: RoadmapItem;
+                if (result.newType === 'subcategory') {
+                    const { subcategory } = convertGroupToSubcategoryWithWrap(
+                        source,
+                        () => crypto.randomUUID(),
+                    );
+                    converted = subcategory;
+                } else {
+                    converted = convertSubcategoryToGroup(source);
+                }
                 const touchedConverted = touchItemTimestamp(converted);
                 const afterRemove = deleteNodeById(data.items, capturedDraggedId);
                 const afterInsert = addChildToNode(afterRemove, targetId, touchedConverted);
