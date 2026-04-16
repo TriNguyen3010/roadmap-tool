@@ -1323,6 +1323,28 @@ export default function RoadmapPage() {
     }, optimisticData);
   }, [addToast, resolveBaseVersion, runAdminStructurePatch]);
 
+  const handleAdminConvertType = useCallback(async (
+    itemId: string,
+    newType: 'subcategory' | 'group',
+    newParentItemId: string | null,
+    newIndex: number,
+    optimisticData: RoadmapDocument,
+  ) => {
+    const baseVersion = await resolveBaseVersion();
+    if (!baseVersion) {
+      addToast('Không thể xác định phiên bản hiện tại của roadmap. Vui lòng tải lại dữ liệu trước khi lưu.', 'error');
+      return;
+    }
+    await runAdminStructurePatch({
+      kind: 'convert-item-type',
+      itemId,
+      newType,
+      newParentItemId,
+      newIndex,
+      baseVersion,
+    }, optimisticData);
+  }, [addToast, resolveBaseVersion, runAdminStructurePatch]);
+
   const handleExportExcelCurrentView = () => {
     if (!data) return;
     try {
@@ -1983,6 +2005,7 @@ export default function RoadmapPage() {
             onAdminAddItem: handleAdminAddItem,
             onAdminDeleteItem: handleAdminDeleteItem,
             onAdminMoveItem: handleAdminMoveItem,
+            onAdminConvertType: handleAdminConvertType,
           } : {})}
           showWorkType={showWorkType} setShowWorkType={setShowWorkType}
           showPriority={showPriority} setShowPriority={setShowPriority}

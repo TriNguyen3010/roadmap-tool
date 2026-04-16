@@ -71,4 +71,12 @@ export type RoadmapAdminItemPatchRequest =
         newParentItemId: string | null;
         newIndex: number;
         baseVersion: string | null;
+    }
+    | {
+        kind: 'convert-item-type';
+        itemId: string;
+        newType: 'subcategory' | 'group';
+        newParentItemId: string | null;
+        newIndex: number;
+        baseVersion: string | null;
     };

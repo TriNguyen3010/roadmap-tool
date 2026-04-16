@@ -92,9 +92,12 @@ interface GridProps {
     onAdminMoveItem?: (itemId: string, newParentItemId: string | null, newIndex: number, optimisticData: RoadmapDocument) => Promise<void> | void;
     /**
      * Drag-to-convert: promote group → subcategory (drop on a category) or
-     * demote subcategory → group (drop on another subcategory). Only called
-     * for EMPTY source items — the grid blocks drop otherwise. Parent runs
-     * through the admin-patch endpoint.
+     * demote subcategory → group (drop on another subcategory). For the
+     * promote direction, non-empty groups are allowed — the server
+     * auto-wraps their children (see
+     * docs/superpowers/specs/2026-04-16-convert-group-with-children-to-subcategory-design.md).
+     * Demote still requires an empty source. Parent runs through the
+     * admin-patch endpoint (`kind: 'convert-item-type'`).
      */
     onAdminConvertType?: (
         itemId: string,
