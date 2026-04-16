@@ -24,7 +24,8 @@ import {
 } from '@/types/roadmap';
 import {
     FlattenedItem, findNodeById, filterRoadmapTree, flattenRoadmap, getExpandedFlattenedRows,
-    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp, moveNodeToParent
+    generateTimelineDays, updateNodeById, deleteNodeById, addChildToNode, reorderItems, touchItemTimestamp, moveNodeToParent,
+    convertGroupToSubcategory, convertSubcategoryToGroup, hasNoChildren
 } from '@/utils/roadmapHelpers';
 import type { EditPermission, ManagerFieldChange, SessionUser } from '@/types/auth';
 import type { AdminItemFieldChange } from '@/types/roadmapSave';
@@ -89,6 +90,19 @@ interface GridProps {
     onAdminAddItem?: (parentItemId: string | null, insertIndex: number, item: RoadmapItem, optimisticData: RoadmapDocument) => Promise<void> | void;
     onAdminDeleteItem?: (itemId: string, optimisticData: RoadmapDocument) => Promise<void> | void;
     onAdminMoveItem?: (itemId: string, newParentItemId: string | null, newIndex: number, optimisticData: RoadmapDocument) => Promise<void> | void;
+    /**
+     * Drag-to-convert: promote group → subcategory (drop on a category) or
+     * demote subcategory → group (drop on another subcategory). Only called
+     * for EMPTY source items — the grid blocks drop otherwise. Parent runs
+     * through the admin-patch endpoint.
+     */
+    onAdminConvertType?: (
+        itemId: string,
+        newType: 'subcategory' | 'group',
+        newParentItemId: string | null,
+        newIndex: number,
+        optimisticData: RoadmapDocument,
+    ) => Promise<void> | void;
     // Column visibility (lifted to parent for persistence)
     showWorkType: boolean;
     setShowWorkType: (v: boolean) => void;
@@ -488,7 +502,7 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     timelineMode, timelineOnly, timelineTaskW, setTimelineTaskW,
     filterCategory, filterStatus, filterTeam, filterPriority, filterPhase, filterSubcategory, filterGroupItemType, reportedMode,
     isSaving, saveState, saveTick, currentUser, documentPermission, roadmapConfig: roadmapConfigProp, onManagerFieldChanges, onAdminFieldChanges,
-    onAdminAddItem, onAdminDeleteItem, onAdminMoveItem,
+    onAdminAddItem, onAdminDeleteItem, onAdminMoveItem, onAdminConvertType,
     showWorkType, setShowWorkType,
     showPriority, setShowPriority, showVersion, setShowVersion, showPhase, setShowPhase, showStartDate, setShowStartDate, showEndDate, setShowEndDate,
     nameW, setNameW, nameWMode, setNameWMode,
@@ -542,7 +556,9 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     // ── Drag & Drop States ──
     const [draggedId, setDraggedId] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
-    const [dragOverMode, setDragOverMode] = useState<'reorder' | 'parent' | null>(null);
+    const [dragOverMode, setDragOverMode] = useState<'reorder' | 'parent' | 'convert' | 'convert-blocked' | null>(null);
+    // When dragOverMode === 'convert-blocked', this holds the reason tooltip.
+    const [dragConvertBlockedReason, setDragConvertBlockedReason] = useState<string | null>(null);
     const [activeNotePreview, setActiveNotePreview] = useState<{ id: string; top: number; left: number } | null>(null);
     const [activeImagePreviewId, setActiveImagePreviewId] = useState<string | null>(null);
     const [activeImagePreviewIndex, setActiveImagePreviewIndex] = useState(0);
@@ -1466,11 +1482,52 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         );
     }, [flattened]);
 
-    const getDropMode = useCallback((sourceId: string, targetId: string): 'reorder' | 'parent' | null => {
-        if (isValidSameLayerDrop(sourceId, targetId)) return 'reorder';
-        if (isValidParentDrop(sourceId, targetId)) return 'parent';
+    const isValidConvertDrop = useCallback((sourceId: string, targetId: string): {
+        ok: boolean;
+        newType?: 'subcategory' | 'group';
+        reason?: string;
+    } => {
+        if (sourceId === targetId) return { ok: false };
+        const source = flattened.find(item => item.id === sourceId);
+        const target = flattened.find(item => item.id === targetId);
+        if (!source || !target) return { ok: false };
+        // Prevent convert onto a descendant of source
+        if (target.parentIds.includes(sourceId)) return { ok: false };
+
+        // group → subcategory (dropped on category). Non-empty groups are
+        // allowed: the server auto-wraps their children under a new group
+        // carrying the same name. See spec §4.5.
+        if (source.type === 'group' && target.type === 'category') {
+            return { ok: true, newType: 'subcategory' };
+        }
+
+        // subcategory → group (dropped on another subcategory)
+        if (source.type === 'subcategory' && target.type === 'subcategory') {
+            if (!hasNoChildren(source)) {
+                const n = source.children?.length ?? 0;
+                return { ok: false, reason: `Không thể demote: subcategory còn ${n} group${n === 1 ? '' : 's'}. Xoá hết trước.` };
+            }
+            return { ok: true, newType: 'group' };
+        }
+
+        return { ok: false };
+    }, [flattened]);
+
+    type DropModeResult =
+        | { mode: 'reorder' }
+        | { mode: 'parent' }
+        | { mode: 'convert'; newType: 'subcategory' | 'group' }
+        | { mode: 'convert-blocked'; reason: string }
+        | null;
+
+    const getDropMode = useCallback((sourceId: string, targetId: string): DropModeResult => {
+        if (isValidSameLayerDrop(sourceId, targetId)) return { mode: 'reorder' };
+        if (isValidParentDrop(sourceId, targetId)) return { mode: 'parent' };
+        const convert = isValidConvertDrop(sourceId, targetId);
+        if (convert.ok && convert.newType) return { mode: 'convert', newType: convert.newType };
+        if (convert.reason) return { mode: 'convert-blocked', reason: convert.reason };
         return null;
-    }, [isValidParentDrop, isValidSameLayerDrop]);
+    }, [isValidConvertDrop, isValidParentDrop, isValidSameLayerDrop]);
 
     // ── Drag & Drop Handlers ──
     const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -1484,39 +1541,50 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
     const handleDragOver = (e: React.DragEvent, id: string) => {
         if (!canEditStructure) return;
         e.preventDefault(); // enable drop
-        const mode = draggedId ? getDropMode(draggedId, id) : null;
-        if (mode) {
-            e.dataTransfer.dropEffect = 'move';
-            setDragOverId(id);
-            setDragOverMode(mode);
+        const result = draggedId ? getDropMode(draggedId, id) : null;
+        if (result) {
+            if (result.mode === 'convert-blocked') {
+                e.dataTransfer.dropEffect = 'none';
+                setDragOverId(id);
+                setDragOverMode('convert-blocked');
+                setDragConvertBlockedReason(result.reason);
+            } else {
+                e.dataTransfer.dropEffect = 'move';
+                setDragOverId(id);
+                setDragOverMode(result.mode);
+                setDragConvertBlockedReason(null);
+            }
         } else {
             e.dataTransfer.dropEffect = 'none';
             setDragOverId(null);
             setDragOverMode(null);
+            setDragConvertBlockedReason(null);
         }
     };
     const handleDragLeave = () => {
         setDragOverId(null);
         setDragOverMode(null);
+        setDragConvertBlockedReason(null);
     };
-    const handleDrop = (e: React.DragEvent, targetId: string) => {
+    const handleDrop = async (e: React.DragEvent, targetId: string) => {
         if (!canEditStructure) return;
         e.preventDefault();
-        const mode = draggedId ? getDropMode(draggedId, targetId) : null;
-        if (draggedId && mode) {
-            if (mode === 'reorder') {
-                const reorderedItems = reorderItems(data.items, draggedId, targetId);
+        const result = draggedId ? getDropMode(draggedId, targetId) : null;
+        const capturedDraggedId = draggedId;
+        if (capturedDraggedId && result) {
+            if (result.mode === 'reorder') {
+                const reorderedItems = reorderItems(data.items, capturedDraggedId, targetId);
                 if (reorderedItems !== data.items) {
-                    const movedItem = findNodeById(reorderedItems, draggedId);
+                    const movedItem = findNodeById(reorderedItems, capturedDraggedId);
                     const newItems = movedItem
-                        ? updateNodeById(reorderedItems, draggedId, touchItemTimestamp(movedItem))
+                        ? updateNodeById(reorderedItems, capturedDraggedId, touchItemTimestamp(movedItem))
                         : reorderedItems;
                     const nextData = { ...data, items: newItems };
                     if (onAdminMoveItem) {
                         // Find new parent + new index for the moved item in the reordered tree.
-                        const location = findItemLocation(newItems, draggedId);
+                        const location = findItemLocation(newItems, capturedDraggedId);
                         if (location) {
-                            onAdminMoveItem(draggedId, location.parentId, location.index, nextData);
+                            onAdminMoveItem(capturedDraggedId, location.parentId, location.index, nextData);
                         } else {
                             onDataChange(nextData, true);
                         }
@@ -1524,19 +1592,19 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                         onDataChange(nextData, true);
                     }
                 }
-            } else if (mode === 'parent') {
-                const movedItems = moveNodeToParent(data.items, draggedId, targetId);
+            } else if (result.mode === 'parent') {
+                const movedItems = moveNodeToParent(data.items, capturedDraggedId, targetId);
                 if (movedItems !== data.items) {
-                    const movedItem = findNodeById(movedItems, draggedId);
+                    const movedItem = findNodeById(movedItems, capturedDraggedId);
                     const newItems = movedItem
-                        ? updateNodeById(movedItems, draggedId, touchItemTimestamp(movedItem))
+                        ? updateNodeById(movedItems, capturedDraggedId, touchItemTimestamp(movedItem))
                         : movedItems;
                     setExpandedIds(prev => new Set([...prev, targetId]));
                     const nextData = { ...data, items: newItems };
                     if (onAdminMoveItem) {
-                        const location = findItemLocation(newItems, draggedId);
+                        const location = findItemLocation(newItems, capturedDraggedId);
                         if (location) {
-                            onAdminMoveItem(draggedId, location.parentId, location.index, nextData);
+                            onAdminMoveItem(capturedDraggedId, location.parentId, location.index, nextData);
                         } else {
                             onDataChange(nextData, true);
                         }
@@ -1544,16 +1612,57 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                         onDataChange(nextData, true);
                     }
                 }
+            } else if (result.mode === 'convert') {
+                const source = findNodeById(data.items, capturedDraggedId);
+                const target = findNodeById(data.items, targetId);
+                if (!source || !target) {
+                    setDraggedId(null);
+                    setDragOverId(null);
+                    setDragOverMode(null);
+                    setDragConvertBlockedReason(null);
+                    return;
+                }
+                // Reset DnD visual state before async confirm so the ghost doesn't linger.
+                setDraggedId(null);
+                setDragOverId(null);
+                setDragOverMode(null);
+                setDragConvertBlockedReason(null);
+
+                const sourceLabel = source.type === 'group' ? 'Group' : 'Subcategory';
+                const targetLabel = result.newType === 'subcategory' ? 'Subcategory' : 'Group';
+                const confirmed = await showConfirm(
+                    `Bạn có chắc muốn chuyển "${source.name}" từ ${sourceLabel} thành ${targetLabel} bên dưới "${target.name}"?`
+                );
+                if (!confirmed) return;
+
+                const converted = result.newType === 'subcategory'
+                    ? convertGroupToSubcategory(source)
+                    : convertSubcategoryToGroup(source);
+                const touchedConverted = touchItemTimestamp(converted);
+                const afterRemove = deleteNodeById(data.items, capturedDraggedId);
+                const afterInsert = addChildToNode(afterRemove, targetId, touchedConverted);
+                const nextData = { ...data, items: afterInsert };
+                setExpandedIds(prev => new Set([...prev, targetId]));
+                if (onAdminConvertType) {
+                    const parent = findNodeById(afterInsert, targetId);
+                    const newIndex = Math.max(0, (parent?.children?.length ?? 1) - 1);
+                    onAdminConvertType(capturedDraggedId, result.newType, targetId, newIndex, nextData);
+                } else {
+                    onDataChange(nextData, true);
+                }
+                return;
             }
         }
         setDraggedId(null);
         setDragOverId(null);
         setDragOverMode(null);
+        setDragConvertBlockedReason(null);
     };
     const handleDragEnd = () => {
         setDraggedId(null);
         setDragOverId(null);
         setDragOverMode(null);
+        setDragConvertBlockedReason(null);
     };
 
     const openQuickNotePreview = async (event: React.MouseEvent, row: FlattenedItem) => {
@@ -2408,6 +2517,8 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                         const isDragged = draggedId === row.id;
                         const isDragOverReorder = dragOverId === row.id && dragOverMode === 'reorder';
                         const isDragOverParent = dragOverId === row.id && dragOverMode === 'parent';
+                        const isDragOverConvert = dragOverId === row.id && dragOverMode === 'convert';
+                        const isDragOverConvertBlocked = dragOverId === row.id && dragOverMode === 'convert-blocked';
 
                         const isManagerNonAdmin = currentUser?.role === 'manager' && currentUser?.team && !isAdminLevel(currentUser);
                         const isOtherTeamRow = isManagerNonAdmin
@@ -2419,9 +2530,10 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
 
                         return (
                             <div key={row.id}
-                                className={`grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOverReorder ? 'border-t-4 border-t-blue-500' : ''} ${isDragOverParent ? 'ring-2 ring-inset ring-emerald-500' : ''}`}
+                                className={`relative grid border-b border-gray-300 group hover:brightness-95 ${isDragged ? 'opacity-30' : ''} ${isDragOverReorder ? 'border-t-4 border-t-blue-500' : ''} ${isDragOverParent ? 'ring-2 ring-inset ring-emerald-500' : ''} ${isDragOverConvert ? 'ring-2 ring-inset ring-purple-500 bg-purple-50' : ''} ${isDragOverConvertBlocked ? 'ring-2 ring-inset ring-red-500 bg-red-50/40' : ''}`}
                                 style={{ gridTemplateColumns: gridTemplate, height: ROW_HEIGHT, backgroundColor: getRowBg(style.bg, rowPhaseIds, phaseColorById) }}
                                 draggable={canDragRow}
+                                title={isDragOverConvertBlocked && dragConvertBlockedReason ? dragConvertBlockedReason : undefined}
                                 onMouseEnter={() => setHoveredRowId(row.id)}
                                 onMouseLeave={() => setHoveredRowId(prev => prev === row.id ? null : prev)}
                                 onDragStart={canDragRow ? (e) => handleDragStart(e, row.id) : undefined}
