@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RoadmapItem } from '../types/roadmap';
-import { createItemWithTimestamps, moveNodeToParent, normalizeItemTimestamps, recalculateRoadmap, touchItemTimestamp } from './roadmapHelpers';
+import { convertGroupToSubcategoryWithWrap, createItemWithTimestamps, moveNodeToParent, normalizeItemTimestamps, recalculateRoadmap, touchItemTimestamp } from './roadmapHelpers';
 
 function makeItem(overrides: Partial<RoadmapItem> = {}): RoadmapItem {
   return {
@@ -222,3 +222,67 @@ function findNode(items: RoadmapItem[], id: string): RoadmapItem | null {
   }
   return null;
 }
+
+describe('convertGroupToSubcategoryWithWrap', () => {
+  const fixedId = 'wrapper-uuid-1';
+  const gen = () => fixedId;
+
+  it('wraps existing children under a new group with the same name', () => {
+    const source: RoadmapItem = makeItem({
+      id: 'g-1',
+      name: '[SwapX] Implement revenue settlement flow',
+      type: 'group',
+      groupItemType: 'Feature',
+      children: [
+        makeItem({ id: 't-ba', type: 'team', teamRole: 'BA', name: 'BA' }),
+        makeItem({ id: 't-be', type: 'team', teamRole: 'BE', name: 'BE' }),
+        makeItem({ id: 't-qc', type: 'team', teamRole: 'QC', name: 'QC' }),
+      ],
+    });
+
+    const { subcategory, wrapperId } = convertGroupToSubcategoryWithWrap(source, gen);
+
+    expect(wrapperId).toBe(fixedId);
+    expect(subcategory.type).toBe('subcategory');
+    expect(subcategory.subcategoryType).toBe('Feature');
+    expect(subcategory.name).toBe(source.name);
+    expect('groupItemType' in subcategory).toBe(false);
+
+    expect(subcategory.children).toHaveLength(1);
+    const wrapper = subcategory.children![0];
+    expect(wrapper.id).toBe(fixedId);
+    expect(wrapper.type).toBe('group');
+    expect(wrapper.groupItemType).toBe('Feature');
+    expect(wrapper.name).toBe(source.name);
+    expect(wrapper.children!.map(c => c.id)).toEqual(['t-ba', 't-be', 't-qc']);
+  });
+
+  it('maps Improvement → Feature on the new subcategory (spec 4.2)', () => {
+    const source: RoadmapItem = makeItem({
+      id: 'g-imp',
+      type: 'group',
+      groupItemType: 'Improvement',
+      children: [makeItem({ id: 'i-1', type: 'item' })],
+    });
+
+    const { subcategory } = convertGroupToSubcategoryWithWrap(source, gen);
+    expect(subcategory.subcategoryType).toBe('Feature');
+    // Wrapper still carries the original Improvement type
+    expect(subcategory.children![0].groupItemType).toBe('Improvement');
+  });
+
+  it('returns wrapperId = null when source has no children (no wrapper needed)', () => {
+    const source: RoadmapItem = makeItem({
+      id: 'g-empty',
+      type: 'group',
+      groupItemType: 'Bug',
+      children: [],
+    });
+
+    const { subcategory, wrapperId } = convertGroupToSubcategoryWithWrap(source, gen);
+    expect(wrapperId).toBeNull();
+    expect(subcategory.type).toBe('subcategory');
+    expect(subcategory.subcategoryType).toBe('Bug');
+    expect(subcategory.children).toEqual([]);
+  });
+});
