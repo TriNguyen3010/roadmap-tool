@@ -840,7 +840,7 @@ export default function RoadmapPage() {
     setSaving(true);
     saveInFlightRef.current = true;
     setSaveState('idle');
-    addToast('Đang lưu...', 'info', 1500);
+    const savingToastId = addToast('Đang lưu...', 'info', 0);
     try {
       if (hasPendingReleaseMetaPatch && !options?.forceFullSave) {
         const res = await fetch(`/api/roadmap/${roadmapId}`, {
@@ -959,6 +959,7 @@ export default function RoadmapPage() {
       setSaveState('error');
       setSaveTick(prev => prev + 1);
     } finally {
+      removeToast(savingToastId);
       saveInFlightRef.current = false;
       setSaving(false);
     }
@@ -970,6 +971,7 @@ export default function RoadmapPage() {
     buildSharedDocumentSnapshot,
     ensureCanManageRoadmap,
     fetchRoadmapVersion,
+    removeToast,
     resolveBaseVersion,
     roadmapId,
     hasPendingReleaseMetaPatch,
