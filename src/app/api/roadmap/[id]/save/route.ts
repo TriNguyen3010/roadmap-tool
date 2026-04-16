@@ -9,7 +9,7 @@ import {
     validateBaseVersion,
 } from '@/utils/roadmapSaveFlow';
 import { logRoadmapSaveTelemetry } from '@/utils/roadmapSaveTelemetry';
-import { getStorageMode, fullDocumentSync, insertItemChanges, type InsertItemChangeInput } from '@/server/roadmapRowsRepo';
+import { getStorageMode, fullDocumentSync, insertItemChanges, loadRoadmapVersion, bumpRoadmapTimestamp, type InsertItemChangeInput } from '@/server/roadmapRowsRepo';
 import type { RoadmapItem } from '@/types/roadmap';
 
 export const runtime = 'nodejs';
@@ -140,15 +140,14 @@ function resolveTeamFromItem(item: RoadmapItem): string | null {
     return (item as unknown as Record<string, unknown>).teamRole as string | null ?? null;
 }
 
-// ── Table-based save (optimistic locking via roadmap_data.updated_at) ────────
+// ── Table-based save (optimistic locking via roadmaps.updated_at) ────────────
 //
 // Concurrency model:
-//   - Both admin (this endpoint) and manager (/manager-save) writers bump
-//     `roadmap_data.updated_at` via `regenerateJsonBlob()` after each save.
-//   - We use that timestamp as the version token (same as legacy JSON mode).
-//   - Admin reads the current updated_at, compares against client-provided
-//     baseVersion, returns 409 if they diverge. Prevents admin from overwriting
-//     manager edits that landed between admin's last load and admin's save.
+//   - CAS source: roadmaps.updated_at — matches /api/roadmap/[id]/version and
+//     admin-patch. Using roadmap_data.updated_at would cause spurious 409s
+//     because regenerateJsonBlob bumps it via SQL now() (Postgres clock) while
+//     admin-patch/version use roadmaps.updated_at (JS clock). The two columns
+//     drift apart after every row-level patch.
 //   - Note: this is "check then write" (not atomic CAS like JSON mode), so a
 //     ~10ms TOCTOU window remains. Acceptable trade-off for Approach A —
 //     dramatically reduces the bug from "always" to "rare race condition".
@@ -158,13 +157,9 @@ async function saveTableBased(id: string, requestBody: unknown, auth: Authentica
         return NextResponse.json({ error: 'Missing document in request body' }, { status: 400 });
     }
 
-    // Optimistic locking: read current version and validate before applying
-    const { data: currentRow, error: readError } = await supabase
-        .from('roadmap_data').select('updated_at').eq('id', id).maybeSingle();
-    if (readError) {
-        return NextResponse.json({ error: 'Failed to read roadmap version', message: readError.message }, { status: 500 });
-    }
-    const currentVersion = typeof currentRow?.updated_at === 'string' ? currentRow.updated_at : null;
+    // Optimistic locking: use roadmaps.updated_at (same source as /version
+    // and admin-patch — NOT roadmap_data.updated_at which drifts).
+    const currentVersion = await loadRoadmapVersion(id);
     const versionCheck = validateBaseVersion(baseVersion, currentVersion);
     if (!versionCheck.ok) {
         logRoadmapSaveTelemetry({
@@ -188,12 +183,10 @@ async function saveTableBased(id: string, requestBody: unknown, auth: Authentica
         return NextResponse.json({ error: 'Failed to save roadmap', message: result.error }, { status: 500 });
     }
 
-    // Re-read persisted updated_at — regenerateJsonBlob sets it via SQL now()
-    // which may differ from result.updatedAt (JS timestamp passed into the sync).
-    const { data: finalRow } = await supabase
-        .from('roadmap_data').select('updated_at').eq('id', id).maybeSingle();
-    const persistedVersion =
-        normalizeVersion(typeof finalRow?.updated_at === 'string' ? finalRow.updated_at : null) ?? result.updatedAt;
+    // Bump roadmaps.updated_at AFTER fullDocumentSync (which calls
+    // regenerateJsonBlob internally). This ensures the returned version
+    // matches what /version and admin-patch will see next.
+    const persistedVersion = normalizeVersion(await bumpRoadmapTimestamp(id)) ?? result.updatedAt;
 
     logRoadmapSaveTelemetry({
         route: 'admin-save',
