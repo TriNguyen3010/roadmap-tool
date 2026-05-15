@@ -1250,6 +1250,14 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
         return result;
     }, [flattened, hiddenRowIds]);
 
+    const visibleRowIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const entry of renderList) {
+            if (entry.kind === 'row') ids.add(entry.row.id);
+        }
+        return ids;
+    }, [renderList]);
+
     const timelineDays = useMemo(() => generateTimelineDays(viewStart, viewEnd, 0), [viewStart, viewEnd]);
 
     const timelineUnitWidth = useMemo(() => {
@@ -2725,16 +2733,31 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                     )
                                 )}
 
-                                {/* Status — smart visibility: category=always hide, sub=hide when expanded (unless all groups have no status), group/team=always show */}
+                                {/* Status — hide parent summary only when child statuses are visible. */}
                                 {(() => {
-                                    const allChildrenNoStatus = row.type === 'subcategory'
-                                        && row.children?.every(child => !child.status || child.status === 'None');
-                                    const showStatusVisual = row.type === 'team'
+                                    const rowSupportsStatus = row.type === 'team'
                                         || row.type === 'group'
-                                        || (row.type === 'subcategory' && (!isExpanded || allChildrenNoStatus))
-                                        ;
-                                    const canClickStatus = (row.type === 'team' || row.type === 'group' || row.type === 'subcategory')
-                                        && rowPermission.canEditStatus;
+                                        || row.type === 'subcategory';
+                                    const visibleChildren = row.children?.filter(child => visibleRowIds.has(child.id)) ?? [];
+                                    const hasVisibleChildStatus = visibleChildren.some(child => !!child.status && child.status !== 'None');
+                                    const hideExpandedParentStatus = row.type === 'subcategory' && hasVisibleChildStatus;
+                                    const showStatusVisual = rowSupportsStatus
+                                        && !hideExpandedParentStatus
+                                        && !!row.status
+                                        && row.status !== 'None';
+                                    const canClickStatus = rowSupportsStatus && rowPermission.canEditStatus;
+                                    let statusTitle = '';
+                                    if (rowSupportsStatus) {
+                                        if (hideExpandedParentStatus) {
+                                            statusTitle = 'Status ẩn vì các status con đang được hiển thị';
+                                        } else if (row.statusMode === 'auto' && showStatusVisual) {
+                                            statusTitle = `Status auto từ task con: ${row.status}`;
+                                        } else if (showStatusVisual) {
+                                            statusTitle = row.status;
+                                        } else if (canClickStatus) {
+                                            statusTitle = 'Click để đổi status';
+                                        }
+                                    }
                                     return (
                                         <div
                                             data-status-trigger="true"
@@ -2758,19 +2781,10 @@ export default function SpreadsheetGrid({ data, reportedData, reportedBridgeRead
                                                 captureDropdownAnchor(e);
                                                 setOpenStatusId(openStatusId === row.id ? null : row.id);
                                             }}
-                                            title={!showStatusVisual
-                                                    ? (canClickStatus ? 'Click để đổi status' : '')
-                                                    : row.statusMode === 'auto'
-                                                    ? 'Status đang auto từ task con. Click để mở Edit.'
-                                                    : 'Click để đổi status'
-                                            }
+                                            title={statusTitle}
                                         >
                                             {!showStatusVisual ? (
                                                 <span className="mx-auto text-[10px] text-transparent">&nbsp;</span>
-                                            ) : row.statusMode === 'auto' ? (
-                                                <span className="mx-auto text-[10px] text-gray-400 italic"></span>
-                                            ) : row.status === 'None' ? (
-                                                <span className="mx-auto text-[10px] text-transparent"></span>
                                             ) : (
                                                 <span className="text-[10px] px-1 py-0.5 rounded font-semibold w-full text-center truncate"
                                                     style={{ backgroundColor: STATUS_TAG_BG[row.status] || '#f3f4f6', color: STATUS_TAG_TEXT[row.status] || '#374151' }}>
