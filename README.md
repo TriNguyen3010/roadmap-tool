@@ -47,6 +47,21 @@ cp .env.example .env.local
 - Upload invalid type or too-large file -> `400`
 - Burst requests above limit -> `429`
 - Delete image in managed folder -> success
+6. Configure weekly-report upload behavior:
+- `REPORT_UPLOAD_MAX_MB` (default `10`)
+- `REPORT_STORAGE_BUCKET` (default `reports`; bucket must exist in Supabase Storage and be **private**)
+7. Configure weekly-report API rate limits:
+- `REPORT_UPLOAD_RATE_LIMIT_MAX` (default `10`) / `REPORT_UPLOAD_RATE_LIMIT_WINDOW_MS` (default `60000`)
+- `REPORT_DELETE_RATE_LIMIT_MAX` (default `20`) / `REPORT_DELETE_RATE_LIMIT_WINDOW_MS` (default `60000`)
+- `REPORT_DOWNLOAD_RATE_LIMIT_MAX` (default `60`) / `REPORT_DOWNLOAD_RATE_LIMIT_WINDOW_MS` (default `60000`)
+8. Verify editor-only access for reports:
+- `POST /api/reports` and `DELETE /api/reports/[id]` return `401` without editor session.
+9. Verify weekly-report smoke tests in production/staging:
+- Upload valid `.docx` -> success; row appears in side panel under correct month.
+- Upload `.pdf` or file >10 MB -> `400`.
+- Burst uploads above limit -> `429`.
+- Delete a report -> DB row removed and Supabase Storage object removed.
+- Open report popup -> drag/resize works; reload preserves window position/size.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
