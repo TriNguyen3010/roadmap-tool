@@ -9,7 +9,7 @@ const todayMonth = (): string => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-export async function GET(_request: NextRequest) {
+export async function GET() {
     const requestId = randomUUID();
     try {
         const months = await listMonths();
