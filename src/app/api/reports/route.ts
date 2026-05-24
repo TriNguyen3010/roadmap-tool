@@ -69,7 +69,10 @@ export async function POST(request: NextRequest) {
         const file = form.get('file');
         if (!(file instanceof File)) return err('NO_FILE', 'File is required', 400, requestId);
 
-        if (file.type && file.type !== DOCX_MIME && !file.name.toLowerCase().endsWith('.docx')) {
+        if (!file.name.toLowerCase().endsWith('.docx')) {
+            return err('INVALID_FILE_TYPE', 'Only .docx files are allowed', 400, requestId);
+        }
+        if (file.type && file.type !== DOCX_MIME) {
             return err('INVALID_FILE_TYPE', 'Only .docx files are allowed', 400, requestId);
         }
         if (file.size > MAX_BYTES) {
@@ -106,6 +109,15 @@ export async function POST(request: NextRequest) {
                 }>;
             } catch { return null; }
         })();
+
+        const MONTH_RE = /^\d{4}-\d{2}$/;
+        const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+        if (overrides?.month !== undefined && !MONTH_RE.test(overrides.month)) {
+            return err('BAD_REQUEST', '`metadata.month` must be YYYY-MM', 400, requestId);
+        }
+        if (overrides?.reportDate !== undefined && !ISO_DATE_RE.test(overrides.reportDate)) {
+            return err('BAD_REQUEST', '`metadata.reportDate` must be YYYY-MM-DD', 400, requestId);
+        }
 
         const parsed = parseReportHeader(rawText);
         const meta = { ...parsed, ...(overrides ?? {}) };
