@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
-    Download, FileJson, Loader2, Flag, Check,
+    Download, FileJson, FileText, Loader2, Flag, Check,
     Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft,
     ChevronsUp, ChevronsDown
 } from 'lucide-react';
@@ -42,6 +42,8 @@ interface ToolbarProps {
     onOpenFilterPopup: () => void;
     isFilterPopupOpen?: boolean;
     isMilestonesPopupOpen?: boolean;
+    onOpenReportsPanel?: () => void;
+    isReportsPanelOpen?: boolean;
     beforeMonths: number;
     afterMonths: number;
     onBeforeMonthsChange: (m: number) => void;
@@ -90,7 +92,8 @@ export default function Toolbar({
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
     isReportedMode, isTimelineOnly, onToggleTimelineOnly, onBackToHome,
     isJsonMode, quickFilter, onQuickFilterStatusChange, onQuickFilterTeamChange, onQuickFilterPriorityChange,
-    onExpandAll, onCollapseAll, roadmapConfig = DEFAULT_ROADMAP_CONFIG
+    onExpandAll, onCollapseAll, roadmapConfig = DEFAULT_ROADMAP_CONFIG,
+    onOpenReportsPanel, isReportsPanelOpen,
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -489,6 +492,18 @@ export default function Toolbar({
                         >
                             <Filter size={13} className={activeFilterCount > 0 || isFilterPopupOpen ? 'text-indigo-500' : 'text-slate-500'} />
                             <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
+                        </button>
+                    )}
+
+                    {onOpenReportsPanel && (
+                        <button
+                            onClick={onOpenReportsPanel}
+                            aria-label="Open reports panel"
+                            title="Reports"
+                            className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isReportsPanelOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <FileText size={13} className={isReportsPanelOpen ? 'text-indigo-500' : 'text-slate-500'} />
+                            <span>Reports</span>
                         </button>
                     )}
 
