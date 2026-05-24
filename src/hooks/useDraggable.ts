@@ -11,8 +11,11 @@ export const useDraggable = (params: {
     const { elementRef, handleRef, enabled = true } = params;
 
     // Stabilize the callback so re-renders don't tear down listeners mid-drag.
+    // The ref is updated in an effect (not during render) to satisfy React's
+    // refs-during-render lint rule; the update runs after commit, before any
+    // user event can fire pointermove, so the listener always reads the latest.
     const onChangeRef = useRef(params.onChange);
-    onChangeRef.current = params.onChange;
+    useEffect(() => { onChangeRef.current = params.onChange; });
 
     useEffect(() => {
         if (!enabled) return;

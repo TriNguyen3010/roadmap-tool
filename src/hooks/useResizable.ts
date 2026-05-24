@@ -15,8 +15,11 @@ export const useResizable = (params: {
     const { elementRef, handleRef, min, max, enabled = true } = params;
 
     // Stabilize callback so re-renders don't tear down listeners mid-resize.
+    // Ref is updated in an effect to satisfy React's refs-during-render lint
+    // rule; commit-time update is safe because no user event can fire between
+    // a render and the next effect flush in the same tick.
     const onChangeRef = useRef(params.onChange);
-    onChangeRef.current = params.onChange;
+    useEffect(() => { onChangeRef.current = params.onChange; });
 
     useEffect(() => {
         if (!enabled) return;
