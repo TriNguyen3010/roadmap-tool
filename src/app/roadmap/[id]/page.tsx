@@ -8,6 +8,8 @@ import Toolbar, { type QuickViewMode } from '@/components/Toolbar';
 import SpreadsheetGrid from '@/components/SpreadsheetGrid';
 import MilestoneEditor from '@/components/MilestoneEditor';
 import FilterPopup from '@/components/FilterPopup';
+import ReportsPanel from '@/components/ReportsPanel';
+import ReportPopup from '@/components/ReportPopup';
 import TimelineModeFab from '@/components/TimelineModeFab';
 import { Toast } from '@/components/Toast';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -17,6 +19,7 @@ import { LocalBackupBanner } from '@/components/LocalBackupBanner';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { getSupabaseBrowserClient } from '@/lib/supabaseBrowser';
 import type { EditPermission, ManagerFieldChange } from '@/types/auth';
+import type { Report } from '@/types/report';
 import {
   ColumnWidthMode,
   Milestone,
@@ -212,6 +215,9 @@ export default function RoadmapPage() {
   const [saveTick, setSaveTick] = useState(0);
   const [showMilestones, setShowMilestones] = useState(false);
   const [showFilterPopup, setShowFilterPopup] = useState(false);
+  const [isReportsPanelOpen, setIsReportsPanelOpen] = useState(false);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [activeReport, setActiveReport] = useState<Report | null>(null);
   const [isApplyingPhaseDates, setIsApplyingPhaseDates] = useState(false);
   const [guestMode, setGuestMode] = useState(false);
   const [hasUnsavedSharedChanges, setHasUnsavedSharedChanges] = useState(false);
@@ -1674,6 +1680,18 @@ export default function RoadmapPage() {
   }, [isReportedMode]);
 
   useEffect(() => {
+    if (!activeReportId) { setActiveReport(null); return; }
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/reports/${activeReportId}`);
+      if (!res.ok || cancelled) return;
+      const data = (await res.json()) as { report: Report };
+      if (!cancelled) setActiveReport(data.report);
+    })();
+    return () => { cancelled = true; };
+  }, [activeReportId]);
+
+  useEffect(() => {
     if (!isReportedBridgeActive) {
       setReportedSourceLoading(false);
       setReportedSourceError(null);
@@ -1901,6 +1919,27 @@ export default function RoadmapPage() {
         />
       )}
 
+      {isReportsPanelOpen && (
+        <ReportsPanel
+          canEdit={canManageRoadmap}
+          onSelect={setActiveReportId}
+          onClose={() => setIsReportsPanelOpen(false)}
+          onToast={(message, kind) => addToast(message, kind ?? 'success')}
+        />
+      )}
+      {activeReport && (
+        <ReportPopup
+          report={activeReport}
+          onClose={() => setActiveReportId(null)}
+          onDownload={async () => {
+            const res = await fetch(`/api/reports/${activeReport.id}/download`);
+            if (!res.ok) return;
+            const data = (await res.json()) as { url: string };
+            window.open(data.url, '_blank');
+          }}
+        />
+      )}
+
       {showFilterPopup && (
         <FilterPopup
         isOpen={showFilterPopup}
@@ -1968,6 +2007,8 @@ export default function RoadmapPage() {
         onExpandAll={handleExpandOneLevel}
         onCollapseAll={handleCollapseOneLevel}
         roadmapConfig={roadmapConfig}
+        onOpenReportsPanel={() => setIsReportsPanelOpen((prev) => !prev)}
+        isReportsPanelOpen={isReportsPanelOpen}
       />
       <div className="flex-1 overflow-hidden">
         <SpreadsheetGrid
