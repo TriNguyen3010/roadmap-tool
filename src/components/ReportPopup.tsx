@@ -52,11 +52,17 @@ export default function ReportPopup({ report, onClose, onDownload }: Props) {
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
+    useEffect(() => {
+        containerRef.current?.focus();
+    }, []);
+
     return (
         <div
             ref={containerRef}
             role="dialog"
+            aria-modal="true"
             aria-label={report.title}
+            tabIndex={-1}
             className="fixed bg-white shadow-2xl rounded-lg border border-gray-200 flex flex-col overflow-hidden"
             style={{
                 left: state.x,
@@ -93,8 +99,8 @@ export default function ReportPopup({ report, onClose, onDownload }: Props) {
             />
             <div
                 ref={resizeRef}
-                role="separator"
-                aria-label="Resize"
+                role="presentation"
+                aria-hidden="true"
                 className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
                 style={{
                     background:
