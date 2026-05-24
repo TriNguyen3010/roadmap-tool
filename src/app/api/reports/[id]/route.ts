@@ -8,6 +8,8 @@ import type { ReportErrorCode } from '@/types/report';
 
 export const runtime = 'nodejs';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const DELETE_RATE_MAX = readPositiveIntEnv('REPORT_DELETE_RATE_LIMIT_MAX', 20);
 const DELETE_RATE_WINDOW_MS = readPositiveIntEnv('REPORT_DELETE_RATE_LIMIT_WINDOW_MS', 60_000);
 
@@ -17,6 +19,7 @@ const err = (code: ReportErrorCode, message: string, status: number, requestId: 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const requestId = randomUUID();
     const { id } = await params;
+    if (!UUID_RE.test(id)) return err('NOT_FOUND', 'Report not found', 404, requestId);
     try {
         const report = await getReportById(id);
         if (!report) return err('NOT_FOUND', 'Report not found', 404, requestId);
@@ -30,6 +33,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const requestId = randomUUID();
     const { id } = await params;
+    if (!UUID_RE.test(id)) return err('NOT_FOUND', 'Report not found', 404, requestId);
     try {
         const auth = await authenticateAdminRequest(request);
         if (!auth) return err('UNAUTHORIZED', 'Unauthorized', 401, requestId);
