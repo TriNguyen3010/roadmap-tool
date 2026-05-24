@@ -39,4 +39,28 @@ describe('sanitizeReportHtml', () => {
         expect(sanitizeReportHtml('')).toContain('Không parse được');
         expect(sanitizeReportHtml('   ')).toContain('Không parse được');
     });
+
+    it('strips data:image/svg+xml in img src (XSS vector)', () => {
+        const html = '<img src="data:image/svg+xml;base64,PHN2ZyBvbmxvYWQ9YWxlcnQoMSk+PC9zdmc+" alt="x">';
+        const out = sanitizeReportHtml(html);
+        expect(out).not.toContain('data:image/svg+xml');
+    });
+
+    it('preserves data:image/png in img src (legitimate Mammoth output)', () => {
+        const html = '<img src="data:image/png;base64,iVBORw0KGgo=" alt="ok">';
+        const out = sanitizeReportHtml(html);
+        expect(out).toContain('data:image/png');
+    });
+
+    it('strips javascript: href on anchors', () => {
+        const html = '<a href="javascript:alert(1)">click</a>';
+        const out = sanitizeReportHtml(html);
+        expect(out).not.toContain('javascript:');
+    });
+
+    it('strips data-* attributes', () => {
+        const html = '<p data-evil="payload">x</p>';
+        const out = sanitizeReportHtml(html);
+        expect(out).not.toContain('data-evil');
+    });
 });
