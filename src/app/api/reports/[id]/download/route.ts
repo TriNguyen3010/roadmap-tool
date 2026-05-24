@@ -40,7 +40,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         if ('error' in signed) {
             return err('STORAGE_ERROR', 'Could not create download URL', 500, requestId);
         }
-        return NextResponse.json({ url: signed.url, requestId });
+        return NextResponse.json(
+            { url: signed.url, requestId },
+            { headers: { 'Cache-Control': 'no-store' } },
+        );
     } catch (error) {
         console.error(`[reports.download:${requestId}] failed`, error);
         return err('INTERNAL', 'Download failed', 500, requestId);
