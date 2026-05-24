@@ -17,6 +17,12 @@ describe('sanitizeReportFilename', () => {
         expect(sanitizeReportFilename('a   b.docx')).toBe('a b.docx');
     });
 
+    it('falls back to "report.docx" when stem is empty after sanitization', () => {
+        expect(sanitizeReportFilename('.docx')).toBe('report.docx');
+        expect(sanitizeReportFilename('   .docx')).toBe('report.docx');
+        expect(sanitizeReportFilename('_____.docx')).toBe('report.docx');
+    });
+
     it('forces .docx extension when missing', () => {
         expect(sanitizeReportFilename('plain')).toBe('plain.docx');
     });
