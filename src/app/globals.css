@@ -62,3 +62,4 @@ button {
 .report-prose th, .report-prose td { border: 1px solid #e5e7eb; padding: 0.25rem 0.5rem; }
 .report-prose th { background: #f9fafb; font-weight: 600; }
 .report-prose a { color: #2563eb; text-decoration: underline; }
+.report-prose img { max-width: 100%; height: auto; }
