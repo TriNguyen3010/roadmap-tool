@@ -38,7 +38,7 @@ const ensureHook = () => {
             removeAttr('src');
         }
         const href = getAttr('href') ?? '';
-        if (href && /^\s*javascript:/i.test(href)) {
+        if (href && /^\s*(?:javascript|data):/i.test(href)) {
             removeAttr('href');
         }
     });

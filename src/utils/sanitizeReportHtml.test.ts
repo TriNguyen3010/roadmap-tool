@@ -58,6 +58,12 @@ describe('sanitizeReportHtml', () => {
         expect(out).not.toContain('javascript:');
     });
 
+    it('strips data: hrefs (phishing/data-URI navigation vector)', () => {
+        const html = '<a href="data:text/html,&lt;script&gt;alert(1)&lt;/script&gt;">x</a>';
+        const out = sanitizeReportHtml(html);
+        expect(out).not.toContain('data:');
+    });
+
     it('strips data-* attributes', () => {
         const html = '<p data-evil="payload">x</p>';
         const out = sanitizeReportHtml(html);
