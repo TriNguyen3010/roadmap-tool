@@ -2,6 +2,7 @@ import type { ReportMetadata } from '@/types/report';
 
 const DATE_RE = /Ngày:\s*(\d{2})\/(\d{2})\/(\d{4})/i;
 const WEEK_RE = /Week\s+(\d+)/i;
+// Best-effort: captures the FIRST dd/mm - dd/mm in the head. If the body contains an earlier date range, that one wins. Editors can correct via the upload dialog.
 const RANGE_RE = /(\d{2}\/\d{2})\s*-\s*(\d{2}\/\d{2})/;
 const SPRINT_RE = /SPRINT\s+(\d+)/i;
 
@@ -13,6 +14,7 @@ const todayIso = (): string => {
 };
 
 export const parseReportHeader = (rawText: string): ReportMetadata => {
+    // ~4 KB — the report-period footer line ("SW _ Week 21 Report _ 18/05 - 22/05") can appear after the overview section, ~1 KB is too tight in practice.
     const head = (rawText || '').slice(0, 4000);
 
     const dateMatch = head.match(DATE_RE);

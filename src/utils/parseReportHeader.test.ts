@@ -42,6 +42,11 @@ describe('parseReportHeader', () => {
         expect(meta.title).toBe('Week 21 · 18/05 - 22/05');
     });
 
+    it('builds title from week alone when date range is missing', () => {
+        const meta = parseReportHeader('Ngày: 19/05/2026\nWeek 21 Report');
+        expect(meta.title).toBe('Week 21');
+    });
+
     it('falls back title to "Report YYYY-MM-DD" when no week/range', () => {
         const meta = parseReportHeader('Ngày: 19/05/2026');
         expect(meta.title).toBe('Report 2026-05-19');
