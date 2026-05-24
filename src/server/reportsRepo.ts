@@ -35,7 +35,7 @@ const toReport = (row: DbRow): Report => ({
     htmlContent: row.html_content,
 });
 
-const toListItem = (row: Omit<DbRow, 'html_content' | 'raw_text'>): ReportListItem => ({
+const toListItem = (row: Omit<DbRow, 'html_content' | 'raw_text' | 'original_storage_path'>): ReportListItem => ({
     id: row.id,
     month: row.month,
     reportDate: row.report_date,
@@ -50,8 +50,8 @@ const toListItem = (row: Omit<DbRow, 'html_content' | 'raw_text'>): ReportListIt
     updatedAt: row.updated_at,
 });
 
-const LIST_COLUMNS = 'id,month,report_date,sprint_number,title,week_label,date_range,original_filename,original_storage_path,uploaded_by,file_size_bytes,created_at,updated_at';
-const FULL_COLUMNS = `${LIST_COLUMNS},html_content,raw_text`;
+const LIST_COLUMNS = 'id,month,report_date,sprint_number,title,week_label,date_range,original_filename,uploaded_by,file_size_bytes,created_at,updated_at';
+const FULL_COLUMNS = `${LIST_COLUMNS},original_storage_path,html_content,raw_text`;
 
 export const listMonths = async (): Promise<string[]> => {
     const { data, error } = await supabase
@@ -72,7 +72,7 @@ export const listReportsByMonth = async (month: string): Promise<ReportListItem[
         .order('sprint_number', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
     if (error) throw new Error(`listReportsByMonth: ${error.message}`);
-    return (data ?? []).map((row) => toListItem(row as Omit<DbRow, 'html_content' | 'raw_text'>));
+    return (data ?? []).map((row) => toListItem(row as Omit<DbRow, 'html_content' | 'raw_text' | 'original_storage_path'>));
 };
 
 export const getReportById = async (id: string): Promise<Report | null> => {
@@ -123,9 +123,13 @@ export const insertReport = async (input: Omit<Report, 'id' | 'createdAt' | 'upd
 };
 
 export const deleteReport = async (id: string): Promise<{ storagePath: string } | null> => {
-    const storagePath = await getReportStoragePath(id);
-    if (!storagePath) return null;
-    const { error } = await supabase.from('reports').delete().eq('id', id);
+    const { data, error } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', id)
+        .select('original_storage_path')
+        .maybeSingle();
     if (error) throw new Error(`deleteReport: ${error.message}`);
-    return { storagePath };
+    if (!data) return null;
+    return { storagePath: (data as { original_storage_path: string }).original_storage_path };
 };
