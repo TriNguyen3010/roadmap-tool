@@ -29,13 +29,16 @@ export default function ReportsPanel({ canEdit, onSelect, onClose, onToast }: Pr
             const res = await fetch('/api/reports/months');
             const data = (await res.json()) as { months: string[] };
             setMonths(data.months);
-            if (data.months.length && !data.months.includes(selectedMonth)) {
-                setSelectedMonth(data.months[0]);
+            // Use functional setSelectedMonth so this callback doesn't depend on it;
+            // depending on selectedMonth would cause loadMonths to re-create on every
+            // selection change and trigger a redundant fetch + brief picker flicker.
+            if (data.months.length) {
+                setSelectedMonth((prev) => (data.months.includes(prev) ? prev : data.months[0]));
             }
         } catch {
             onToast?.('Failed to load months', 'error');
         }
-    }, [onToast, selectedMonth]);
+    }, [onToast]);
 
     const loadReports = useCallback(async (month: string) => {
         setLoading(true);
