@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 export type Position = { x: number; y: number };
 
@@ -8,7 +8,11 @@ export const useDraggable = (params: {
     onChange: (pos: Position) => void;
     enabled?: boolean;
 }) => {
-    const { elementRef, handleRef, onChange, enabled = true } = params;
+    const { elementRef, handleRef, enabled = true } = params;
+
+    // Stabilize the callback so re-renders don't tear down listeners mid-drag.
+    const onChangeRef = useRef(params.onChange);
+    onChangeRef.current = params.onChange;
 
     useEffect(() => {
         if (!enabled) return;
@@ -16,6 +20,7 @@ export const useDraggable = (params: {
         if (!handle) return;
 
         let active = false;
+        let activePointerId: number | null = null;
         let startPointerX = 0;
         let startPointerY = 0;
         let startElX = 0;
@@ -31,25 +36,34 @@ export const useDraggable = (params: {
             startElX = rect.left;
             startElY = rect.top;
             active = true;
+            activePointerId = event.pointerId;
             handle.setPointerCapture?.(event.pointerId);
         };
 
         const onMove = (event: PointerEvent) => {
-            if (!active) return;
+            if (!active || event.pointerId !== activePointerId) return;
             const dx = event.clientX - startPointerX;
             const dy = event.clientY - startPointerY;
-            onChange({ x: startElX + dx, y: startElY + dy });
+            onChangeRef.current({ x: startElX + dx, y: startElY + dy });
         };
 
-        const onUp = () => { active = false; };
+        const release = (event: PointerEvent) => {
+            if (event.pointerId !== activePointerId) return;
+            active = false;
+            try { handle.releasePointerCapture?.(event.pointerId); } catch {/* already released */}
+            activePointerId = null;
+        };
 
+        // Listeners on the handle (capture routes events here in real browsers).
         handle.addEventListener('pointerdown', onDown);
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', release);
+        handle.addEventListener('pointercancel', release);
         return () => {
             handle.removeEventListener('pointerdown', onDown);
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', release);
+            handle.removeEventListener('pointercancel', release);
         };
-    }, [elementRef, handleRef, onChange, enabled]);
+    }, [elementRef, handleRef, enabled]);
 };

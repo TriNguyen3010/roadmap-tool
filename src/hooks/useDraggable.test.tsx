@@ -36,8 +36,8 @@ describe('useDraggable', () => {
 
         act(() => {
             handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 150, clientY: 150, pointerId: 1, button: 0, bubbles: true }));
-            window.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 180, pointerId: 1, bubbles: true }));
-            window.dispatchEvent(new PointerEvent('pointerup', { clientX: 200, clientY: 180, pointerId: 1, bubbles: true }));
+            handle.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 180, pointerId: 1, bubbles: true }));
+            handle.dispatchEvent(new PointerEvent('pointerup', { clientX: 200, clientY: 180, pointerId: 1, bubbles: true }));
         });
 
         expect(onChange).toHaveBeenCalled();
@@ -58,5 +58,25 @@ describe('useDraggable', () => {
             handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 0, clientY: 0, pointerId: 1, button: 2, bubbles: true }));
         });
         expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('stops calling onChange after pointerup', () => {
+        const { element, handle } = makeRefs();
+        const onChange = vi.fn();
+        renderHook(() => {
+            const elRef = useRef(element);
+            const handleRef = useRef(handle);
+            useDraggable({ elementRef: elRef, handleRef, onChange });
+        });
+
+        act(() => {
+            handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 150, clientY: 150, pointerId: 1, button: 0, bubbles: true }));
+            handle.dispatchEvent(new PointerEvent('pointerup', { clientX: 150, clientY: 150, pointerId: 1, bubbles: true }));
+        });
+        const callsBefore = onChange.mock.calls.length;
+        act(() => {
+            handle.dispatchEvent(new PointerEvent('pointermove', { clientX: 999, clientY: 999, pointerId: 1, bubbles: true }));
+        });
+        expect(onChange.mock.calls.length).toBe(callsBefore);
     });
 });
