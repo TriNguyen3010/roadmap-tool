@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Report, ReportListItem } from '@/types/report';
+import type { Report, ReportListItem, UpdateReportInput } from '@/types/report';
 
 type DbRow = {
     id: string;
@@ -120,6 +120,38 @@ export const insertReport = async (input: Omit<Report, 'id' | 'createdAt' | 'upd
         .single();
     if (error || !data) throw new Error(`insertReport: ${error?.message || 'no data'}`);
     return toReport(data as DbRow);
+};
+
+const camelToDbRow = (input: UpdateReportInput): Record<string, unknown> => {
+    const row: Record<string, unknown> = {};
+    if ('title' in input)               row.title = input.title;
+    if ('weekLabel' in input)           row.week_label = input.weekLabel;
+    if ('dateRange' in input)           row.date_range = input.dateRange;
+    if ('sprintNumber' in input)        row.sprint_number = input.sprintNumber;
+    if ('reportDate' in input)          row.report_date = input.reportDate;
+    if ('month' in input)               row.month = input.month;
+    if ('htmlContent' in input)         row.html_content = input.htmlContent;
+    if ('rawText' in input)             row.raw_text = input.rawText;
+    if ('originalFilename' in input)    row.original_filename = input.originalFilename;
+    if ('originalStoragePath' in input) row.original_storage_path = input.originalStoragePath;
+    if ('fileSizeBytes' in input)       row.file_size_bytes = input.fileSizeBytes;
+    return row;
+};
+
+export const updateReport = async (id: string, input: UpdateReportInput): Promise<Report | null> => {
+    const row = camelToDbRow(input);
+    if (Object.keys(row).length === 0) {
+        // No fields to update — return current row so callers always get a fresh Report.
+        return getReportById(id);
+    }
+    const { data, error } = await supabase
+        .from('reports')
+        .update(row)
+        .eq('id', id)
+        .select(FULL_COLUMNS)
+        .maybeSingle();
+    if (error) throw new Error(`updateReport: ${error.message}`);
+    return data ? toReport(data as DbRow) : null;
 };
 
 export const deleteReport = async (id: string): Promise<{ storagePath: string } | null> => {
