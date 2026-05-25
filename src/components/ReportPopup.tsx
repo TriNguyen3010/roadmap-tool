@@ -282,14 +282,30 @@ export default function ReportPopup({ report, canEdit, onClose, onDownload, onSa
                     />
                 )}
                 {canEdit && mode === 'view' && (
-                    <button onClick={() => setMode('edit')} aria-label="Edit" title="Edit" className="p-1 rounded hover:bg-gray-200 text-gray-600">
+                    <button
+                        onClick={() => setMode('edit')}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        aria-label="Edit"
+                        title="Edit"
+                        className="p-1 rounded hover:bg-gray-200 text-gray-600"
+                    >
                         <Pencil className="w-4 h-4" />
                     </button>
                 )}
-                <button onClick={onDownload} aria-label="Download original .docx" className="p-1 rounded hover:bg-gray-200 text-gray-600">
+                <button
+                    onClick={onDownload}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    aria-label="Download original .docx"
+                    className="p-1 rounded hover:bg-gray-200 text-gray-600"
+                >
                     <Download className="w-4 h-4" />
                 </button>
-                <button onClick={mode === 'view' ? onClose : handleCancel} aria-label="Close" className="p-1 rounded hover:bg-gray-200 text-gray-600">
+                <button
+                    onClick={mode === 'view' ? onClose : handleCancel}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    aria-label="Close"
+                    className="p-1 rounded hover:bg-gray-200 text-gray-600"
+                >
                     <X className="w-4 h-4" />
                 </button>
             </div>
