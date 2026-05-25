@@ -1930,6 +1930,7 @@ export default function RoadmapPage() {
       {activeReport && (
         <ReportPopup
           report={activeReport}
+          canEdit={true}
           onClose={() => setActiveReportId(null)}
           onDownload={async () => {
             const res = await fetch(`/api/reports/${activeReport.id}/download`);
