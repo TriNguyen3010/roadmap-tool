@@ -217,6 +217,7 @@ export default function RoadmapPage() {
   const [showFilterPopup, setShowFilterPopup] = useState(false);
   const [isReportsPanelOpen, setIsReportsPanelOpen] = useState(false);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [reportsRefreshTick, setReportsRefreshTick] = useState(0);
   const [activeReport, setActiveReport] = useState<Report | null>(null);
   const [isApplyingPhaseDates, setIsApplyingPhaseDates] = useState(false);
   const [guestMode, setGuestMode] = useState(false);
@@ -1922,6 +1923,7 @@ export default function RoadmapPage() {
       {isReportsPanelOpen && (
         <ReportsPanel
           canEdit={canManageRoadmap}
+          refreshKey={reportsRefreshTick}
           onSelect={setActiveReportId}
           onClose={() => setIsReportsPanelOpen(false)}
           onToast={(message, kind) => addToast(message, kind ?? 'success')}
@@ -1931,6 +1933,7 @@ export default function RoadmapPage() {
         <ReportPopup
           report={activeReport}
           canEdit={canManageRoadmap}
+          onSaved={() => setReportsRefreshTick((t) => t + 1)}
           onClose={() => setActiveReportId(null)}
           onDownload={async () => {
             const res = await fetch(`/api/reports/${activeReport.id}/download`);

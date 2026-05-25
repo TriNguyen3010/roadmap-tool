@@ -7,6 +7,7 @@ import UploadReportDialog from './UploadReportDialog';
 
 interface Props {
     canEdit: boolean;
+    refreshKey?: number;
     onSelect: (reportId: string) => void;
     onClose: () => void;
     onToast?: (message: string, kind?: 'success' | 'error') => void;
@@ -17,7 +18,7 @@ const todayMonth = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-export default function ReportsPanel({ canEdit, onSelect, onClose, onToast }: Props) {
+export default function ReportsPanel({ canEdit, refreshKey, onSelect, onClose, onToast }: Props) {
     const [months, setMonths] = useState<string[]>([]);
     const [selectedMonth, setSelectedMonth] = useState<string>(todayMonth());
     const [reports, setReports] = useState<ReportListItem[]>([]);
@@ -53,8 +54,8 @@ export default function ReportsPanel({ canEdit, onSelect, onClose, onToast }: Pr
         }
     }, [onToast]);
 
-    useEffect(() => { void loadMonths(); }, [loadMonths]);
-    useEffect(() => { void loadReports(selectedMonth); }, [loadReports, selectedMonth]);
+    useEffect(() => { void loadMonths(); }, [loadMonths, refreshKey]);
+    useEffect(() => { void loadReports(selectedMonth); }, [loadReports, selectedMonth, refreshKey]);
 
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this report?')) return;
