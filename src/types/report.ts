@@ -40,3 +40,27 @@ export type ReportErrorBody = {
     code: ReportErrorCode;
     requestId: string;
 };
+
+// UI-side draft of editable metadata fields. Empty string means "unset" for nullable fields.
+export type MetaDraft = {
+    title: string;
+    weekLabel: string;
+    dateRange: string;
+    sprintNumber: number | null;
+    reportDate: string; // 'YYYY-MM-DD'
+};
+
+// Server-side patch input. All fields optional; only present keys are written.
+export type UpdateReportInput = Partial<{
+    title: string;
+    weekLabel: string | null;
+    dateRange: string | null;
+    sprintNumber: number | null;
+    reportDate: string;
+    month: string;
+    htmlContent: string;
+    rawText: string;
+    originalFilename: string;
+    originalStoragePath: string;
+    fileSizeBytes: number;
+}>;
