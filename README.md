@@ -56,12 +56,17 @@ cp .env.example .env.local
 - `REPORT_DOWNLOAD_RATE_LIMIT_MAX` (default `60`) / `REPORT_DOWNLOAD_RATE_LIMIT_WINDOW_MS` (default `60000`)
 8. Verify editor-only access for reports:
 - `POST /api/reports` and `DELETE /api/reports/[id]` return `401` without editor session.
+- `PATCH /api/reports/[id]` (editor-only, rate-limited by `REPORT_UPLOAD_RATE_LIMIT_*`) — edit metadata + HTML content
+- `PUT /api/reports/[id]/file` (editor-only, rate-limited by `REPORT_UPLOAD_RATE_LIMIT_*`) — replace original `.docx`
 9. Verify weekly-report smoke tests in production/staging:
 - Upload valid `.docx` -> success; row appears in side panel under correct month.
 - Upload `.pdf` or file >10 MB -> `400`.
 - Burst uploads above limit -> `429`.
 - Delete a report -> DB row removed and Supabase Storage object removed.
 - Open report popup -> drag/resize works; reload preserves window position/size.
+- Editor: open popup → Edit → change title → Save → list refreshes with new title
+- Editor: in edit mode → Replace .docx → content updates, popup stays in edit mode
+- Non-editor: `PATCH` and `PUT` both return 401
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
