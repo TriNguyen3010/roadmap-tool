@@ -125,6 +125,8 @@ export default function ReportPopup({ report, canEdit, onClose, onDownload, onSa
         setDraftHtml(report.htmlContent);
         setMode('view');
         setErrors({});
+        // Reset only when a different report opens, not on same-report data updates.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [report.id]);
 
     const dirty = useMemo(() => {
