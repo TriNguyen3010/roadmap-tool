@@ -1,25 +1,30 @@
 import { useEffect, useRef, type RefObject } from 'react';
 
 export type Size = { width: number; height: number };
+export type Position = { x: number; y: number };
+export type Bounds = Position & Size;
+export type ResizeDirection = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const hasN = (d: ResizeDirection) => d === 'n' || d === 'ne' || d === 'nw';
+const hasS = (d: ResizeDirection) => d === 's' || d === 'se' || d === 'sw';
+const hasE = (d: ResizeDirection) => d === 'e' || d === 'ne' || d === 'se';
+const hasW = (d: ResizeDirection) => d === 'w' || d === 'nw' || d === 'sw';
 
 export const useResizable = (params: {
     elementRef: RefObject<HTMLElement | null>;
     handleRef: RefObject<HTMLElement | null>;
-    onChange: (size: Size) => void;
+    direction?: ResizeDirection;
+    onResize: (bounds: Bounds) => void;
     min: Size;
     max: Size;
     enabled?: boolean;
 }) => {
-    const { elementRef, handleRef, min, max, enabled = true } = params;
+    const { elementRef, handleRef, direction = 'se', min, max, enabled = true } = params;
 
-    // Stabilize callback so re-renders don't tear down listeners mid-resize.
-    // Ref is updated in an effect to satisfy React's refs-during-render lint
-    // rule; commit-time update is safe because no user event can fire between
-    // a render and the next effect flush in the same tick.
-    const onChangeRef = useRef(params.onChange);
-    useEffect(() => { onChangeRef.current = params.onChange; });
+    // Stabilize callback (see useDraggable comment).
+    const onResizeRef = useRef(params.onResize);
+    useEffect(() => { onResizeRef.current = params.onResize; });
 
     useEffect(() => {
         if (!enabled) return;
@@ -30,6 +35,8 @@ export const useResizable = (params: {
         let activePointerId: number | null = null;
         let startX = 0;
         let startY = 0;
+        let startLeft = 0;
+        let startTop = 0;
         let startW = 0;
         let startH = 0;
 
@@ -40,21 +47,43 @@ export const useResizable = (params: {
             const rect = el.getBoundingClientRect();
             startX = event.clientX;
             startY = event.clientY;
+            startLeft = rect.left;
+            startTop = rect.top;
             startW = rect.width;
             startH = rect.height;
             active = true;
             activePointerId = event.pointerId;
             handle.setPointerCapture?.(event.pointerId);
+            // Prevent the parent drag (header) from also reacting.
+            event.stopPropagation();
         };
 
         const onMove = (event: PointerEvent) => {
             if (!active || event.pointerId !== activePointerId) return;
             const dx = event.clientX - startX;
             const dy = event.clientY - startY;
-            onChangeRef.current({
-                width: clamp(startW + dx, min.width, max.width),
-                height: clamp(startH + dy, min.height, max.height),
-            });
+
+            let newW = startW;
+            let newH = startH;
+            let newLeft = startLeft;
+            let newTop = startTop;
+
+            if (hasE(direction)) {
+                newW = clamp(startW + dx, min.width, max.width);
+            } else if (hasW(direction)) {
+                newW = clamp(startW - dx, min.width, max.width);
+                // When width is clamped, the actual delta is smaller than dx; reflect that in left edge.
+                newLeft = startLeft + (startW - newW);
+            }
+
+            if (hasS(direction)) {
+                newH = clamp(startH + dy, min.height, max.height);
+            } else if (hasN(direction)) {
+                newH = clamp(startH - dy, min.height, max.height);
+                newTop = startTop + (startH - newH);
+            }
+
+            onResizeRef.current({ x: newLeft, y: newTop, width: newW, height: newH });
         };
 
         const release = (event: PointerEvent) => {
@@ -74,5 +103,5 @@ export const useResizable = (params: {
             handle.removeEventListener('pointerup', release);
             handle.removeEventListener('pointercancel', release);
         };
-    }, [elementRef, handleRef, min.width, min.height, max.width, max.height, enabled]);
+    }, [elementRef, handleRef, direction, min.width, min.height, max.width, max.height, enabled]);
 };

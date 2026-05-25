@@ -52,5 +52,11 @@ export const usePersistedWindow = (key: string, defaults: WindowState) => {
         setState((prev) => clampToViewport({ ...prev, width: size.width, height: size.height }));
     }, []);
 
-    return { state, setPosition, setSize };
+    // Atomic update for resize from an edge/corner that changes BOTH position and size
+    // (e.g. dragging the top edge shrinks height AND shifts y).
+    const setBounds = useCallback((bounds: WindowState) => {
+        setState(() => clampToViewport(bounds));
+    }, []);
+
+    return { state, setPosition, setSize, setBounds };
 };
