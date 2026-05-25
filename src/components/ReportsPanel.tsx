@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, Upload, Download, Trash2, Loader2, FileText } from 'lucide-react';
+import { X, Upload, Download, Trash2, Loader2, Newspaper } from 'lucide-react';
 import type { ReportListItem } from '@/types/report';
 import UploadReportDialog from './UploadReportDialog';
 
@@ -91,7 +91,7 @@ export default function ReportsPanel({ canEdit, onSelect, onClose, onToast }: Pr
         <aside className="fixed top-0 right-0 h-full w-[360px] bg-white border-l border-gray-200 shadow-lg flex flex-col z-40">
             <header className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
                 <div className="flex items-center gap-2 text-gray-800 font-semibold">
-                    <FileText className="w-4 h-4" /> Reports
+                    <Newspaper className="w-4 h-4" /> Báo cáo tuần
                 </div>
                 <button onClick={onClose} aria-label="Close panel" className="p-1 rounded hover:bg-gray-100">
                     <X className="w-4 h-4" />
