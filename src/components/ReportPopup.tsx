@@ -136,8 +136,8 @@ export default function ReportPopup({ report, canEdit, onClose, onDownload, onSa
     const validate = useCallback((draft: MetaDraft): MetaErrors => {
         const e: MetaErrors = {};
         if (!draft.title.trim()) e.title = 'Required';
-        if (draft.sprintNumber !== null && (!Number.isFinite(draft.sprintNumber) || draft.sprintNumber < 0)) {
-            e.sprintNumber = 'Must be a non-negative number';
+        if (draft.sprintNumber !== null && (!Number.isInteger(draft.sprintNumber) || draft.sprintNumber < 0)) {
+            e.sprintNumber = 'Must be a non-negative integer';
         }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.reportDate)) {
             e.reportDate = 'Format YYYY-MM-DD';
@@ -304,7 +304,11 @@ export default function ReportPopup({ report, canEdit, onClose, onDownload, onSa
                     dangerouslySetInnerHTML={{ __html: localReport.htmlContent }}
                 />
             ) : (
-                <ReportEditBody initialHtml={localReport.htmlContent} onChange={setDraftHtml} />
+                <ReportEditBody
+                    key={localReport.updatedAt}
+                    initialHtml={localReport.htmlContent}
+                    onChange={setDraftHtml}
+                />
             )}
 
             {mode === 'edit' && (

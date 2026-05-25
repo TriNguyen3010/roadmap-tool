@@ -107,17 +107,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             if (body.weekLabel !== null && typeof body.weekLabel !== 'string') {
                 return err('BAD_REQUEST', '`weekLabel` must be string or null', 400, requestId);
             }
-            partial.weekLabel = body.weekLabel as string | null;
+            // Whitespace-only becomes null to match client-side buildPatchPayload behavior.
+            const trimmed = typeof body.weekLabel === 'string' ? body.weekLabel.trim() : null;
+            partial.weekLabel = trimmed ? trimmed : null;
         }
         if ('dateRange' in body) {
             if (body.dateRange !== null && typeof body.dateRange !== 'string') {
                 return err('BAD_REQUEST', '`dateRange` must be string or null', 400, requestId);
             }
-            partial.dateRange = body.dateRange as string | null;
+            const trimmed = typeof body.dateRange === 'string' ? body.dateRange.trim() : null;
+            partial.dateRange = trimmed ? trimmed : null;
         }
         if ('sprintNumber' in body) {
-            if (body.sprintNumber !== null && (typeof body.sprintNumber !== 'number' || !Number.isFinite(body.sprintNumber) || body.sprintNumber < 0)) {
-                return err('BAD_REQUEST', '`sprintNumber` must be non-negative number or null', 400, requestId);
+            if (body.sprintNumber !== null && (typeof body.sprintNumber !== 'number' || !Number.isInteger(body.sprintNumber) || body.sprintNumber < 0)) {
+                return err('BAD_REQUEST', '`sprintNumber` must be non-negative integer or null', 400, requestId);
             }
             partial.sprintNumber = body.sprintNumber as number | null;
         }
