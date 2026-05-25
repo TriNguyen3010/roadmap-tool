@@ -318,19 +318,7 @@ export default function Toolbar({
                         </button>
                     </div>
 
-                    {!isJsonMode && (
-                        <button
-                            type="button"
-                            onClick={() => onToggleQuickViewMode('reported')}
-                            title="Quick filter: kết hợp AND với các filter khác"
-                            className={`flex h-8 shrink-0 items-center rounded-[9px] border px-3 text-xs font-semibold transition-colors ${isReportedMode
-                                ? 'border-[#F0B90B] bg-[#F0B90B] text-slate-900'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
-                                }`}
-                        >
-                            Reported
-                        </button>
-                    )}
+                    {/* Standalone "Reported" toggle hidden — replaced by the Weekly reports panel button below. The grouped version inside isJsonMode still works for power users. */}
 
                     <button
                         type="button"
@@ -498,12 +486,12 @@ export default function Toolbar({
                     {onOpenReportsPanel && (
                         <button
                             onClick={onOpenReportsPanel}
-                            aria-label="Mở báo cáo tuần"
-                            title="Báo cáo tuần"
+                            aria-label="Open weekly reports"
+                            title="Weekly reports"
                             className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isReportsPanelOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                         >
                             <Newspaper size={13} className={isReportsPanelOpen ? 'text-indigo-500' : 'text-slate-500'} />
-                            <span>Báo cáo tuần</span>
+                            <span>Weekly reports</span>
                         </button>
                     )}
 
