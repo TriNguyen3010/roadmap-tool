@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
-    Download, FileJson, FileText, Loader2, Flag, Check,
+    Download, FileJson, Loader2, Flag, Check,
     Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft,
-    ChevronsUp, ChevronsDown
+    ChevronsUp, ChevronsDown, Newspaper
 } from 'lucide-react';
 import { normalizeWeekColor, PhaseOption, DEFAULT_ROADMAP_CONFIG, type RoadmapConfig } from '@/types/roadmap';
 import type { QuickFilterState, QuickFilterStatusState, QuickFilterTeamState, QuickFilterPriorityState } from '@/types/quickFilter';
@@ -498,12 +498,12 @@ export default function Toolbar({
                     {onOpenReportsPanel && (
                         <button
                             onClick={onOpenReportsPanel}
-                            aria-label="Open reports panel"
-                            title="Reports"
+                            aria-label="Mở báo cáo tuần"
+                            title="Báo cáo tuần"
                             className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isReportsPanelOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                         >
-                            <FileText size={13} className={isReportsPanelOpen ? 'text-indigo-500' : 'text-slate-500'} />
-                            <span>Reports</span>
+                            <Newspaper size={13} className={isReportsPanelOpen ? 'text-indigo-500' : 'text-slate-500'} />
+                            <span>Báo cáo tuần</span>
                         </button>
                     )}
 
