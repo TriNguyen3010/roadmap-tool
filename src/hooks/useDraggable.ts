@@ -2,6 +2,21 @@ import { useEffect, useRef, type RefObject } from 'react';
 
 export type Position = { x: number; y: number };
 
+const NON_DRAG_TARGET_SELECTOR = [
+    'button',
+    'a',
+    'input',
+    'textarea',
+    'select',
+    '[role="button"]',
+    '[contenteditable="true"]',
+    '[data-no-drag="true"]',
+].join(',');
+
+function isNonDragTarget(target: EventTarget | null): boolean {
+    return target instanceof Element && !!target.closest(NON_DRAG_TARGET_SELECTOR);
+}
+
 export const useDraggable = (params: {
     elementRef: RefObject<HTMLElement | null>;
     handleRef: RefObject<HTMLElement | null>;
@@ -31,6 +46,7 @@ export const useDraggable = (params: {
 
         const onDown = (event: PointerEvent) => {
             if (event.button !== 0) return;
+            if (isNonDragTarget(event.target)) return;
             const el = elementRef.current;
             if (!el) return;
             const rect = el.getBoundingClientRect();

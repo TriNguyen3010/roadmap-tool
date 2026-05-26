@@ -60,6 +60,26 @@ describe('useDraggable', () => {
         expect(onChange).not.toHaveBeenCalled();
     });
 
+    it('does not start dragging from interactive children inside the handle', () => {
+        const { element, handle } = makeRefs();
+        const button = document.createElement('button');
+        handle.append(button);
+        const onChange = vi.fn();
+        renderHook(() => {
+            const elRef = useRef(element);
+            const handleRef = useRef(handle);
+            useDraggable({ elementRef: elRef, handleRef, onChange });
+        });
+
+        act(() => {
+            button.dispatchEvent(new PointerEvent('pointerdown', { clientX: 150, clientY: 150, pointerId: 1, button: 0, bubbles: true }));
+            handle.dispatchEvent(new PointerEvent('pointermove', { clientX: 200, clientY: 180, pointerId: 1, bubbles: true }));
+            handle.dispatchEvent(new PointerEvent('pointerup', { clientX: 200, clientY: 180, pointerId: 1, bubbles: true }));
+        });
+
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
     it('stops calling onChange after pointerup', () => {
         const { element, handle } = makeRefs();
         const onChange = vi.fn();
