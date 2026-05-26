@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Upload, Download, Trash2, Loader2, Newspaper } from 'lucide-react';
 import type { ReportListItem } from '@/types/report';
 import UploadReportDialog from './UploadReportDialog';
@@ -25,9 +25,17 @@ export default function ReportsPanel({ canEdit, refreshKey, onSelect, onClose, o
     const [loading, setLoading] = useState(false);
     const [showUpload, setShowUpload] = useState(false);
 
+    // Keep onToast in a ref so loadMonths/loadReports callbacks don't depend on
+    // its identity. Parents typically pass inline arrows for onToast, which
+    // would otherwise re-create the callbacks (and re-fire the effects below)
+    // on every parent render — turning a single API failure into a toast storm.
+    const onToastRef = useRef(onToast);
+    useEffect(() => { onToastRef.current = onToast; }, [onToast]);
+
     const loadMonths = useCallback(async () => {
         try {
             const res = await fetch('/api/reports/months');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = (await res.json()) as { months: string[] };
             setMonths(data.months);
             // Use functional setSelectedMonth so this callback doesn't depend on it;
@@ -37,22 +45,23 @@ export default function ReportsPanel({ canEdit, refreshKey, onSelect, onClose, o
                 setSelectedMonth((prev) => (data.months.includes(prev) ? prev : data.months[0]));
             }
         } catch {
-            onToast?.('Failed to load months', 'error');
+            onToastRef.current?.('Failed to load months', 'error');
         }
-    }, [onToast]);
+    }, []);
 
     const loadReports = useCallback(async (month: string) => {
         setLoading(true);
         try {
             const res = await fetch(`/api/reports?month=${encodeURIComponent(month)}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = (await res.json()) as { reports: ReportListItem[] };
-            setReports(data.reports);
+            setReports(data.reports ?? []);
         } catch {
-            onToast?.('Failed to load reports', 'error');
+            onToastRef.current?.('Failed to load reports', 'error');
         } finally {
             setLoading(false);
         }
-    }, [onToast]);
+    }, []);
 
     useEffect(() => { void loadMonths(); }, [loadMonths, refreshKey]);
     useEffect(() => { void loadReports(selectedMonth); }, [loadReports, selectedMonth, refreshKey]);
