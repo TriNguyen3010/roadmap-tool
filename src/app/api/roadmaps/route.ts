@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
+import { filterVisibleRoadmaps } from '@/utils/roadmapVisibility';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +25,7 @@ export async function GET() {
                 updated_at: row.updated_at,
                 storage_mode: row.storage_mode || 'json',
             }));
-            return NextResponse.json(list);
+            return NextResponse.json(filterVisibleRoadmaps(list));
         }
 
         // Fallback: read from roadmap_data (for projects that haven't run backfill yet)
@@ -44,7 +45,7 @@ export async function GET() {
             return { id: row.id, name, updated_at: row.updated_at, storage_mode: 'json' };
         });
 
-        return NextResponse.json(list);
+        return NextResponse.json(filterVisibleRoadmaps(list));
     } catch (error) {
         console.error('Failed to list roadmaps:', error);
         return NextResponse.json({ error: 'Failed to list roadmaps' }, { status: 500 });
