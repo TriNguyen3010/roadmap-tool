@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
     Download, FileJson, Loader2, Flag, Check,
     Pencil, Settings, X, ChevronRight, ChevronDown, Upload, Filter, Unlock, ArrowLeft,
-    ChevronsUp, ChevronsDown
+    ChevronsUp, ChevronsDown, Newspaper
 } from 'lucide-react';
 import { normalizeWeekColor, PhaseOption, DEFAULT_ROADMAP_CONFIG, type RoadmapConfig } from '@/types/roadmap';
 import type { QuickFilterState, QuickFilterStatusState, QuickFilterTeamState, QuickFilterPriorityState } from '@/types/quickFilter';
@@ -42,6 +42,8 @@ interface ToolbarProps {
     onOpenFilterPopup: () => void;
     isFilterPopupOpen?: boolean;
     isMilestonesPopupOpen?: boolean;
+    onOpenReportsPanel?: () => void;
+    isReportsPanelOpen?: boolean;
     beforeMonths: number;
     afterMonths: number;
     onBeforeMonthsChange: (m: number) => void;
@@ -90,7 +92,8 @@ export default function Toolbar({
     availablePhases, onPhaseFilterChange, onToggleQuickViewMode,
     isReportedMode, isTimelineOnly, onToggleTimelineOnly, onBackToHome,
     isJsonMode, quickFilter, onQuickFilterStatusChange, onQuickFilterTeamChange, onQuickFilterPriorityChange,
-    onExpandAll, onCollapseAll, roadmapConfig = DEFAULT_ROADMAP_CONFIG
+    onExpandAll, onCollapseAll, roadmapConfig = DEFAULT_ROADMAP_CONFIG,
+    onOpenReportsPanel, isReportsPanelOpen,
 }: ToolbarProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(documentName);
@@ -315,40 +318,7 @@ export default function Toolbar({
                         </button>
                     </div>
 
-                    {!isJsonMode && (
-                        <button
-                            type="button"
-                            onClick={() => onToggleQuickViewMode('reported')}
-                            title="Quick filter: kết hợp AND với các filter khác"
-                            className={`flex h-8 shrink-0 items-center rounded-[9px] border px-3 text-xs font-semibold transition-colors ${isReportedMode
-                                ? 'border-[#F0B90B] bg-[#F0B90B] text-slate-900'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
-                                }`}
-                        >
-                            Reported
-                        </button>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (isReportedMode) return;
-                            onToggleTimelineOnly();
-                        }}
-                        disabled={isReportedMode}
-                        title={isReportedMode
-                            ? 'Timeline Only is not available in Reported mode'
-                            : 'Hide all task info, show timeline only'
-                        }
-                        className={`flex h-8 shrink-0 items-center rounded-[9px] border px-3 text-xs font-semibold transition-colors ${isReportedMode
-                            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                            : isTimelineOnly
-                                ? 'border-emerald-600 bg-emerald-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
-                            }`}
-                    >
-                        Timeline Only
-                    </button>
+                    {/* Standalone "Reported" toggle hidden — replaced by the Weekly reports panel button below. The grouped version inside isJsonMode still works for power users. */}
 
                     <div className="relative shrink-0" ref={phasePickerRef}>
                         <button
@@ -489,6 +459,18 @@ export default function Toolbar({
                         >
                             <Filter size={13} className={activeFilterCount > 0 || isFilterPopupOpen ? 'text-indigo-500' : 'text-slate-500'} />
                             <span>Filter{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
+                        </button>
+                    )}
+
+                    {onOpenReportsPanel && (
+                        <button
+                            onClick={onOpenReportsPanel}
+                            aria-label="Open weekly reports"
+                            title="Weekly reports"
+                            className={`flex h-9 items-center gap-1.5 rounded-[10px] border px-3 text-sm font-semibold transition-colors ${isReportsPanelOpen ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                        >
+                            <Newspaper size={13} className={isReportsPanelOpen ? 'text-indigo-500' : 'text-slate-500'} />
+                            <span>Weekly reports</span>
                         </button>
                     )}
 
