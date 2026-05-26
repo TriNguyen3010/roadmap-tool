@@ -49,13 +49,13 @@ describe('buildRoadmapExcelFile', () => {
 
     expect(rows[0]).toEqual([
       'ID',
-      'Tên',
+      'Name',
       'Note',
-      'Loại',
-      'Trạng thái',
-      'Tiến độ (%)',
-      'Ngày bắt đầu',
-      'Ngày kết thúc',
+      'Type',
+      'Status',
+      'Progress (%)',
+      'Start Date',
+      'End Date',
     ]);
     expect(rows[1][2]).toBe('Main implementation note');
     expect(rows[2][2]).toBe('Line 1\nLine 2');
