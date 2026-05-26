@@ -14,6 +14,8 @@ describe('parseLastDump', () => {
       ],
     };
     const parsed = parseLastDump(raw);
+    expect(parsed).not.toBeNull();
+    if (!parsed) throw new Error('parseLastDump returned null');
     expect(parsed.kind).toBe('aggregate');
     if (parsed.kind !== 'aggregate') throw new Error('narrow');
     expect(parsed.summary.total).toBe(5);
@@ -32,6 +34,8 @@ describe('parseLastDump', () => {
       elapsed: '45s',
     };
     const parsed = parseLastDump(raw);
+    expect(parsed).not.toBeNull();
+    if (!parsed) throw new Error('parseLastDump returned null');
     expect(parsed.kind).toBe('legacy');
     if (parsed.kind !== 'legacy') throw new Error('narrow');
     expect(parsed.roadmapId).toBe('a833');
@@ -50,6 +54,8 @@ describe('parseLastDump', () => {
       roadmaps: [],
     };
     const parsed = parseLastDump(raw);
+    expect(parsed).not.toBeNull();
+    if (!parsed) throw new Error('parseLastDump returned null');
     expect(parsed.kind).toBe('discovery_failed');
     if (parsed.kind !== 'discovery_failed') throw new Error('narrow');
     expect(parsed.error).toBe('Could not fetch roadmap list');
@@ -71,7 +77,9 @@ describe('parseLastDump', () => {
       ],
     };
     const parsed = parseLastDump(raw);
-    if (parsed?.kind !== 'aggregate') throw new Error('narrow');
+    expect(parsed).not.toBeNull();
+    if (!parsed) throw new Error('parseLastDump returned null');
+    if (parsed.kind !== 'aggregate') throw new Error('narrow');
     const found = parsed.roadmaps.find(r => r.roadmapId === 'b');
     expect(found?.releaseName).toBe('B');
   });

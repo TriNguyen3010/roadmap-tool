@@ -21,7 +21,7 @@ export interface LegacyDump {
     timestamp: string;
     timestampLocal: string;
     roadmapId: string;
-    status: 'success' | 'failed' | string;
+    status: string;
     fileSize: string;
     elapsed: string;
 }
