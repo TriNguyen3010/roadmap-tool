@@ -205,6 +205,7 @@ lines.append(f"DELETE FROM public.roadmap_item_images WHERE roadmap_id = {esc(ro
 lines.append(f"DELETE FROM public.roadmap_items WHERE roadmap_id = {esc(roadmap_id)};")
 lines.append(f"DELETE FROM public.roadmap_milestones WHERE roadmap_id = {esc(roadmap_id)};")
 lines.append(f"DELETE FROM public.roadmap_user_settings WHERE roadmap_id = {esc(roadmap_id)};")
+lines.append(f"DELETE FROM public.roadmap_item_changes WHERE roadmap_id = {esc(roadmap_id)};")
 lines.append('')
 
 # 3. Items sorted by depth (FK constraint)
@@ -287,7 +288,6 @@ if team_members:
 with open(f'{tmpdir}/changes.json') as f: changes = json.load(f)
 if changes:
     lines.append(f'-- 8. Audit log ({len(changes)} rows)')
-    lines.append(f"DELETE FROM public.roadmap_item_changes WHERE roadmap_id = {esc(roadmap_id)};")
     for ch in changes:
         cols = 'id, roadmap_id, item_id, team, field, old_value, new_value, changed_by, changed_by_label, changed_at'
         vals = ', '.join([
