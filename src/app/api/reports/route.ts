@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import mammoth from 'mammoth';
 import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
 import { checkRateLimit, getRateLimitKey, readPositiveIntEnv } from '@/lib/rateLimit';
-import { parseReportHeader } from '@/utils/parseReportHeader';
-import { sanitizeReportHtml } from '@/utils/sanitizeReportHtml';
-import { buildStoragePath } from '@/utils/reportFilename';
-import { listReportsByMonth, insertReport } from '@/server/reportsRepo';
-import { uploadReportFile, deleteReportFile } from '@/lib/reportsStorage';
+import { listReportsByMonth } from '@/server/reportsRepo';
 import type { ReportErrorCode } from '@/types/report';
+
+// Heavy upload-only deps (mammoth, isomorphic-dompurify via sanitizeReportHtml)
+// are lazy-imported inside POST. Their top-level import was causing Vercel
+// Lambda cold-start to fail (jsdom pulls native deps that don't initialize on
+// the function runtime), which served a generic 500 even for GET requests.
 
 export const runtime = 'nodejs';
 
@@ -45,6 +45,23 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const requestId = randomUUID();
     let uploadedPath: string | null = null;
+    // Lazy-imported here (not at module top) so GET cold-start stays light;
+    // see the comment by the imports at the top of this file.
+    const [
+        { default: mammoth },
+        { parseReportHeader },
+        { sanitizeReportHtml },
+        { buildStoragePath },
+        { insertReport },
+        { uploadReportFile, deleteReportFile },
+    ] = await Promise.all([
+        import('mammoth'),
+        import('@/utils/parseReportHeader'),
+        import('@/utils/sanitizeReportHtml'),
+        import('@/utils/reportFilename'),
+        import('@/server/reportsRepo'),
+        import('@/lib/reportsStorage'),
+    ]);
     try {
         const auth = await authenticateAdminRequest(request);
         if (!auth) return err('UNAUTHORIZED', 'Unauthorized', 401, requestId);

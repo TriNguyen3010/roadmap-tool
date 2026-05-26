@@ -4,8 +4,11 @@ import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
 import { checkRateLimit, getRateLimitKey, readPositiveIntEnv } from '@/lib/rateLimit';
 import { getReportById, deleteReport, updateReport } from '@/server/reportsRepo';
 import { deleteReportFile } from '@/lib/reportsStorage';
-import { sanitizeReportHtml } from '@/utils/sanitizeReportHtml';
 import type { ReportErrorCode, UpdateReportInput } from '@/types/report';
+
+// sanitizeReportHtml pulls in isomorphic-dompurify/jsdom which fails to
+// initialize on Vercel Lambda cold-start. It's only needed by PATCH when
+// htmlContent is submitted, so we lazy-import inside that branch.
 
 export const runtime = 'nodejs';
 
@@ -142,6 +145,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             if (typeof body.htmlContent !== 'string') {
                 return err('BAD_REQUEST', '`htmlContent` must be a string', 400, requestId);
             }
+            const { sanitizeReportHtml } = await import('@/utils/sanitizeReportHtml');
             const sanitized = sanitizeReportHtml(body.htmlContent);
             // If user submitted non-empty content but sanitizer rejected everything, signal.
             if (body.htmlContent.trim() && sanitized.includes('Không parse được nội dung')) {
