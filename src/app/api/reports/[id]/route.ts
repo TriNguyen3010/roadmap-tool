@@ -6,9 +6,8 @@ import { getReportById, deleteReport, updateReport } from '@/server/reportsRepo'
 import { deleteReportFile } from '@/lib/reportsStorage';
 import type { ReportErrorCode, UpdateReportInput } from '@/types/report';
 
-// sanitizeReportHtml pulls in isomorphic-dompurify/jsdom which fails to
-// initialize on Vercel Lambda cold-start. It's only needed by PATCH when
-// htmlContent is submitted, so we lazy-import inside that branch.
+// sanitizeReportHtml is only needed by PATCH when htmlContent is submitted, so
+// keep it out of GET/DELETE's module path.
 
 export const runtime = 'nodejs';
 

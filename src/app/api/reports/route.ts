@@ -5,10 +5,9 @@ import { checkRateLimit, getRateLimitKey, readPositiveIntEnv } from '@/lib/rateL
 import { listReportsByMonth } from '@/server/reportsRepo';
 import type { ReportErrorCode } from '@/types/report';
 
-// Heavy upload-only deps (mammoth, isomorphic-dompurify via sanitizeReportHtml)
-// are lazy-imported inside POST. Their top-level import was causing Vercel
-// Lambda cold-start to fail (jsdom pulls native deps that don't initialize on
-// the function runtime), which served a generic 500 even for GET requests.
+// Heavy upload-only deps are lazy-imported inside POST. A previous
+// jsdom-backed sanitizer made Vercel Lambda cold-start fail before GET could
+// run; keep this route's module scope light.
 
 export const runtime = 'nodejs';
 

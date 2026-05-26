@@ -6,9 +6,9 @@ import { getReportById, getReportStoragePath, updateReport } from '@/server/repo
 import { deleteReportFile } from '@/lib/reportsStorage';
 import type { ReportErrorCode } from '@/types/report';
 
-// mammoth + sanitizeReportHtml (jsdom-backed) are lazy-loaded inside PUT so
-// the module's cold-start stays light enough for Vercel Lambda init. See the
-// matching comment in src/app/api/reports/route.ts.
+// mammoth + sanitizeReportHtml are lazy-loaded inside PUT so the module's
+// cold-start stays light enough for Vercel Lambda init. See the matching
+// comment in src/app/api/reports/route.ts.
 
 export const runtime = 'nodejs';
 
@@ -32,7 +32,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     let oldStoragePath: string | null = null;
 
     // Lazy import heavy deps so /api/reports/[id]/file module init doesn't
-    // touch mammoth or isomorphic-dompurify on Vercel cold-start.
+    // touch mammoth on Vercel cold-start.
     const [
         { default: mammoth },
         { sanitizeReportHtml },
