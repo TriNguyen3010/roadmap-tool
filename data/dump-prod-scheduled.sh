@@ -73,7 +73,7 @@ if ! "$DOCKER_PATH" info &>/dev/null; then
         WAIT=$((WAIT + 5))
         if [ $WAIT -ge 60 ]; then
             log "ERROR: Docker failed to start after 60s"
-            write_discovery_failed "Docker failed to start" "$WAIT"
+            write_discovery_failed "Docker failed to start" "$(( $(date +%s) - JOB_START ))"
             exit 1
         fi
     done
@@ -118,7 +118,10 @@ RESULTS_FILE="$TMPDIR_AGG/results.json"
 echo "[]" > "$RESULTS_FILE"
 
 # Read (id, release_name) pairs as TSV
-mapfile -t ROADMAPS < <(python3 -c "
+ROADMAPS=()
+while IFS= read -r line; do
+    ROADMAPS+=("$line")
+done < <(python3 -c "
 import json
 for r in json.load(open('$DISCOVERY_FILE')):
     name = (r.get('release_name') or '').replace('\t', ' ').replace('\n', ' ')
