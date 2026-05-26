@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
-import mammoth from 'mammoth';
 import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
 import { checkRateLimit, getRateLimitKey, readPositiveIntEnv } from '@/lib/rateLimit';
-import { sanitizeReportHtml } from '@/utils/sanitizeReportHtml';
-import { buildStoragePath } from '@/utils/reportFilename';
 import { getReportById, getReportStoragePath, updateReport } from '@/server/reportsRepo';
-import { uploadReportFile, deleteReportFile } from '@/lib/reportsStorage';
+import { deleteReportFile } from '@/lib/reportsStorage';
 import type { ReportErrorCode } from '@/types/report';
+
+// mammoth + sanitizeReportHtml (jsdom-backed) are lazy-loaded inside PUT so
+// the module's cold-start stays light enough for Vercel Lambda init. See the
+// matching comment in src/app/api/reports/route.ts.
 
 export const runtime = 'nodejs';
 
@@ -29,6 +30,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     let newStoragePath: string | null = null;
     let oldStoragePath: string | null = null;
+
+    // Lazy import heavy deps so /api/reports/[id]/file module init doesn't
+    // touch mammoth or isomorphic-dompurify on Vercel cold-start.
+    const [
+        { default: mammoth },
+        { sanitizeReportHtml },
+        { buildStoragePath },
+        { uploadReportFile },
+    ] = await Promise.all([
+        import('mammoth'),
+        import('@/utils/sanitizeReportHtml'),
+        import('@/utils/reportFilename'),
+        import('@/lib/reportsStorage'),
+    ]);
 
     try {
         const auth = await authenticateAdminRequest(request);
