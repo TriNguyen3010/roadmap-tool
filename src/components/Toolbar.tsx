@@ -320,27 +320,6 @@ export default function Toolbar({
 
                     {/* Standalone "Reported" toggle hidden — replaced by the Weekly reports panel button below. The grouped version inside isJsonMode still works for power users. */}
 
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (isReportedMode) return;
-                            onToggleTimelineOnly();
-                        }}
-                        disabled={isReportedMode}
-                        title={isReportedMode
-                            ? 'Timeline Only is not available in Reported mode'
-                            : 'Hide all task info, show timeline only'
-                        }
-                        className={`flex h-8 shrink-0 items-center rounded-[9px] border px-3 text-xs font-semibold transition-colors ${isReportedMode
-                            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                            : isTimelineOnly
-                                ? 'border-emerald-600 bg-emerald-600 text-white'
-                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-800'
-                            }`}
-                    >
-                        Timeline Only
-                    </button>
-
                     <div className="relative shrink-0" ref={phasePickerRef}>
                         <button
                             type="button"
