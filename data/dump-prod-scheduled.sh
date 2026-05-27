@@ -11,6 +11,9 @@ set -euo pipefail
 # ---------- CONFIG ----------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# dump-prod.sh writes its SQL to a path relative to CWD, so anchor at the project
+# root — launchd invokes this script with an unrelated working directory.
+cd "$PROJECT_DIR"
 LOCAL_CONTAINER="supabase_db_roadmap-tool"
 TODAY=$(date +%Y-%m-%d)
 DUMPS_DIR="$SCRIPT_DIR/dumps"
