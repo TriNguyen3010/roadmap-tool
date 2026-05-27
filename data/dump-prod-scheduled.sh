@@ -146,7 +146,7 @@ for line in "${ROADMAPS[@]}"; do
         ARCHIVE_SQL="$DAY_ARCHIVE_DIR/${RID}.sql"
         if [ -f "$SOURCE_SQL" ]; then
             cp "$SOURCE_SQL" "$ARCHIVE_SQL"
-            R_SIZE=$(du -h "$ARCHIVE_SQL" | cut -f1)
+            R_SIZE=$(du -h "$ARCHIVE_SQL" | awk '{print $1}')
             log "Archived: dumps/${TODAY}/${RID}.sql ($R_SIZE)"
             if "$DOCKER_PATH" exec -i "$LOCAL_CONTAINER" psql -U postgres -d postgres < "$SOURCE_SQL" >> "$LOG_FILE" 2>&1; then
                 log "Import OK"
@@ -194,7 +194,7 @@ total = len(roadmaps)
 success = sum(1 for r in roadmaps if r.get('status') == 'success')
 failed = total - success
 
-now_utc = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+now_utc = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 now_local = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 out = {
