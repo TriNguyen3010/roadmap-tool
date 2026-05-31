@@ -9,12 +9,10 @@ interface Props {
 
 export function RoadmapBackupInfo({ roadmapId }: Props) {
     const [entry, setEntry] = useState<RoadmapBackup | null>(null);
-    const [isLocal, setIsLocal] = useState(false);
 
     useEffect(() => {
         const host = window.location.hostname;
         if (host !== 'localhost' && host !== '127.0.0.1') return;
-        setIsLocal(true);
 
         fetch('/api/last-dump')
             .then(res => res.ok ? res.json() : null)
@@ -37,7 +35,7 @@ export function RoadmapBackupInfo({ roadmapId }: Props) {
             .catch(() => {});
     }, [roadmapId]);
 
-    if (!isLocal || !entry) return null;
+    if (!entry) return null;
 
     const ok = entry.status === 'success';
     const cls = ok

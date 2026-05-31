@@ -182,6 +182,9 @@ def esc_jsonb(v):
         return 'NULL'
     return f"'{json.dumps(v, ensure_ascii=False).replace(chr(39), chr(39)+chr(39))}'::jsonb"
 
+def ts_or_now(v):
+    return esc(v) if v else 'now()'
+
 lines = []
 lines.append('-- Auto-generated dump from production')
 lines.append(f'-- Roadmap: {roadmap_id}')
@@ -194,9 +197,16 @@ lines.append('')
 # 1. Metadata
 r = metadata[0]
 lines.append('-- 1. Roadmap metadata')
-lines.append(f"""INSERT INTO public.roadmaps (id, release_name, start_date, end_date, created_at, updated_at)
-VALUES ({esc(r['id'])}, {esc(r.get('release_name',''))}, {esc(r.get('start_date',''))}, {esc(r.get('end_date',''))}, now(), now())
-ON CONFLICT (id) DO UPDATE SET release_name = EXCLUDED.release_name, updated_at = now();""")
+lines.append(f"""INSERT INTO public.roadmaps (id, release_name, start_date, end_date, source_version, storage_mode, config, created_at, updated_at)
+VALUES ({esc(r['id'])}, {esc(r.get('release_name',''))}, {esc(r.get('start_date',''))}, {esc(r.get('end_date',''))}, {esc(r.get('source_version'))}, {esc(r.get('storage_mode') or 'table')}, {esc_jsonb(r.get('config'))}, {ts_or_now(r.get('created_at'))}, {ts_or_now(r.get('updated_at'))})
+ON CONFLICT (id) DO UPDATE SET
+  release_name = EXCLUDED.release_name,
+  start_date = EXCLUDED.start_date,
+  end_date = EXCLUDED.end_date,
+  source_version = EXCLUDED.source_version,
+  storage_mode = EXCLUDED.storage_mode,
+  config = EXCLUDED.config,
+  updated_at = EXCLUDED.updated_at;""")
 lines.append('')
 
 # 2. Clean existing

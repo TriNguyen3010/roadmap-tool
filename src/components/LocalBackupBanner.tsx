@@ -5,12 +5,10 @@ import { parseLastDump, type LastDump } from '@/utils/lastDump';
 
 export function LocalBackupBanner() {
     const [dump, setDump] = useState<LastDump | null>(null);
-    const [isLocal, setIsLocal] = useState(false);
 
     useEffect(() => {
         const host = window.location.hostname;
         if (host !== 'localhost' && host !== '127.0.0.1') return;
-        setIsLocal(true);
 
         fetch('/api/last-dump')
             .then(res => res.ok ? res.json() : null)
@@ -21,7 +19,7 @@ export function LocalBackupBanner() {
             .catch(() => {});
     }, []);
 
-    if (!isLocal || !dump) return null;
+    if (!dump) return null;
 
     if (dump.kind === 'discovery_failed') {
         return (

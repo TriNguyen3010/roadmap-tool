@@ -18,7 +18,6 @@ import type {
     RoadmapMilestoneRowRecord,
     RoadmapItemImageRowRecord,
     NormalizedRoadmapReadModel,
-    NormalizedRoadmapRows,
 } from '@/types/roadmapRows';
 import { inflateRoadmapDocumentFromRows, flattenRoadmapDocumentToRows } from '@/utils/roadmapRows';
 
@@ -37,7 +36,20 @@ export async function getStorageMode(roadmapId: string): Promise<StorageMode> {
         .select('storage_mode')
         .eq('id', roadmapId)
         .maybeSingle();
-    return (data?.storage_mode as StorageMode) || 'json';
+
+    if (!data) return 'json';
+    if (data.storage_mode === 'table') return 'table';
+
+    // Some local backup imports created normalized rows before the dump script
+    // wrote storage_mode. If there is no legacy JSON blob, treat the roadmap as
+    // table-based so restored production roadmaps can still open.
+    const { data: legacyBlob } = await supabase
+        .from('roadmap_data')
+        .select('id')
+        .eq('id', roadmapId)
+        .maybeSingle();
+
+    return legacyBlob ? 'json' : 'table';
 }
 
 // ─── Column name mapping (camelCase TS → snake_case DB) ──────────────────────
