@@ -110,6 +110,48 @@ echo "  -> Images: $(python3 -c "import json; print(len(json.load(open('${TMPDIR
 echo "  -> User settings: $(python3 -c "import json; print(len(json.load(open('${TMPDIR_DUMP}/user_settings.json'))))")"
 echo "  -> Team members: $(python3 -c "import json; print(len(json.load(open('${TMPDIR_DUMP}/team_members.json'))))")"
 
+# Audit log (paginated, ordered by id for stable pagination)
+fetch_paginated_by_id() {
+  local table="$1"
+  local filter="$2"
+  local outfile="$3"
+  local last_id=""
+  local limit=1000
+
+  echo "[]" > "$outfile"
+
+  while true; do
+    local page_file="${TMPDIR_DUMP}/page_changes_${RANDOM}.json"
+    local url="${PROD_URL}/rest/v1/${table}?${filter}&select=*&order=id.asc&limit=${limit}"
+    if [ -n "$last_id" ]; then
+      url="${url}&id=gt.${last_id}"
+    fi
+    curl -s "$url" \
+      -H "apikey: ${PROD_SERVICE_KEY}" \
+      -H "Authorization: Bearer ${PROD_SERVICE_KEY}" \
+      > "$page_file"
+
+    local count
+    count=$(python3 -c "import json; print(len(json.load(open('$page_file'))))")
+
+    python3 -c "
+import json
+with open('$outfile') as f: existing = json.load(f)
+with open('$page_file') as f: page = json.load(f)
+with open('$outfile', 'w') as f: json.dump(existing + page, f)
+"
+
+    if [ "$count" -lt "$limit" ]; then
+      break
+    fi
+    # last id of the page for keyset pagination
+    last_id=$(python3 -c "import json; p = json.load(open('$page_file')); print(p[-1]['id'])")
+  done
+}
+
+fetch_paginated_by_id "roadmap_item_changes" "roadmap_id=eq.${ROADMAP_ID}" "${TMPDIR_DUMP}/changes.json"
+echo "  -> Changes: $(python3 -c "import json; print(len(json.load(open('${TMPDIR_DUMP}/changes.json'))))")"
+
 # ---------- STEP 2: Generate SQL via Python ----------
 echo ""
 echo "[4/4] Generating SQL file..."
@@ -140,6 +182,9 @@ def esc_jsonb(v):
         return 'NULL'
     return f"'{json.dumps(v, ensure_ascii=False).replace(chr(39), chr(39)+chr(39))}'::jsonb"
 
+def ts_or_now(v):
+    return esc(v) if v else 'now()'
+
 lines = []
 lines.append('-- Auto-generated dump from production')
 lines.append(f'-- Roadmap: {roadmap_id}')
@@ -152,9 +197,16 @@ lines.append('')
 # 1. Metadata
 r = metadata[0]
 lines.append('-- 1. Roadmap metadata')
-lines.append(f"""INSERT INTO public.roadmaps (id, release_name, start_date, end_date, created_at, updated_at)
-VALUES ({esc(r['id'])}, {esc(r.get('release_name',''))}, {esc(r.get('start_date',''))}, {esc(r.get('end_date',''))}, now(), now())
-ON CONFLICT (id) DO UPDATE SET release_name = EXCLUDED.release_name, updated_at = now();""")
+lines.append(f"""INSERT INTO public.roadmaps (id, release_name, start_date, end_date, source_version, storage_mode, config, created_at, updated_at)
+VALUES ({esc(r['id'])}, {esc(r.get('release_name',''))}, {esc(r.get('start_date',''))}, {esc(r.get('end_date',''))}, {esc(r.get('source_version'))}, {esc(r.get('storage_mode') or 'table')}, {esc_jsonb(r.get('config'))}, {ts_or_now(r.get('created_at'))}, {ts_or_now(r.get('updated_at'))})
+ON CONFLICT (id) DO UPDATE SET
+  release_name = EXCLUDED.release_name,
+  start_date = EXCLUDED.start_date,
+  end_date = EXCLUDED.end_date,
+  source_version = EXCLUDED.source_version,
+  storage_mode = EXCLUDED.storage_mode,
+  config = EXCLUDED.config,
+  updated_at = EXCLUDED.updated_at;""")
 lines.append('')
 
 # 2. Clean existing
@@ -163,6 +215,7 @@ lines.append(f"DELETE FROM public.roadmap_item_images WHERE roadmap_id = {esc(ro
 lines.append(f"DELETE FROM public.roadmap_items WHERE roadmap_id = {esc(roadmap_id)};")
 lines.append(f"DELETE FROM public.roadmap_milestones WHERE roadmap_id = {esc(roadmap_id)};")
 lines.append(f"DELETE FROM public.roadmap_user_settings WHERE roadmap_id = {esc(roadmap_id)};")
+lines.append(f"DELETE FROM public.roadmap_item_changes WHERE roadmap_id = {esc(roadmap_id)};")
 lines.append('')
 
 # 3. Items sorted by depth (FK constraint)
@@ -239,6 +292,27 @@ if team_members:
             else:
                 vals_list.append(esc(v))
         lines.append(f"INSERT INTO public.team_members ({', '.join(cols_list)}) VALUES ({', '.join(vals_list)}) ON CONFLICT DO NOTHING;")
+    lines.append('')
+
+# 8. Audit log
+with open(f'{tmpdir}/changes.json') as f: changes = json.load(f)
+if changes:
+    lines.append(f'-- 8. Audit log ({len(changes)} rows)')
+    for ch in changes:
+        cols = 'id, roadmap_id, item_id, team, field, old_value, new_value, changed_by, changed_by_label, changed_at'
+        vals = ', '.join([
+            esc(ch.get('id')),
+            esc(ch.get('roadmap_id')),
+            esc(ch.get('item_id')),
+            esc(ch.get('team')),
+            esc(ch.get('field')),
+            esc(ch.get('old_value')),
+            esc(ch.get('new_value')),
+            esc(ch.get('changed_by')),
+            esc(ch.get('changed_by_label')),
+            esc(ch.get('changed_at')),
+        ])
+        lines.append(f'INSERT INTO public.roadmap_item_changes ({cols}) VALUES ({vals});')
     lines.append('')
 
 lines.append('COMMIT;')

@@ -1,49 +1,101 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'fs/promises';
+import path from 'path';
 import { supabase } from '@/lib/supabase';
 import { authenticateAdminRequest } from '@/lib/serverTeamAuth';
 import { filterVisibleRoadmaps } from '@/utils/roadmapVisibility';
+import { parseLastDump } from '@/utils/lastDump';
 
 export const runtime = 'nodejs';
 
+interface RoadmapListItem {
+    id: string;
+    name: string;
+    updated_at: string | null;
+    storage_mode: 'json' | 'table';
+}
+
+function getRoadmapNameFromContent(content: unknown): string {
+    if (content && typeof content === 'object' && 'releaseName' in content) {
+        const releaseName = (content as { releaseName?: unknown }).releaseName;
+        if (typeof releaseName === 'string' && releaseName.trim()) {
+            return releaseName.trim();
+        }
+    }
+    return 'Untitled Roadmap';
+}
+
+function isLocalRequest(request: NextRequest): boolean {
+    const host = (request.headers.get('host') || request.nextUrl.hostname).split(':')[0];
+    return host === 'localhost' || host === '127.0.0.1';
+}
+
+async function readLocalBackupRoadmapIds(request: NextRequest): Promise<Set<string>> {
+    if (!isLocalRequest(request)) return new Set();
+    try {
+        const filePath = path.join(process.cwd(), 'data', 'last-dump.json');
+        const parsed = parseLastDump(JSON.parse(await readFile(filePath, 'utf-8')));
+        if (parsed?.kind !== 'aggregate') return new Set();
+        return new Set(parsed.roadmaps.map((roadmap) => roadmap.roadmapId).filter(Boolean));
+    } catch {
+        return new Set();
+    }
+}
+
+function filterLocalBackupList(list: RoadmapListItem[], backupIds: Set<string>): RoadmapListItem[] {
+    if (backupIds.size === 0) return list;
+    const backedUpRoadmaps = list.filter((item) => backupIds.has(item.id));
+    return backedUpRoadmaps.length > 0 ? backedUpRoadmaps : list;
+}
+
 // GET /api/roadmaps — list all roadmaps (id, name, updated_at)
 // Merges legacy (roadmap_data) and new (roadmaps table) sources.
-export async function GET() {
+export async function GET(request: NextRequest) {
     try {
-        // Read from roadmaps table (covers both json and table mode)
-        const { data: roadmapRows, error: roadmapError } = await supabase
-            .from('roadmaps')
-            .select('id, release_name, updated_at, storage_mode')
-            .order('updated_at', { ascending: false });
+        const [roadmapsRes, legacyRes, backupIds] = await Promise.all([
+            supabase
+                .from('roadmaps')
+                .select('id, release_name, updated_at, storage_mode')
+                .order('updated_at', { ascending: false }),
+            supabase
+                .from('roadmap_data')
+                .select('id, content, updated_at, storage_mode')
+                .order('updated_at', { ascending: false }),
+            readLocalBackupRoadmapIds(request),
+        ]);
 
-        if (roadmapError) throw roadmapError;
+        if (roadmapsRes.error) throw roadmapsRes.error;
+        if (legacyRes.error) throw legacyRes.error;
 
-        // If roadmaps table has data, use it as source
-        if (roadmapRows && roadmapRows.length > 0) {
-            const list = roadmapRows.map((row) => ({
+        const byId = new Map<string, RoadmapListItem>();
+        const legacyIds = new Set((legacyRes.data ?? []).map((row) => row.id));
+
+        for (const row of roadmapsRes.data ?? []) {
+            const storageMode = row.storage_mode === 'table' || !legacyIds.has(row.id) ? 'table' : 'json';
+            byId.set(row.id, {
                 id: row.id,
                 name: row.release_name || 'Untitled Roadmap',
                 updated_at: row.updated_at,
-                storage_mode: row.storage_mode || 'json',
-            }));
-            return NextResponse.json(filterVisibleRoadmaps(list));
+                storage_mode: storageMode,
+            });
         }
 
-        // Fallback: read from roadmap_data (for projects that haven't run backfill yet)
-        const { data, error } = await supabase
-            .from('roadmap_data')
-            .select('id, content, updated_at')
-            .order('updated_at', { ascending: false });
+        for (const row of legacyRes.data ?? []) {
+            if (byId.has(row.id)) continue;
+            byId.set(row.id, {
+                id: row.id,
+                name: getRoadmapNameFromContent(row.content),
+                updated_at: row.updated_at,
+                storage_mode: row.storage_mode === 'table' ? 'table' : 'json',
+            });
+        }
 
-        if (error) throw error;
-
-        const list = (data ?? []).map((row) => {
-            const content = row.content as Record<string, unknown> | null;
-            const name =
-                typeof content?.releaseName === 'string' && content.releaseName.trim()
-                    ? content.releaseName.trim()
-                    : 'Untitled Roadmap';
-            return { id: row.id, name, updated_at: row.updated_at, storage_mode: 'json' };
-        });
+        const list = filterLocalBackupList(Array.from(byId.values()), backupIds)
+            .sort((a, b) => {
+                const aTime = a.updated_at ? Date.parse(a.updated_at) : 0;
+                const bTime = b.updated_at ? Date.parse(b.updated_at) : 0;
+                return bTime - aTime;
+            });
 
         return NextResponse.json(filterVisibleRoadmaps(list));
     } catch (error) {

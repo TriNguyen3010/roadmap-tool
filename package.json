@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "backfill:roadmap-rows": "node scripts/backfill-roadmap-rows.mjs"
+    "backfill:roadmap-rows": "node scripts/backfill-roadmap-rows.mjs",
+    "dump:all": "bash data/dump-prod-scheduled.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.0",

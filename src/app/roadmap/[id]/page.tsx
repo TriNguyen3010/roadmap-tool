@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { LoginForm } from '@/components/LoginForm';
 import { useToast } from '@/hooks/useToast';
 import { LocalBackupBanner } from '@/components/LocalBackupBanner';
+import { RoadmapBackupInfo } from '@/components/RoadmapBackupInfo';
 import { useGoogleAuth } from '@/hooks/useGoogleAuth';
 import { getSupabaseBrowserClient } from '@/lib/supabaseBrowser';
 import type { EditPermission, ManagerFieldChange } from '@/types/auth';
@@ -1899,6 +1900,7 @@ export default function RoadmapPage() {
   return (
     <main className="flex flex-col h-screen max-w-full overflow-hidden bg-white text-gray-900">
       <LocalBackupBanner />
+      <RoadmapBackupInfo roadmapId={roadmapId} />
       <Toast toasts={toasts} onRemove={removeToast} />
 
       {confirmState && (
